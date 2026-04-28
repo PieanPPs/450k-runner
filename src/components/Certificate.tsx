@@ -1,10 +1,13 @@
 import { useContext, useState } from 'react';
 import { ThemeCtx } from '@/themes/context';
 import { SectionHeader } from '@/components/UI';
+import { useAppData } from '@/context/DataContext';
 
 export default function Certificate() {
   const { theme: t } = useContext(ThemeCtx);
   const [expanded, setExpanded] = useState(false);
+  const { data } = useAppData();
+  const { settings } = data;
 
   return (
     <section id="certificate" style={{ padding: '80px 24px', background: t.altBg }}>
@@ -18,7 +21,7 @@ export default function Certificate() {
 
           {/* Certificate preview */}
           <div style={{ flex: '1', minWidth: 300, maxWidth: 600 }}>
-            <CertificateCard />
+            <CertificateCard sigDirector={settings.sig_director||''} sigChair={settings.sig_chair||''} sigDirectorName={settings.sig_director_name||''} sigChairName={settings.sig_chair_name||''} />
             <p style={{ textAlign: 'center', color: t.textMuted, fontSize: 12, marginTop: 12 }}>
               ✦ ตัวอย่างเกียรติบัตร — ออกให้เมื่อวิ่งครบเป้าหมาย
             </p>
@@ -85,7 +88,7 @@ export default function Certificate() {
           }}
         >
           <div onClick={e => e.stopPropagation()} style={{ maxWidth: 680, width: '100%' }}>
-            <CertificateCard large />
+            <CertificateCard large sigDirector={settings.sig_director||''} sigChair={settings.sig_chair||''} sigDirectorName={settings.sig_director_name||''} sigChairName={settings.sig_chair_name||''} />
             <button
               onClick={() => setExpanded(false)}
               style={{
@@ -102,7 +105,7 @@ export default function Certificate() {
   );
 }
 
-function CertificateCard({ large = false }: { large?: boolean }) {
+export function CertificateCard({ name = 'ชื่อ – นามสกุล', km = '450', large = false, sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '' }: { name?: string; km?: string; large?: boolean; sigDirector?: string; sigChair?: string; sigDirectorName?: string; sigChairName?: string }) {
   const p = large ? 1 : 0.78;
 
   return (
@@ -216,7 +219,7 @@ function CertificateCard({ large = false }: { large?: boolean }) {
           paddingBottom: 4, minWidth: 180 * p,
           marginBottom: 10 * p,
         }}>
-          ชื่อ – นามสกุล
+          {name}
         </div>
 
         <div style={{ fontSize: 9 * p, color: '#5a4010', lineHeight: 2, fontFamily: 'Sarabun', marginBottom: 4 * p }}>
@@ -230,7 +233,7 @@ function CertificateCard({ large = false }: { large?: boolean }) {
             fontFamily: 'Bebas Neue, serif', fontSize: 42 * p,
             color: '#b8860b', letterSpacing: 4,
             textShadow: '0 2px 8px rgba(184,134,11,0.25)',
-          }}>450</span>
+          }}>{km}</span>
           <span style={{ fontFamily: 'Sarabun', fontSize: 13 * p, color: '#8a6530', marginLeft: 6 }}>
             กิโลเมตร
           </span>
@@ -251,11 +254,18 @@ function CertificateCard({ large = false }: { large?: boolean }) {
 
         {/* Signature */}
         <div style={{ display: 'flex', justifyContent: 'space-around', width: '80%' }}>
-          {['ผู้อำนวยการโรงเรียน', 'ประธานโครงการ'].map(role => (
-            <div key={role} style={{ textAlign: 'center' }}>
-              <div style={{ height: 24 * p }} /> {/* signature space */}
-              <div style={{ borderTop: '1px solid #c9a84c', width: 100 * p, margin: '0 auto 4px' }} />
-              <div style={{ color: '#8a6530', fontSize: 8 * p, fontFamily: 'Sarabun' }}>{role}</div>
+          {[
+            { role: 'ผู้อำนวยการโรงเรียน', img: sigDirector, sigName: sigDirectorName },
+            { role: 'ประธานโครงการ',        img: sigChair,    sigName: sigChairName },
+          ].map(({ role, img, sigName }) => (
+            <div key={role} style={{ textAlign: 'center', minWidth: 110 * p }}>
+              {img
+                ? <img src={img} alt={role} style={{ height: 36 * p, maxWidth: 120 * p, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                : <div style={{ height: 36 * p }} />
+              }
+              <div style={{ borderTop: '1px solid #c9a84c', width: 110 * p, margin: '4px auto 3px' }} />
+              {sigName && <div style={{ color: '#4a3010', fontSize: 7.5 * p, fontFamily: 'Sarabun', marginBottom: 2 }}>{sigName}</div>}
+              <div style={{ color: '#8a6530', fontSize: 7 * p, fontFamily: 'Sarabun' }}>{role}</div>
             </div>
           ))}
         </div>

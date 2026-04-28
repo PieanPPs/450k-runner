@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
 
@@ -206,6 +206,42 @@ function Settings() {
         {inp('about_3_body','About การ์ด 3 เนื้อหา','')}
         {inp('about_4_title','About การ์ด 4 หัวข้อ','')}
         {inp('about_4_body','About การ์ด 4 เนื้อหา','')}
+
+        {/* Signature uploads */}
+        <div style={{ borderTop:'1px solid #2a2a3e', marginTop:8, paddingTop:20 }}>
+          <div style={{ color:'#a78bfa', fontSize:13, fontWeight:700, marginBottom:16 }}>✍️ ลายเซ็นบนเกียรติบัตร</div>
+          {(['sig_director','sig_chair'] as const).map((key, i) => {
+            const label = i===0 ? 'ลายเซ็น ผู้อำนวยการโรงเรียน' : 'ลายเซ็น ประธานโครงการ';
+            const nameKey = i===0 ? 'sig_director_name' : 'sig_chair_name';
+            const nameLabel = i===0 ? 'ชื่อ ผู้อำนวยการ' : 'ชื่อ ประธานโครงการ';
+            return (
+              <div key={key} style={{ marginBottom:20 }}>
+                <label style={{ color:'#888', fontSize:12, display:'block', marginBottom:6 }}>{label}</label>
+                {form[key] && (
+                  <div style={{ marginBottom:8, display:'flex', alignItems:'center', gap:10 }}>
+                    <img src={form[key]} alt="sig" style={{ height:48, background:'white', borderRadius:6, padding:4 }} />
+                    <button onClick={()=>setForm(f=>({...f,[key]:''}))}
+                      style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:11, cursor:'pointer' }}>ลบ</button>
+                  </div>
+                )}
+                <input type="file" accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => setForm(f=>({...f,[key]: ev.target?.result as string}));
+                    reader.readAsDataURL(file);
+                  }}
+                  style={{ display:'block', marginBottom:8, color:'#888', fontSize:12 }} />
+                <div style={{ marginTop:4 }}>
+                  <label style={{ color:'#666', fontSize:11, display:'block', marginBottom:3 }}>{nameLabel}</label>
+                  <input value={form[nameKey]||''} onChange={e=>setForm(f=>({...f,[nameKey]:e.target.value}))} placeholder="ชื่อ-นามสกุล"
+                    style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'6px 12px', color:'#e2e8f0', fontSize:12, boxSizing:'border-box' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         <button onClick={save}
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {saved ? '✅ บันทึกแล้ว' : 'บันทึก'}
@@ -215,12 +251,80 @@ function Settings() {
   );
 }
 
+// ─── Certificate PDF Generator ────────────────────────────
+async function generateCertificatePDF(name: string, km: string) {
+  const { default: html2canvas } = await import('html2canvas');
+  const { jsPDF } = await import('jspdf');
+
+  // สร้าง container ชั่วคราวนอกจอ
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position:fixed; left:-9999px; top:0;
+    width:794px; height:562px;
+    background:#fdf3d8; font-family:serif;
+  `;
+  document.body.appendChild(container);
+
+  // render CertificateCard ลงใน container
+  const { createRoot } = await import('react-dom/client');
+  const { CertificateCard } = await import('@/components/Certificate');
+  const root = createRoot(container);
+
+  // ดึง settings จาก localStorage cache หรือ fetch ใหม่
+  let sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '';
+  try {
+    const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+    const s = await fetch(`${BASE_URL}/api/settings`).then(r => r.json());
+    sigDirector = s.sig_director || '';
+    sigChair = s.sig_chair || '';
+    sigDirectorName = s.sig_director_name || '';
+    sigChairName = s.sig_chair_name || '';
+  } catch {}
+
+  await new Promise<void>(resolve => {
+    root.render(
+      // @ts-ignore
+      <CertificateCard name={name} km={String(km)} large
+        sigDirector={sigDirector} sigChair={sigChair}
+        sigDirectorName={sigDirectorName} sigChairName={sigChairName} />
+    );
+    setTimeout(resolve, 600); // รอ render + fonts
+  });
+
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#fdf3d8',
+    width: 794, height: 562,
+  });
+
+  root.unmount();
+  document.body.removeChild(container);
+
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+  pdf.save(`certificate_${name.replace(/\s+/g, '_')}.pdf`);
+}
+
 // ─── Participants ─────────────────────────────────────────
 function Participants() {
   const [rows, setRows] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
+  const [generating, setGenerating] = useState<number | null>(null);
   const load = useCallback(() => api('/participants').then(setRows), []);
   useEffect(() => { load(); }, [load]);
+
+  const handleGeneratePDF = async (r: any) => {
+    setGenerating(r.id);
+    try {
+      await generateCertificatePDF(r.name, r.km);
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + (e as Error).message);
+    } finally {
+      setGenerating(null);
+    }
+  };
 
   const save = async () => {
     await api(`/participants/${editing.id}`, { method:'PUT', body: JSON.stringify({ name: editing.name, initials: editing.initials }) });
@@ -252,9 +356,26 @@ function Participants() {
                 <td style={{ padding:'10px 14px', color:'#888' }}>{r.initials}</td>
                 <td style={{ padding:'10px 14px', color:'#a78bfa', fontFamily:'Bebas Neue', fontSize:16 }}>{r.km}</td>
                 <td style={{ padding:'10px 14px', color:'#555', fontSize:11 }}>{r.strava_key||'—'}</td>
-                <td style={{ padding:'10px 14px', display:'flex', gap:6 }}>
-                  <button onClick={()=>setEditing({...r})} style={{ background:'#2a2a3e', border:'none', borderRadius:6, padding:'4px 10px', color:'#a78bfa', fontSize:12, cursor:'pointer' }}>แก้</button>
-                  <button onClick={()=>del(r.id,r.name)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>ลบ</button>
+                <td style={{ padding:'10px 14px' }}>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    <button onClick={()=>setEditing({...r})} style={{ background:'#2a2a3e', border:'none', borderRadius:6, padding:'4px 10px', color:'#a78bfa', fontSize:12, cursor:'pointer' }}>แก้</button>
+                    <button
+                      onClick={() => handleGeneratePDF(r)}
+                      disabled={generating === r.id}
+                      title="ออกเกียรติบัตร PDF"
+                      style={{
+                        background: 'linear-gradient(135deg,#c9a84c,#e8cc80)',
+                        border:'none', borderRadius:6, padding:'4px 10px',
+                        color: '#1a1200',
+                        fontSize:12, cursor: generating === r.id ? 'wait' : 'pointer',
+                        fontWeight:600, whiteSpace:'nowrap',
+                        opacity: generating === r.id ? 0.6 : 1,
+                      }}
+                    >
+                      {generating === r.id ? '⏳...' : '📜 PDF'}
+                    </button>
+                    <button onClick={()=>del(r.id,r.name)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>ลบ</button>
+                  </div>
                 </td>
               </tr>
             ))}
