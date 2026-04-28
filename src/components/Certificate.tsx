@@ -149,7 +149,7 @@ export function CertificateCard({ name = 'ชื่อ – นามสกุล
           position: 'absolute', ...pos,
           width: 28 * p, height: 28 * p,
           zIndex: 3,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M2 2 L12 2 M2 2 L2 12' stroke='%23c9a84c' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='2' cy='2' r='1.5' fill='%23c9a84c'/%3E%3C/svg%3E")`,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M2 2 L12 2 M2 2 L2 12' stroke='%23c9a84c' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='2' cy='2' r='1.5' fill='%23c9a84c'/%3E%3C/svg%3E")`,
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
           transform: i === 1 ? 'scaleX(-1)' : i === 2 ? 'scaleY(-1)' : i === 3 ? 'scale(-1,-1)' : 'none',
