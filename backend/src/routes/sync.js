@@ -76,13 +76,15 @@ router.post('/', async (_req, res) => {
     const actCount = seasonRow.cnt;
     const steps    = Math.round(totalKm * 1350);
 
-    // weekly km (7 วันล่าสุด)
+    // weekly km (7 วันล่าสุด แต่ต้องอยู่ใน season ด้วย)
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+    const seasonStr = SEASON_START + ' 00:00:00';
+    const weekFromStr = weekStr > seasonStr ? weekStr : seasonStr;
     const weekRow = db.prepare(
       `SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND first_seen >= ?`
-    ).get(stravaKey, weekStr);
+    ).get(stravaKey, weekFromStr);
     const weeklyKm = Math.round(weekRow.km * 10) / 10;
 
     db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
