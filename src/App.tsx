@@ -8,6 +8,7 @@ import Journey from '@/components/Journey';
 import WeeklyGraph from '@/components/WeeklyGraph';
 import Seasons from '@/components/Seasons';
 import Gallery from '@/components/Gallery';
+import Certificate from '@/components/Certificate';
 import Footer from '@/components/Footer';
 import AdminPage from '@/pages/AdminPage';
 import StravaWidgets from '@/components/StravaWidgets';
@@ -27,6 +28,7 @@ function AppBody() {
       <WeeklyGraph />
       <Seasons />
       <StravaWidgets />
+      <Certificate />
       <Gallery />
       <Footer />
     </div>

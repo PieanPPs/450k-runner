@@ -28,12 +28,12 @@ export default function Journey() {
 
         {/* Team overall progress bar */}
         <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:24, padding:28, marginBottom:32, position:'relative', overflow:'hidden' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10, flexWrap:'wrap', gap:8 }}>
-            <span style={{ color:t.text, fontWeight:700 }}>📍 สมุทรสาคร</span>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, flexWrap:'wrap', gap:8 }}>
+            <span style={{ color:t.text, fontWeight:700 }}>📍 โรงเรียนอนุสรณ์ศุภมาศ</span>
             <span style={{ color:t.accent1, fontWeight:700, fontFamily:'Bebas Neue', fontSize:20 }}>
               {totalKm.toFixed(1)} / {goalKm.toFixed(0)} KM (ทีมรวม)
             </span>
-            <span style={{ color:t.textMuted }}>🏁 ชุมพร ({goalKm.toFixed(0)} km)</span>
+            <span style={{ color:t.accent3, fontWeight:700 }}>🏁 เป้าหมาย {goalKm.toFixed(0)} km</span>
           </div>
           <div style={{ position:'relative', background:t.progressBg, height:20, borderRadius:999, overflow:'hidden', marginBottom:20 }}>
             <div style={{ position:'absolute', inset:0, width:`${Math.min(100,(totalKm/Math.max(goalKm,1))*100)}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, borderRadius:999, transition:'width 1.5s ease' }} />
@@ -41,19 +41,21 @@ export default function Journey() {
               <div key={i} style={{ position:'absolute', left:`${(d.km/perPersonGoal)*100}%`, top:'50%', transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background:totalKm/Math.max(participants.length,1)>=d.km?'#fff':'rgba(255,255,255,0.3)', border:`2px solid ${totalKm/Math.max(participants.length,1)>=d.km?t.accent1:'rgba(255,255,255,0.2)'}`, zIndex:1 }} />
             ))}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:10 }}>
             {distances.map((d,i) => {
               const avgKm = totalKm / Math.max(participants.length, 1);
               const reached = avgKm >= d.km;
               return (
                 <a key={i} href={d.gmapUrl} target="_blank" rel="noreferrer" style={{ textDecoration:'none' }}>
-                  <div style={{ background:reached?`${t.accent1}18`:t.progressBg, border:`1px solid ${reached?t.accent1+'60':t.cardBorder}`, borderRadius:12, padding:'10px 6px', textAlign:'center', transition:'transform 0.2s', cursor:'pointer' }}
+                  <div style={{ background:reached?`${t.accent1}18`:t.progressBg, border:`1px solid ${reached?t.accent1+'60':t.cardBorder}`, borderRadius:12, padding:'12px 8px', textAlign:'center', transition:'transform 0.2s', cursor:'pointer', height:'100%', boxSizing:'border-box' }}
                     onMouseEnter={e=>e.currentTarget.style.transform='scale(1.05)'}
                     onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}>
-                    <div style={{ fontSize:20, marginBottom:2 }}>{d.icon}</div>
-                    <div style={{ fontFamily:'Bebas Neue', fontSize:18, color:reached?t.accent1:t.textSub }}>{d.km}</div>
-                    <div style={{ color:t.textSub, fontSize:8, marginBottom:2 }}>km</div>
-                    <div style={{ color:reached?t.text:t.textSub, fontWeight:600, fontSize:10 }}>{d.label}</div>
+                    <div style={{ fontSize:22, marginBottom:4 }}>{d.icon}</div>
+                    <div style={{ fontFamily:'Bebas Neue', fontSize:18, color:reached?t.accent1:t.textSub }}>{d.km} <span style={{ fontSize:10, fontFamily:'Sarabun' }}>km</span></div>
+                    <div style={{ color:reached?t.text:t.textSub, fontWeight:700, fontSize:11, marginBottom:4 }}>{d.label}</div>
+                    {(d as any).desc && (
+                      <div style={{ color:t.textMuted, fontSize:9, lineHeight:1.5, borderTop:`1px solid ${t.cardBorder}`, paddingTop:4, marginTop:2 }}>{(d as any).desc}</div>
+                    )}
                   </div>
                 </a>
               );
