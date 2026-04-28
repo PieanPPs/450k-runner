@@ -288,14 +288,26 @@ async function generateCertificatePDF(name: string, km: string) {
         sigDirector={sigDirector} sigChair={sigChair}
         sigDirectorName={sigDirectorName} sigChairName={sigChairName} />
     );
-    setTimeout(resolve, 600); // รอ render + fonts
+    setTimeout(resolve, 800); // รอ render + fonts
   });
+
+  // html2canvas ไม่รองรับ CSS aspect-ratio → force height ด้วย JS
+  const cardEl = container.firstElementChild as HTMLElement | null;
+  if (cardEl) {
+    cardEl.style.width  = '794px';
+    cardEl.style.height = '561px';
+    cardEl.style.aspectRatio = 'unset';
+  }
+  // รอ layout อีกรอบ
+  await new Promise(r => setTimeout(r, 100));
 
   const canvas = await html2canvas(container, {
     scale: 2,
     useCORS: true,
+    allowTaint: true,
     backgroundColor: '#fdf3d8',
     width: 794, height: 562,
+    logging: false,
   });
 
   root.unmount();
