@@ -58,14 +58,14 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 
 // ─── Sidebar ──────────────────────────────────────────────
 const MENUS = [
-  { key:'dashboard', label:'📊 ภาพรวม' },
-  { key:'settings',  label:'⚙️ ตั้งค่าโครงการ' },
+  { key:'dashboard',    label:'📊 ภาพรวม' },
+  { key:'settings',     label:'⚙️ ตั้งค่าโครงการ' },
   { key:'participants', label:'👥 ผู้เข้าร่วม' },
-  { key:'milestones', label:'🏆 Milestones' },
-  { key:'distances',  label:'🗺️ Distances' },
-  { key:'seasons',    label:'📅 Seasons' },
-  { key:'sync',       label:'🔄 Sync & Logs' },
-  { key:'export',     label:'📤 Export' },
+  { key:'milestones',   label:'🏆 Milestones' },
+  { key:'distances',    label:'🗺️ Distances' },
+  { key:'seasons',      label:'📅 Seasons' },
+  { key:'gallery',      label:'🖼️ Gallery' },
+  { key:'export',       label:'📤 Export' },
 ];
 
 function Sidebar({ active, onSelect, onLogout }: { active:string; onSelect:(k:string)=>void; onLogout:()=>void }) {
@@ -102,10 +102,11 @@ function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
 
-  useEffect(() => {
+  const reload = () => {
     fetch(`${BASE}/api/summary`).then(r=>r.json()).then(setData);
     api('/sync-logs').then(setLogs);
-  }, []);
+  };
+  useEffect(() => { reload(); }, []);
 
   const doSync = async () => {
     setSyncing(true); setSyncMsg('');
@@ -113,21 +114,39 @@ function Dashboard() {
     const j = await res.json();
     setSyncing(false);
     setSyncMsg(j.ok ? `✅ sync ${j.synced}/${j.total} คน` : `❌ ${j.message}`);
-    api('/sync-logs').then(setLogs);
+    reload();
   };
+
+  const card = (label: string, value: string|number, unit: string, color='#a78bfa') => (
+    <div key={label} style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:'16px 20px' }}>
+      <div style={{ color:'#666', fontSize:11, marginBottom:4 }}>{label}</div>
+      <div style={{ color, fontFamily:'Bebas Neue', fontSize:26, letterSpacing:1 }}>
+        {value ?? '—'} <span style={{ fontSize:12, color:'#888', fontFamily:'Sarabun' }}>{unit}</span>
+      </div>
+    </div>
+  );
 
   const s: React.CSSProperties = { background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:'16px 20px' };
   return (
     <div>
       <h2 style={{ color:'#e2e8f0', marginBottom:20 }}>ภาพรวม</h2>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:24 }}>
-        {[['ผู้เข้าร่วม', data?.participantCount??'—', 'คน'],['km รวม', data?.totalKm?.toFixed(1)??'—','km'],['เป้าหมาย', data?.goalKm??'—','km'],['ความคืบหน้า', data?.pct?.toFixed(1)??'—','%']].map(([l,v,u])=>(
-          <div key={l as string} style={s}>
-            <div style={{ color:'#666', fontSize:11, marginBottom:4 }}>{l}</div>
-            <div style={{ color:'#a78bfa', fontFamily:'Bebas Neue', fontSize:28, letterSpacing:1 }}>{v} <span style={{ fontSize:12, color:'#888', fontFamily:'Sarabun' }}>{u}</span></div>
-          </div>
-        ))}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:24 }}>
+        {card('ผู้เข้าร่วม',   data?.participantCount ?? '—', 'คน', '#a78bfa')}
+        {card('km รวม',        data?.totalKm          ?? '—', 'km', '#60a5fa')}
+        {card('km สัปดาห์นี้', data?.totalWeeklyKm    ?? '—', 'km', '#34d399')}
+        {card('กิจกรรมรวม',   data?.totalActivities  ?? '—', 'ครั้ง','#fb923c')}
+        {card('เป้าหมาย',     data?.goalKm            ?? '—', 'km', '#f472b6')}
+        {card('ความคืบหน้า',  data?.pct != null ? data.pct.toFixed(1) : '—', '%', '#facc15')}
       </div>
+      {data?.topName && data.topName !== '—' && (
+        <div style={{ ...s, marginBottom:24, display:'flex', alignItems:'center', gap:12 }}>
+          <span style={{ fontSize:24 }}>🏆</span>
+          <div>
+            <div style={{ color:'#666', fontSize:11 }}>นำอยู่ตอนนี้</div>
+            <div style={{ color:'#fbbf24', fontWeight:700 }}>{data.topName} — {data.topKm} km</div>
+          </div>
+        </div>
+      )}
       <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:24 }}>
         <button onClick={doSync} disabled={syncing}
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
@@ -137,6 +156,7 @@ function Dashboard() {
       </div>
       <div style={s}>
         <div style={{ color:'#a78bfa', fontSize:13, fontWeight:700, marginBottom:12 }}>Sync Log ล่าสุด</div>
+        {logs.length === 0 && <div style={{ color:'#555', fontSize:12 }}>ยังไม่มี log</div>}
         {logs.map(l => (
           <div key={l.id} style={{ display:'flex', gap:16, padding:'6px 0', borderBottom:'1px solid #2a2a3e', fontSize:12 }}>
             <span style={{ color:'#555', minWidth:140 }}>{l.synced_at}</span>
@@ -366,6 +386,180 @@ function ExportPage() {
   );
 }
 
+// ─── Seasons with auto-compute ────────────────────────────
+function SeasonsPage() {
+  const SEASON_FIELDS = [
+    { key:'name', label:'ชื่อ Season' },
+    { key:'subtitle', label:'Subtitle' },
+    { key:'date_range', label:'ช่วงเวลา' },
+    { key:'status', label:'สถานะ (done/active/upcoming)' },
+    { key:'winner', label:'ผู้ชนะ' },
+    { key:'total_km', label:'km รวม', type:'number' },
+    { key:'top_km', label:'Best km (คน)', type:'number' },
+    { key:'participants', label:'จำนวนผู้เข้าร่วม', type:'number' },
+  ];
+  const [rows, setRows] = useState<any[]>([]);
+  const [form, setForm] = useState<any>({});
+  const [editId, setEditId] = useState<number|null>(null);
+  const [computing, setComputing] = useState(false);
+  const load = useCallback(() => api('/seasons').then(setRows), []);
+  useEffect(() => { load(); }, [load]);
+
+  const startEdit = (r: any) => { setEditId(r.id); setForm({...r}); };
+  const startNew  = () => { setEditId(-1); setForm({ status:'active' }); };
+  const cancel    = () => { setEditId(null); setForm({}); };
+
+  const autoFill = async () => {
+    setComputing(true);
+    const res = await api('/seasons/compute');
+    setForm((f: any) => ({ ...f, ...res }));
+    setComputing(false);
+  };
+
+  const save = async () => {
+    if (editId === -1) await api('/seasons', { method:'POST', body:JSON.stringify(form) });
+    else await api(`/seasons/${editId}`, { method:'PUT', body:JSON.stringify(form) });
+    cancel(); load();
+  };
+
+  const del = async (id: number) => {
+    if (!confirm('ลบ Season นี้?')) return;
+    await api(`/seasons/${id}`, { method:'DELETE' }); load();
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+        <h2 style={{ color:'#e2e8f0' }}>Seasons</h2>
+        <button onClick={startNew} style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:8, padding:'7px 16px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>+ เพิ่ม Season</button>
+      </div>
+      <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, overflow:'hidden' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+          <thead>
+            <tr style={{ borderBottom:'1px solid #2a2a3e' }}>
+              {['ชื่อ','ช่วงเวลา','สถานะ','km รวม','ผู้ชนะ',''].map(h=>(
+                <th key={h} style={{ padding:'10px 14px', color:'#666', fontWeight:500, textAlign:'left' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r=>(
+              <tr key={r.id} style={{ borderBottom:'1px solid #1a1a2e' }}>
+                <td style={{ padding:'10px 14px', color:'#e2e8f0' }}>{r.name}</td>
+                <td style={{ padding:'10px 14px', color:'#888', fontSize:11 }}>{r.date_range}</td>
+                <td style={{ padding:'10px 14px' }}>
+                  <span style={{ background: r.status==='active'?'#4ade8022':r.status==='done'?'#60a5fa22':'#88888822',
+                    color: r.status==='active'?'#4ade80':r.status==='done'?'#60a5fa':'#888',
+                    borderRadius:999, padding:'2px 10px', fontSize:11 }}>{r.status}</span>
+                </td>
+                <td style={{ padding:'10px 14px', color:'#a78bfa', fontFamily:'Bebas Neue', fontSize:16 }}>{r.total_km} km</td>
+                <td style={{ padding:'10px 14px', color:'#fbbf24' }}>{r.winner}</td>
+                <td style={{ padding:'10px 14px', display:'flex', gap:6 }}>
+                  <button onClick={()=>startEdit(r)} style={{ background:'#2a2a3e', border:'none', borderRadius:6, padding:'4px 10px', color:'#a78bfa', fontSize:12, cursor:'pointer' }}>แก้</button>
+                  <button onClick={()=>del(r.id)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>ลบ</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editId !== null && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999 }}>
+          <div style={{ background:'#1e1e30', border:'1px solid #333', borderRadius:16, padding:28, width:400, maxHeight:'85vh', overflowY:'auto' }}>
+            <div style={{ color:'#a78bfa', fontSize:15, fontWeight:700, marginBottom:8 }}>{editId===-1?'เพิ่ม Season':'แก้ไข Season'}</div>
+            <button onClick={autoFill} disabled={computing}
+              style={{ width:'100%', marginBottom:16, background:'#0f766e', border:'none', borderRadius:8, padding:'8px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+              {computing ? 'กำลังดึงข้อมูล...' : '📊 ดึงสถิติจากข้อมูลจริง (auto-fill)'}
+            </button>
+            {SEASON_FIELDS.map(f=>(
+              <div key={f.key} style={{ marginBottom:10 }}>
+                <label style={{ color:'#888', fontSize:12 }}>{f.label}</label>
+                <input type={f.type||'text'} value={form[f.key]||''} onChange={e=>setForm((p:any)=>({...p,[f.key]:e.target.value}))}
+                  style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }} />
+              </div>
+            ))}
+            <div style={{ display:'flex', gap:8, marginTop:16 }}>
+              <button onClick={save} style={{ flex:1, background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:8, padding:'8px', color:'#fff', fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>บันทึก</button>
+              <button onClick={cancel} style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'8px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Gallery Management ───────────────────────────────────
+function GalleryAdmin() {
+  const [images, setImages] = useState<any[]>([]);
+  const [caption, setCaption] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const load = useCallback(() => api('/gallery').then(setImages), []);
+  useEffect(() => { load(); }, [load]);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setMsg('');
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const data = ev.target?.result as string;
+      const res = await api('/gallery', {
+        method:'POST',
+        body: JSON.stringify({ filename: file.name, data, caption }),
+      });
+      setUploading(false);
+      if (res.ok) { setMsg('✅ อัปโหลดสำเร็จ'); setCaption(''); load(); }
+      else setMsg('❌ ' + (res.message || 'error'));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const del = async (id: number) => {
+    if (!confirm('ลบภาพนี้?')) return;
+    await api(`/gallery/${id}`, { method:'DELETE' });
+    load();
+  };
+
+  return (
+    <div>
+      <h2 style={{ color:'#e2e8f0', marginBottom:20 }}>จัดการ Gallery</h2>
+      <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:20, marginBottom:24 }}>
+        <div style={{ color:'#a78bfa', fontSize:13, fontWeight:700, marginBottom:12 }}>📤 อัปโหลดภาพใหม่</div>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+          <input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="คำอธิบายภาพ (ไม่บังคับ)"
+            style={{ flex:1, minWidth:200, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13 }} />
+          <label style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', borderRadius:10, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            {uploading ? 'กำลังอัปโหลด...' : '📁 เลือกไฟล์'}
+            <input type="file" accept="image/*" onChange={handleFile} style={{ display:'none' }} disabled={uploading} />
+          </label>
+        </div>
+        {msg && <div style={{ marginTop:10, color: msg.startsWith('✅') ? '#4ade80' : '#f87171', fontSize:13 }}>{msg}</div>}
+      </div>
+      {images.length === 0 ? (
+        <div style={{ color:'#555', textAlign:'center', padding:40 }}>ยังไม่มีภาพ</div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:12 }}>
+          {images.map(img => (
+            <div key={img.id} style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:12, overflow:'hidden' }}>
+              <img src={`${BASE}/gallery/${img.filename}`} alt={img.caption}
+                style={{ width:'100%', height:140, objectFit:'cover', display:'block' }} />
+              <div style={{ padding:'8px 10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'#888', fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                  {img.caption || img.filename}
+                </span>
+                <button onClick={() => del(img.id)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'3px 8px', color:'#f87171', fontSize:11, cursor:'pointer', flexShrink:0, marginLeft:6 }}>ลบ</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main AdminPage ───────────────────────────────────────
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(false);
@@ -397,22 +591,14 @@ export default function AdminPage() {
     { key:'description', label:'คำอธิบาย' },
     { key:'gmap_url', label:'Google Maps URL' },
   ];
-  const SEASON_FIELDS = [
-    { key:'name', label:'ชื่อ Season' },
-    { key:'subtitle', label:'Subtitle' },
-    { key:'date_range', label:'ช่วงเวลา' },
-    { key:'status', label:'สถานะ (done/active/upcoming)' },
-    { key:'winner', label:'ผู้ชนะ' },
-  ];
-
   const content: Record<string, React.ReactNode> = {
     dashboard:    <Dashboard />,
     settings:     <Settings />,
     participants: <Participants />,
     milestones:   <CrudList title="Milestones" endpoint="milestones" fields={MILESTONE_FIELDS} />,
     distances:    <CrudList title="Distances (เส้นทาง)" endpoint="distances" fields={DISTANCE_FIELDS} />,
-    seasons:      <CrudList title="Seasons" endpoint="seasons" fields={SEASON_FIELDS} />,
-    sync:         <Dashboard />,
+    seasons:      <SeasonsPage />,
+    gallery:      <GalleryAdmin />,
     export:       <ExportPage />,
   };
 

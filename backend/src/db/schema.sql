@@ -68,6 +68,14 @@ CREATE TABLE IF NOT EXISTS project_settings (
   value TEXT NOT NULL
 );
 
+-- ภาพ Gallery
+CREATE TABLE IF NOT EXISTS gallery_images (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  filename    TEXT    NOT NULL UNIQUE,
+  caption     TEXT    NOT NULL DEFAULT '',
+  uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 -- snapshot รายสัปดาห์ (บันทึกทุกวันอาทิตย์ 23:59 อัตโนมัติ)
 CREATE TABLE IF NOT EXISTS weekly_snapshots (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

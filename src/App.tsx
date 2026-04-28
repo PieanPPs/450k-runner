@@ -10,6 +10,7 @@ import Seasons from '@/components/Seasons';
 import Gallery from '@/components/Gallery';
 import Footer from '@/components/Footer';
 import AdminPage from '@/pages/AdminPage';
+import StravaWidgets from '@/components/StravaWidgets';
 import { ThemeProvider, ThemeCtx } from '@/themes/context';
 import { DataProvider } from '@/context/DataContext';
 
@@ -25,6 +26,7 @@ function AppBody() {
       <Journey />
       <WeeklyGraph />
       <Seasons />
+      <StravaWidgets />
       <Gallery />
       <Footer />
     </div>

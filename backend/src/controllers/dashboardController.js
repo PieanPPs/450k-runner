@@ -68,8 +68,26 @@ export function getWeeklySnapshots(_req, res) {
 }
 
 export function getSummary(_req, res) {
-  const totalKm = db.prepare('SELECT COALESCE(SUM(km),0) as totalKm FROM participants').get().totalKm;
+  const totalKm        = db.prepare('SELECT COALESCE(SUM(km),0)          as v FROM participants').get().v;
+  const totalWeeklyKm  = db.prepare('SELECT COALESCE(SUM(weekly_km),0)   as v FROM participants').get().v;
+  const totalActivities= db.prepare('SELECT COALESCE(SUM(activity_count),0) as v FROM participants').get().v;
   const participantCount = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
-  const goalKm = participantCount * 450;
-  res.json({ totalKm, goalKm, participantCount, pct: Math.min(100, (totalKm / goalKm) * 100) });
+  const top            = db.prepare('SELECT name, km FROM participants ORDER BY km DESC LIMIT 1').get();
+  const goalKm         = participantCount * 450;
+  const pct            = goalKm > 0 ? Math.min(100, (totalKm / goalKm) * 100) : 0;
+  res.json({
+    totalKm: Math.round(totalKm * 10) / 10,
+    totalWeeklyKm: Math.round(totalWeeklyKm * 10) / 10,
+    totalActivities,
+    participantCount,
+    goalKm,
+    pct: Math.round(pct * 10) / 10,
+    topName: top?.name || '—',
+    topKm: top?.km || 0,
+  });
+}
+
+export function getGallery(_req, res) {
+  const rows = db.prepare('SELECT filename, caption, uploaded_at FROM gallery_images ORDER BY id DESC').all();
+  res.json(rows);
 }

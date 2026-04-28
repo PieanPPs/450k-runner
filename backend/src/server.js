@@ -43,6 +43,11 @@ app.use(express.json());
 const schema = fs.readFileSync(path.resolve(__dirname, './db/schema.sql'), 'utf8');
 db.exec(schema);
 
+// Ensure gallery folder exists & serve statically at /gallery/<filename>
+const galleryDir = path.resolve(__dirname, '../data/gallery');
+if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
+app.use('/gallery', express.static(galleryDir));
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: '450k-runner-backend' });
 });

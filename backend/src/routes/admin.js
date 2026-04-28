@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { signToken, requireAdmin } from '../middleware/adminAuth.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+const GALLERY_DIR = path.resolve(__dirname, '../../data/gallery');
 
 const router = Router();
 
@@ -147,6 +154,55 @@ router.post('/reset', requireAdmin, (_req, res) => {
   db.prepare('DELETE FROM weekly_snapshots').run();
   db.prepare('UPDATE participants SET km=0,steps=0,streak=0,weekly_km=0,activity_count=0').run();
   res.json({ ok: true, message: 'รีเซ็ตข้อมูลการวิ่งแล้ว (ผู้เข้าร่วมยังอยู่)' });
+});
+
+// ── Season auto-compute ───────────────────────────────────
+router.get('/seasons/compute', requireAdmin, (_req, res) => {
+  const totalKm      = db.prepare('SELECT COALESCE(SUM(km),0) as v FROM participants').get().v;
+  const participants = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
+  const top          = db.prepare('SELECT name, km FROM participants ORDER BY km DESC LIMIT 1').get();
+  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const now          = new Date().toISOString().slice(0,10);
+  res.json({
+    total_km:     Math.round(totalKm * 10) / 10,
+    participants,
+    top_km:       top?.km || 0,
+    winner:       top?.name || '—',
+    date_range:   `${SEASON_START} – ${now}`,
+  });
+});
+
+// ── Gallery ───────────────────────────────────────────────
+// GET /api/adminpp/gallery
+router.get('/gallery', requireAdmin, (_req, res) => {
+  const rows = db.prepare('SELECT id, filename, caption, uploaded_at FROM gallery_images ORDER BY id DESC').all();
+  res.json(rows);
+});
+
+// POST /api/adminpp/gallery  — body: { filename, data (base64), caption }
+router.post('/gallery', requireAdmin, (req, res) => {
+  const { filename, data, caption } = req.body;
+  if (!filename || !data) return res.status(400).json({ ok: false, message: 'filename and data required' });
+  if (!fs.existsSync(GALLERY_DIR)) fs.mkdirSync(GALLERY_DIR, { recursive: true });
+
+  // Sanitize filename & prefix with timestamp to avoid collisions
+  const safe  = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const final = `${Date.now()}_${safe}`;
+  const base64Data = data.replace(/^data:[^;]+;base64,/, '');
+  fs.writeFileSync(path.join(GALLERY_DIR, final), Buffer.from(base64Data, 'base64'));
+
+  db.prepare('INSERT INTO gallery_images (filename, caption) VALUES (?, ?)').run(final, caption || '');
+  res.json({ ok: true, filename: final });
+});
+
+// DELETE /api/adminpp/gallery/:id
+router.delete('/gallery/:id', requireAdmin, (req, res) => {
+  const row = db.prepare('SELECT filename FROM gallery_images WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ ok: false, message: 'not found' });
+  const filePath = path.join(GALLERY_DIR, row.filename);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  db.prepare('DELETE FROM gallery_images WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 export default router;
