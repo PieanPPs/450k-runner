@@ -6,6 +6,7 @@ import fs from 'fs';
 import dashboardRoutes from './routes/dashboard.js';
 import authRoutes      from './routes/auth.js';
 import syncRoutes      from './routes/sync.js';
+import adminRoutes     from './routes/admin.js';
 import { db } from './db/connection.js';
 
 // node-cron (optional — skip gracefully if not installed)
@@ -49,6 +50,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/adminpp', adminRoutes);
 
 // ---- weekly snapshot helper ----
 function takeWeeklySnapshot() {

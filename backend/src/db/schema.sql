@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS sync_log (
   message   TEXT
 );
 
+-- ตั้งค่าโครงการ (แก้ได้จาก admin)
+CREATE TABLE IF NOT EXISTS project_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- snapshot รายสัปดาห์ (บันทึกทุกวันอาทิตย์ 23:59 อัตโนมัติ)
 CREATE TABLE IF NOT EXISTS weekly_snapshots (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

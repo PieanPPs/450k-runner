@@ -9,6 +9,7 @@ import WeeklyGraph from '@/components/WeeklyGraph';
 import Seasons from '@/components/Seasons';
 import Gallery from '@/components/Gallery';
 import Footer from '@/components/Footer';
+import AdminPage from '@/pages/AdminPage';
 import { ThemeProvider, ThemeCtx } from '@/themes/context';
 import { DataProvider } from '@/context/DataContext';
 
@@ -30,7 +31,11 @@ function AppBody() {
   );
 }
 
-export default function App() {
+function Router() {
+  const path = window.location.pathname;
+  if (path === '/adminpp' || path.startsWith('/adminpp/')) {
+    return <AdminPage />;
+  }
   return (
     <ThemeProvider>
       <DataProvider>
@@ -38,4 +43,8 @@ export default function App() {
       </DataProvider>
     </ThemeProvider>
   );
+}
+
+export default function App() {
+  return <Router />;
 }
