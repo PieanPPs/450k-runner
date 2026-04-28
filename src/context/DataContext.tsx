@@ -30,6 +30,7 @@ export interface AppData {
   pct           : number;
   lastSync      : string | null;   // ISO string หรือ null
   isMockData    : boolean;         // true = ใช้ mock, false = ข้อมูลจริงจาก API
+  settings      : Record<string, string>;
 }
 
 interface DataCtxValue {
@@ -55,6 +56,7 @@ const MOCK_DATA: AppData = {
   pct         : Math.min(100, (PARTICIPANTS.reduce((s, p) => s + p.km, 0) / GOAL_KM) * 100),
   lastSync    : null,
   isMockData  : true,
+  settings    : {},
 };
 
 // ---- context ----
@@ -76,7 +78,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [summary, participants, weeklyData, seasons, distances, milestones, syncLog] =
+      const [summary, participants, weeklyData, seasons, distances, milestones, syncLog, settings] =
         await Promise.all([
           api.summary(),
           api.participants(),
@@ -85,6 +87,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           api.distances(),
           api.milestones(),
           api.syncLast(),
+          api.settings(),
         ]);
 
       if (!isMounted.current) return;
@@ -100,6 +103,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         pct      : summary.pct,
         lastSync : syncLog.synced_at,
         isMockData: false,
+        settings,
       });
       setError(null);
     } catch (err) {

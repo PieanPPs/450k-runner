@@ -35,6 +35,9 @@ export const api = {
     return res.json() as Promise<{ ok: boolean; synced: number; total: number }>;
   },
 
+  /** Project settings (public) */
+  settings: () => get<Record<string, string>>('/api/settings'),
+
   /** สร้าง Strava connect URL สำหรับผู้เข้าร่วม */
   stravaConnectUrl: (participantId: number) =>
     `${BASE}/api/auth/strava?participant_id=${participantId}`,

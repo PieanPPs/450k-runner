@@ -3,16 +3,25 @@ import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
 
+// Default card content หากยังไม่ได้ตั้งค่าใน admin
+const DEFAULT_CARDS = [
+  { icon:'🏃', title:'วัตถุประสงค์', body:'ส่งเสริมให้ครูและบุคลากรในโรงเรียนอนุสรณ์ศุภมาศหันมาออกกำลังกายอย่างสม่ำเสมอ เพื่อสุขภาพที่ดีในระยะยาว' },
+  { icon:'❤️', title:'เพื่อครู เพื่อเด็ก', body:'ครูที่มีสุขภาพดีมีพลังงานมากขึ้นในการสอน ส่งผลให้นักเรียนได้รับการดูแลที่ดีและมีต้นแบบที่ดีในการดูแลสุขภาพ' },
+  { icon:'🤝', title:'สร้างความสามัคคี', body:'กิจกรรมกลุ่มช่วยสร้างความผูกพันระหว่างบุคลากร เกิดวัฒนธรรมองค์กรที่ส่งเสริมสุขภาพและความเป็นหนึ่งเดียว' },
+  { icon:'📊', title:'ผลลัพธ์ที่คาดหวัง', body:'บุคลากรมีสุขภาพดีขึ้น ค่า BMI ลดลง มีนิสัยออกกำลังกาย และเกิดแรงจูงใจในการดูแลตัวเองต่อเนื่องหลังจบโครงการ' },
+];
+
 export default function About() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
-  const { participants } = data;
-  const cards = [
-    { icon:'🏃', title:'วัตถุประสงค์', body:'ส่งเสริมให้ครูและบุคลากรในโรงเรียนอนุสรณ์ศุภมาศหันมาออกกำลังกายอย่างสม่ำเสมอ เพื่อสุขภาพที่ดีในระยะยาว' },
-    { icon:'❤️', title:'เพื่อครู เพื่อเด็ก', body:'ครูที่มีสุขภาพดีมีพลังงานมากขึ้นในการสอน ส่งผลให้นักเรียนได้รับการดูแลที่ดีและมีต้นแบบที่ดีในการดูแลสุขภาพ' },
-    { icon:'🤝', title:'สร้างความสามัคคี', body:'กิจกรรมกลุ่มช่วยสร้างความผูกพันระหว่างบุคลากร เกิดวัฒนธรรมองค์กรที่ส่งเสริมสุขภาพและความเป็นหนึ่งเดียว' },
-    { icon:'📊', title:'ผลลัพธ์ที่คาดหวัง', body:'บุคลากรมีสุขภาพดีขึ้น ค่า BMI ลดลง มีนิสัยออกกำลังกาย และเกิดแรงจูงใจในการดูแลตัวเองต่อเนื่องหลังจบโครงการ' },
-  ];
+  const { participants, settings } = data;
+
+  // ดึง cards จาก settings หากมี ไม่งั้นใช้ default
+  const cards = [1, 2, 3, 4].map((n, i) => ({
+    icon : DEFAULT_CARDS[i].icon,
+    title: settings[`about_${n}_title`] || DEFAULT_CARDS[i].title,
+    body : settings[`about_${n}_body`]  || DEFAULT_CARDS[i].body,
+  })).filter(c => c.title);
 
   return (
     <section id="about" style={{ padding:'80px 24px', background:t.altBg }}>

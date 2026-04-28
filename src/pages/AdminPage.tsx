@@ -202,6 +202,10 @@ function Settings() {
         {inp('about_1_body','About การ์ด 1 เนื้อหา','')}
         {inp('about_2_title','About การ์ด 2 หัวข้อ','เพื่อครู เพื่อเด็ก')}
         {inp('about_2_body','About การ์ด 2 เนื้อหา','')}
+        {inp('about_3_title','About การ์ด 3 หัวข้อ','')}
+        {inp('about_3_body','About การ์ด 3 เนื้อหา','')}
+        {inp('about_4_title','About การ์ด 4 หัวข้อ','')}
+        {inp('about_4_body','About การ์ด 4 เนื้อหา','')}
         <button onClick={save}
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {saved ? '✅ บันทึกแล้ว' : 'บันทึก'}

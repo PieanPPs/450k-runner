@@ -53,6 +53,13 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, service: '450k-runner-backend' });
 });
 
+// Public settings endpoint (no auth required — used by frontend About section)
+app.get('/api/settings', (_req, res) => {
+  const rows = db.prepare('SELECT key,value FROM project_settings').all();
+  const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  res.json(settings);
+});
+
 app.use('/api', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sync', syncRoutes);
