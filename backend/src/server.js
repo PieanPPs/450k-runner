@@ -37,7 +37,8 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 const app = express();
 app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // Ensure schema exists (idempotent - CREATE TABLE IF NOT EXISTS)
 const schema = fs.readFileSync(path.resolve(__dirname, './db/schema.sql'), 'utf8');
