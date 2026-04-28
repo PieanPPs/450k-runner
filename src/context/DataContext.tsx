@@ -78,7 +78,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [summary, participants, weeklyData, seasons, distances, milestones, syncLog, settings] =
+      const [summary, participants, weeklyData, seasons, distances, milestones, syncLog] =
         await Promise.all([
           api.summary(),
           api.participants(),
@@ -87,8 +87,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           api.distances(),
           api.milestones(),
           api.syncLast(),
-          api.settings(),
         ]);
+
+      // settings ดึงแยก — ถ้า fail (เช่น backend เก่ายังไม่มี route) ไม่ทำให้ข้อมูลหลักพัง
+      const settings = await api.settings().catch(() => ({} as Record<string, string>));
 
       if (!isMounted.current) return;
 
