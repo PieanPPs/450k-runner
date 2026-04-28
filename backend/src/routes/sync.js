@@ -59,8 +59,9 @@ router.post('/', async (_req, res) => {
   }
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
-  db.prepare('INSERT INTO sync_log (status,message) VALUES (?,?)')
-    .run(synced===total?'ok':'partial', JSON.stringify(results));
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)')
+    .run(thaiNow, synced===total?'ok':'partial', JSON.stringify(results));
 
   res.json({ ok:true, synced, total, results });
 });

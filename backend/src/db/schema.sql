@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS strava_tokens (
 
 CREATE TABLE IF NOT EXISTS sync_log (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  synced_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  synced_at TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours')),
   status    TEXT    NOT NULL,
   message   TEXT
 );
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS gallery_images (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   filename    TEXT    NOT NULL UNIQUE,
   caption     TEXT    NOT NULL DEFAULT '',
-  uploaded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  uploaded_at TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours'))
 );
 
 -- snapshot รายสัปดาห์ (บันทึกทุกวันอาทิตย์ 23:59 อัตโนมัติ)
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS weekly_snapshots (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   week_no        INTEGER NOT NULL,
   week_label     TEXT    NOT NULL,
-  snapped_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  snapped_at     TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours')),
   participant_id INTEGER NOT NULL REFERENCES participants(id),
   name           TEXT    NOT NULL,
   initials       TEXT    NOT NULL,

@@ -113,7 +113,8 @@ if (cron) {
         db.prepare('UPDATE participants SET km=?,steps=?,streak=?,weekly_km=?,activity_count=? WHERE id=?')
           .run(Math.round(stats.km*10)/10, stats.steps, stats.streak, Math.round(stats.weeklyKm*10)/10, stats.activityCount, p.id);
       }
-      db.prepare('INSERT INTO sync_log (status,message) VALUES (?,?)').run('ok', '[cron] auto-sync Sunday');
+      const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+      db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)').run(thaiNow, 'ok', '[cron] auto-sync Sunday');
       console.log('[cron] sync done, taking snapshot...');
       takeWeeklySnapshot();
     } catch (err) {
