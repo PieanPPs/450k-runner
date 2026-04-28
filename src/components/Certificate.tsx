@@ -14,7 +14,7 @@ export default function Certificate() {
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <SectionHeader tag="เกียรติบัตร" title="รางวัลแห่งความภาคภูมิใจ" />
         <p style={{ textAlign: 'center', color: t.textMuted, fontSize: 14, marginBottom: 48, marginTop: -16 }}>
-          ผู้ที่วิ่งครบ 450 กม. จะได้รับเกียรติบัตรดิจิทัลเป็นที่ระลึกถาวร
+          ผู้เข้าร่วมโครงการทุกท่านจะได้รับเกียรติบัตรดิจิทัลเป็นที่ระลึกถาวร
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, justifyContent: 'center', alignItems: 'flex-start' }}>
@@ -41,7 +41,7 @@ export default function Certificate() {
                 เกียรติบัตรดิจิทัล
               </div>
               <div style={{ color: t.textMuted, fontSize: 13, lineHeight: 1.7 }}>
-                ออกให้โดยผู้อำนวยการโรงเรียน เมื่อผู้เข้าร่วมวิ่งครบ <strong style={{ color: t.accent1 }}>450 กม.</strong> ภายในโครงการ
+                ออกให้โดยผู้อำนวยการโรงเรียน สำหรับผู้เข้าร่วมโครงการ
               </div>
             </div>
 
@@ -49,7 +49,7 @@ export default function Certificate() {
             <div style={{ background: t.card, border: `1px solid ${t.cardBorder}`, borderRadius: 16, padding: 20 }}>
               <div style={{ color: t.accent2, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>📋 เงื่อนไขการรับ</div>
               {[
-                { icon: '🏃', text: 'วิ่งครบ 450 กม. ภายในโครงการ' },
+                { icon: '🏃', text: 'เข้าร่วมโครงการ' },
                 { icon: '📱', text: 'บันทึกกิจกรรมผ่าน Strava' },
                 { icon: '🏫', text: 'เป็นสมาชิก Club โรงเรียน' },
                 { icon: '✅', text: 'ผ่านการตรวจสอบจากผู้ดูแลระบบ' },
