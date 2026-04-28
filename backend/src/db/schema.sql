@@ -10,6 +10,17 @@ CREATE TABLE IF NOT EXISTS participants (
   activity_count INTEGER NOT NULL DEFAULT 0
 );
 
+-- เก็บ activities แต่ละชิ้นถาวร (ป้องกัน km ลด เพราะ Strava Club API ไม่ส่งวันที่)
+CREATE TABLE IF NOT EXISTS strava_activities (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  strava_key    TEXT    NOT NULL,
+  activity_hash TEXT    NOT NULL UNIQUE,  -- hash ป้องกัน duplicate
+  distance_km   REAL    NOT NULL,
+  elapsed_time  INTEGER NOT NULL DEFAULT 0,
+  activity_name TEXT    NOT NULL DEFAULT '',
+  first_seen    TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours'))
+);
+
 CREATE TABLE IF NOT EXISTS weekly_data (
   id    INTEGER PRIMARY KEY AUTOINCREMENT,
   week  TEXT    NOT NULL,

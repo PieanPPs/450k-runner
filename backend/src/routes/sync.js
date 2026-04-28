@@ -35,8 +35,14 @@ router.post('/', async (_req, res) => {
   let synced = 0;
   const total = Object.keys(athleteMap).length;
 
+  const insActivity = db.prepare(`
+    INSERT OR IGNORE INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const thaiNowActivity = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
-    const { stravaName, firstname, lastname } = data;
+    const { stravaName, firstname, lastname, activities } = data;
 
     // หา participant ที่ผูก strava_key นี้ไว้
     let participant = db.prepare('SELECT id,name FROM participants WHERE strava_key=?').get(stravaKey);
@@ -50,12 +56,40 @@ router.post('/', async (_req, res) => {
       participant = { id: info.lastInsertRowid, name: stravaName };
     }
 
-    const stats = calcStats(data.activities, SEASON_START);
-    db.prepare('UPDATE participants SET km=?,steps=?,streak=?,weekly_km=?,activity_count=? WHERE id=?')
-      .run(Math.round(stats.km*10)/10, stats.steps, stats.streak, Math.round(stats.weeklyKm*10)/10, stats.activityCount, participant.id);
+    // บันทึก activities ใหม่ลง DB (INSERT OR IGNORE ป้องกัน duplicate)
+    // hash = strava_key + distance + elapsed_time + name (Strava Club API ไม่มี activity ID)
+    let newCount = 0;
+    for (const act of activities) {
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+      const result = insActivity.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNowActivity);
+      if (result.changes > 0) newCount++;
+    }
+
+    // คำนวณ km จาก activities ที่เก็บใน DB (นับจาก SEASON_START ที่บันทึกครั้งแรก)
+    const seasonRow = db.prepare(
+      `SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt
+       FROM strava_activities
+       WHERE strava_key=? AND first_seen >= ?`
+    ).get(stravaKey, SEASON_START + ' 00:00:00');
+
+    const totalKm = Math.round(seasonRow.km * 10) / 10;
+    const actCount = seasonRow.cnt;
+    const steps    = Math.round(totalKm * 1350);
+
+    // weekly km (7 วันล่าสุด)
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+    const weekRow = db.prepare(
+      `SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND first_seen >= ?`
+    ).get(stravaKey, weekStr);
+    const weeklyKm = Math.round(weekRow.km * 10) / 10;
+
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
+      .run(totalKm, steps, weeklyKm, actCount, participant.id);
 
     synced++;
-    results.push({ id:participant.id, name:participant.name, ok:true, km:stats.km.toFixed(1) });
+    results.push({ id:participant.id, name:participant.name, ok:true, km:totalKm.toFixed(1), new:newCount });
   }
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }

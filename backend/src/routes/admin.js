@@ -152,6 +152,7 @@ router.get('/export', requireAdmin, (_req, res) => {
 router.post('/reset', requireAdmin, (_req, res) => {
   db.prepare('DELETE FROM sync_log').run();
   db.prepare('DELETE FROM weekly_snapshots').run();
+  db.prepare('DELETE FROM strava_activities').run();
   db.prepare('UPDATE participants SET km=0,steps=0,streak=0,weekly_km=0,activity_count=0').run();
   res.json({ ok: true, message: 'รีเซ็ตข้อมูลการวิ่งแล้ว (ผู้เข้าร่วมยังอยู่)' });
 });
