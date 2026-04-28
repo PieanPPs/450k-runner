@@ -1,0 +1,29 @@
+services:
+
+  # ── 450K Backend ──────────────────────────────
+  backend-450k:
+    build: ./backend
+    container_name: backend-450k
+    restart: unless-stopped
+    env_file: ./backend/.env
+    volumes:
+      - ./backend/data:/app/data      # SQLite persistent
+    ports:
+      - "127.0.0.1:4000:4000"         # เปิดแค่ localhost, nginx เป็น proxy
+    networks:
+      - app-net
+
+  # ── AI Agent (ภายหลัง — uncomment เมื่อพร้อม) ──
+  # ai-agent:
+  #   build: ./ai-agent
+  #   container_name: ai-agent
+  #   restart: unless-stopped
+  #   env_file: ./ai-agent/.env
+  #   ports:
+  #     - "127.0.0.1:5000:5000"
+  #   networks:
+  #     - app-net
+
+networks:
+  app-net:
+    driver: bridge
