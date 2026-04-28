@@ -4,86 +4,97 @@ import { SectionHeader } from '@/components/UI';
 
 export default function Certificate() {
   const { theme: t } = useContext(ThemeCtx);
-  const [name, setName] = useState('ชื่อ-นามสกุล');
-  const [km, setKm] = useState('450');
-  const [preview, setPreview] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <section id="certificate" style={{ padding:'80px 24px', background:t.altBg }}>
-      <div style={{ maxWidth:960, margin:'0 auto' }}>
+    <section id="certificate" style={{ padding: '80px 24px', background: t.altBg }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <SectionHeader tag="เกียรติบัตร" title="รางวัลแห่งความภาคภูมิใจ" />
-        <p style={{ textAlign:'center', color:t.textMuted, fontSize:14, marginBottom:40, marginTop:-16 }}>
-          ผู้ที่วิ่งครบเป้าหมายจะได้รับเกียรติบัตรดิจิทัล เป็นที่ระลึกถาวร
+        <p style={{ textAlign: 'center', color: t.textMuted, fontSize: 14, marginBottom: 48, marginTop: -16 }}>
+          ผู้ที่วิ่งครบ 450 กม. จะได้รับเกียรติบัตรดิจิทัลเป็นที่ระลึกถาวร
         </p>
 
-        {/* Preview card */}
-        <div style={{ display:'flex', flexWrap:'wrap', gap:32, justifyContent:'center', alignItems:'flex-start' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, justifyContent: 'center', alignItems: 'flex-start' }}>
 
-          {/* Certificate visual */}
-          <div style={{ flex:'1', minWidth:300, maxWidth:560 }}>
-            <CertificateCard name={name} km={km} />
+          {/* Certificate preview */}
+          <div style={{ flex: '1', minWidth: 300, maxWidth: 600 }}>
+            <CertificateCard />
+            <p style={{ textAlign: 'center', color: t.textMuted, fontSize: 12, marginTop: 12 }}>
+              ✦ ตัวอย่างเกียรติบัตร — ออกให้เมื่อวิ่งครบเป้าหมาย
+            </p>
           </div>
 
-          {/* Side controls */}
-          <div style={{ flex:'0 0 260px', display:'flex', flexDirection:'column', gap:16 }}>
-            <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:16, padding:20 }}>
-              <div style={{ color:t.accent1, fontSize:13, fontWeight:700, marginBottom:14 }}>🔍 ทดลองพิมพ์ชื่อของคุณ</div>
-              <div style={{ marginBottom:12 }}>
-                <label style={{ color:t.textSub, fontSize:11, display:'block', marginBottom:4 }}>ชื่อ-นามสกุล</label>
-                <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  style={{ width:'100%', background:t.altBg, border:`1px solid ${t.cardBorder}`, borderRadius:8, padding:'8px 12px', color:t.text, fontSize:13, boxSizing:'border-box' }}
-                />
+          {/* Info side */}
+          <div style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Highlight box */}
+            <div style={{
+              background: `linear-gradient(135deg, ${t.accent1}18, ${t.accent2}12)`,
+              border: `1px solid ${t.accent1}40`,
+              borderRadius: 16, padding: 24,
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🏅</div>
+              <div style={{ color: t.text, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
+                เกียรติบัตรดิจิทัล
               </div>
-              <div style={{ marginBottom:16 }}>
-                <label style={{ color:t.textSub, fontSize:11, display:'block', marginBottom:4 }}>ระยะทางที่วิ่ง (km)</label>
-                <input
-                  value={km}
-                  onChange={e => setKm(e.target.value)}
-                  style={{ width:'100%', background:t.altBg, border:`1px solid ${t.cardBorder}`, borderRadius:8, padding:'8px 12px', color:t.text, fontSize:13, boxSizing:'border-box' }}
-                />
+              <div style={{ color: t.textMuted, fontSize: 13, lineHeight: 1.7 }}>
+                ออกให้โดยผู้อำนวยการโรงเรียน เมื่อผู้เข้าร่วมวิ่งครบ <strong style={{ color: t.accent1 }}>450 กม.</strong> ภายในโครงการ
               </div>
-              <button
-                onClick={() => setPreview(true)}
-                style={{ width:'100%', background:`linear-gradient(135deg,${t.accent1},${t.accent2})`, border:'none', borderRadius:10, padding:'10px', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'Sarabun' }}
-              >
-                🔎 ดูตัวอย่างเต็มจอ
-              </button>
             </div>
 
-            <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:16, padding:20 }}>
-              <div style={{ color:t.accent2, fontSize:13, fontWeight:700, marginBottom:10 }}>📋 เงื่อนไขการรับเกียรติบัตร</div>
+            {/* Conditions */}
+            <div style={{ background: t.card, border: `1px solid ${t.cardBorder}`, borderRadius: 16, padding: 20 }}>
+              <div style={{ color: t.accent2, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>📋 เงื่อนไขการรับ</div>
               {[
-                'วิ่งครบ 450 กม. ภายในโครงการ',
-                'บันทึกกิจกรรมผ่าน Strava',
-                'เป็นสมาชิก Club โรงเรียน',
-                'รับเกียรติบัตรดิจิทัลได้ทันที',
+                { icon: '🏃', text: 'วิ่งครบ 450 กม. ภายในโครงการ' },
+                { icon: '📱', text: 'บันทึกกิจกรรมผ่าน Strava' },
+                { icon: '🏫', text: 'เป็นสมาชิก Club โรงเรียน' },
+                { icon: '✅', text: 'ผ่านการตรวจสอบจากผู้ดูแลระบบ' },
               ].map((item, i) => (
-                <div key={i} style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-start' }}>
-                  <span style={{ color:t.accent3, fontSize:12, marginTop:1 }}>✓</span>
-                  <span style={{ color:t.textMuted, fontSize:12, lineHeight:1.5 }}>{item}</span>
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>
+                  <span style={{ color: t.textMuted, fontSize: 12, lineHeight: 1.6 }}>{item.text}</span>
                 </div>
               ))}
             </div>
+
+            {/* Expand button */}
+            <button
+              onClick={() => setExpanded(true)}
+              style={{
+                width: '100%',
+                background: `linear-gradient(135deg,${t.accent1},${t.accent2})`,
+                border: 'none', borderRadius: 12, padding: '12px',
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Sarabun',
+              }}
+            >
+              🔎 ดูตัวอย่างเต็มจอ
+            </button>
           </div>
         </div>
       </div>
 
       {/* Fullscreen modal */}
-      {preview && (
+      {expanded && (
         <div
-          onClick={() => setPreview(false)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:24 }}
+          onClick={() => setExpanded(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: 24,
+          }}
         >
-          <div onClick={e => e.stopPropagation()} style={{ maxWidth:700, width:'100%' }}>
-            <CertificateCard name={name} km={km} large />
+          <div onClick={e => e.stopPropagation()} style={{ maxWidth: 680, width: '100%' }}>
+            <CertificateCard large />
             <button
-              onClick={() => setPreview(false)}
-              style={{ display:'block', margin:'16px auto 0', background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:8, padding:'8px 24px', color:'#fff', cursor:'pointer', fontSize:13, fontFamily:'Sarabun' }}
-            >
-              ✕ ปิด
-            </button>
+              onClick={() => setExpanded(false)}
+              style={{
+                display: 'block', margin: '20px auto 0',
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8, padding: '8px 32px', color: '#fff', cursor: 'pointer',
+                fontSize: 13, fontFamily: 'Sarabun',
+              }}
+            >✕ ปิด</button>
           </div>
         </div>
       )}
@@ -91,113 +102,175 @@ export default function Certificate() {
   );
 }
 
-function CertificateCard({ name, km, large = false }: { name: string; km: string; large?: boolean }) {
-  const scale = large ? 1 : 0.85;
+function CertificateCard({ large = false }: { large?: boolean }) {
+  const p = large ? 1 : 0.78;
+
   return (
     <div style={{
-      width:'100%',
-      background:'linear-gradient(160deg, #fffdf5 0%, #fdf6e3 50%, #fef9ee 100%)',
-      borderRadius:16,
-      padding: large ? '40px 48px' : '28px 32px',
-      boxShadow:'0 20px 60px rgba(0,0,0,0.4), inset 0 0 0 8px rgba(180,140,50,0.15), inset 0 0 0 10px rgba(180,140,50,0.08)',
-      position:'relative',
-      overflow:'hidden',
-      fontFamily:'serif',
-      transform: `scale(${scale})`,
-      transformOrigin: 'top center',
+      width: '100%',
+      aspectRatio: '1.414 / 1',
+      position: 'relative',
+      borderRadius: 12,
+      overflow: 'hidden',
+      background: 'linear-gradient(160deg, #fefaf0 0%, #fdf3d8 60%, #fef7e8 100%)',
+      boxShadow: large
+        ? '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.3)'
+        : '0 12px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(201,168,76,0.2)',
+      fontFamily: 'serif',
     }}>
+
+      {/* Outer gold border */}
+      <div style={{
+        position: 'absolute', inset: 10,
+        border: '1.5px solid #c9a84c',
+        borderRadius: 6,
+        pointerEvents: 'none',
+        zIndex: 2,
+      }} />
+      <div style={{
+        position: 'absolute', inset: 13,
+        border: '0.5px solid #e8cc80',
+        borderRadius: 4,
+        pointerEvents: 'none',
+        zIndex: 2,
+      }} />
+
       {/* Corner ornaments */}
-      {['top-left','top-right','bottom-left','bottom-right'].map(pos => (
-        <div key={pos} style={{
-          position:'absolute',
-          [pos.includes('top') ? 'top' : 'bottom']: 10,
-          [pos.includes('left') ? 'left' : 'right']: 10,
-          width: 40, height: 40,
-          borderTop: pos.includes('top') ? '3px solid #c9a84c' : 'none',
-          borderBottom: pos.includes('bottom') ? '3px solid #c9a84c' : 'none',
-          borderLeft: pos.includes('left') ? '3px solid #c9a84c' : 'none',
-          borderRight: pos.includes('right') ? '3px solid #c9a84c' : 'none',
-          borderRadius: pos === 'top-left' ? '4px 0 0 0' : pos === 'top-right' ? '0 4px 0 0' : pos === 'bottom-left' ? '0 0 0 4px' : '0 0 4px 0',
+      {[
+        { top: 6, left: 6 },
+        { top: 6, right: 6 },
+        { bottom: 6, left: 6 },
+        { bottom: 6, right: 6 },
+      ].map((pos, i) => (
+        <div key={i} style={{
+          position: 'absolute', ...pos,
+          width: 28 * p, height: 28 * p,
+          zIndex: 3,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cpath d='M2 2 L12 2 M2 2 L2 12' stroke='%23c9a84c' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='2' cy='2' r='1.5' fill='%23c9a84c'/%3E%3C/svg%3E")`,
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
+          transform: i === 1 ? 'scaleX(-1)' : i === 2 ? 'scaleY(-1)' : i === 3 ? 'scale(-1,-1)' : 'none',
         }} />
       ))}
 
-      {/* Watermark */}
-      <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
-        <div style={{ fontFamily:'Bebas Neue, serif', fontSize:80, color:'rgba(180,140,50,0.05)', letterSpacing:8, transform:'rotate(-30deg)', userSelect:'none' }}>450K</div>
-      </div>
-
-      {/* Header */}
-      <div style={{ textAlign:'center', marginBottom: large ? 24 : 16 }}>
-        <div style={{ fontSize: large ? 13 : 11, color:'#8a6d2a', letterSpacing:3, marginBottom:8, textTransform:'uppercase' }}>
-          โรงเรียนอนุสรณ์ศุภมาศ จ.สมุทรสาคร
-        </div>
-        <div style={{ fontSize: large ? 11 : 9, color:'#a08040', letterSpacing:2, marginBottom: large ? 16 : 10 }}>
-          ขอมอบเกียรติบัตรฉบับนี้ให้แก่
-        </div>
-
-        {/* Decorative line */}
-        <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', marginBottom: large ? 16 : 12 }}>
-          <div style={{ flex:1, height:1, background:'linear-gradient(90deg,transparent,#c9a84c)' }} />
-          <span style={{ color:'#c9a84c', fontSize:16 }}>✦</span>
-          <div style={{ flex:1, height:1, background:'linear-gradient(90deg,#c9a84c,transparent)' }} />
-        </div>
-      </div>
-
-      {/* Name */}
-      <div style={{ textAlign:'center', marginBottom: large ? 20 : 14 }}>
+      {/* Decorative background watermark */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none', zIndex: 1,
+      }}>
         <div style={{
-          fontFamily:'Sarabun, serif',
-          fontSize: large ? 32 : 24,
-          fontWeight:700,
-          color:'#1a1400',
-          letterSpacing:1,
-          borderBottom:'2px solid #c9a84c',
-          display:'inline-block',
-          paddingBottom:4,
-          minWidth: 200,
+          fontFamily: 'Bebas Neue, serif', fontSize: 120 * p,
+          color: 'rgba(201,168,76,0.045)', letterSpacing: 8,
+          transform: 'rotate(-20deg)', userSelect: 'none',
+          whiteSpace: 'nowrap',
+        }}>450K</div>
+      </div>
+
+      {/* Main content */}
+      <div style={{
+        position: 'relative', zIndex: 4,
+        height: '100%',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: `${20 * p}px ${36 * p}px`,
+        boxSizing: 'border-box',
+        textAlign: 'center',
+        gap: 0,
+      }}>
+
+        {/* School name */}
+        <div style={{
+          fontSize: 10 * p, color: '#8a6530',
+          letterSpacing: 3, textTransform: 'uppercase',
+          marginBottom: 6 * p,
         }}>
-          {name || 'ชื่อ-นามสกุล'}
+          โรงเรียนอนุสรณ์ศุภมาศ · จังหวัดสมุทรสาคร
         </div>
-      </div>
 
-      {/* Body */}
-      <div style={{ textAlign:'center', marginBottom: large ? 20 : 14 }}>
-        <div style={{ fontSize: large ? 12 : 10, color:'#5a4a1a', lineHeight:2, fontFamily:'Sarabun' }}>
+        {/* Divider top */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '70%', marginBottom: 10 * p }}>
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,#c9a84c)' }} />
+          <span style={{ color: '#c9a84c', fontSize: 14 * p }}>✦</span>
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,#c9a84c,transparent)' }} />
+        </div>
+
+        {/* Main title */}
+        <div style={{
+          fontFamily: 'Bebas Neue, serif',
+          fontSize: 28 * p, color: '#1a1200',
+          letterSpacing: 6, marginBottom: 6 * p,
+        }}>
+          เกียรติบัตร
+        </div>
+
+        <div style={{ fontSize: 9 * p, color: '#7a5c20', letterSpacing: 2, marginBottom: 10 * p }}>
+          ขอมอบเกียรติบัตรฉบับนี้เพื่อรับรองว่า
+        </div>
+
+        {/* Name placeholder */}
+        <div style={{
+          fontFamily: 'Sarabun, serif', fontSize: 20 * p, fontWeight: 700,
+          color: '#1a1200', letterSpacing: 1,
+          borderBottom: '2px solid #c9a84c',
+          paddingBottom: 4, minWidth: 180 * p,
+          marginBottom: 10 * p,
+        }}>
+          ชื่อ – นามสกุล
+        </div>
+
+        <div style={{ fontSize: 9 * p, color: '#5a4010', lineHeight: 2, fontFamily: 'Sarabun', marginBottom: 4 * p }}>
           ได้ปฏิบัติตนเป็นแบบอย่างที่ดีในการดูแลสุขภาพ
-          <br />
-          โดยวิ่งออกกำลังกายได้ระยะทางทั้งสิ้น
+          <br />โดยวิ่งออกกำลังกายได้ระยะทางทั้งสิ้น
         </div>
-        <div style={{ margin: large ? '12px 0' : '8px 0' }}>
-          <span style={{ fontFamily:'Bebas Neue, serif', fontSize: large ? 48 : 36, color:'#b8860b', letterSpacing:4 }}>{km}</span>
-          <span style={{ fontFamily:'Sarabun', fontSize: large ? 16 : 13, color:'#8a6d2a', marginLeft:6 }}>กิโลเมตร</span>
+
+        {/* KM highlight */}
+        <div style={{ marginBottom: 8 * p }}>
+          <span style={{
+            fontFamily: 'Bebas Neue, serif', fontSize: 42 * p,
+            color: '#b8860b', letterSpacing: 4,
+            textShadow: '0 2px 8px rgba(184,134,11,0.25)',
+          }}>450</span>
+          <span style={{ fontFamily: 'Sarabun', fontSize: 13 * p, color: '#8a6530', marginLeft: 6 }}>
+            กิโลเมตร
+          </span>
         </div>
-        <div style={{ fontSize: large ? 12 : 10, color:'#5a4a1a', fontFamily:'Sarabun', lineHeight:2 }}>
-          ในโครงการ <strong style={{ color:'#1a1400' }}>450K Teacher's Spirit</strong>
-          <br />
-          ระหว่างวันที่ 1 มิถุนายน — 30 กันยายน 2569
+
+        <div style={{ fontSize: 9 * p, color: '#5a4010', fontFamily: 'Sarabun', lineHeight: 1.8, marginBottom: 10 * p }}>
+          ในโครงการ{' '}
+          <strong style={{ color: '#1a1200' }}>450K Teacher's Spirit</strong>
+          <br />ระหว่างวันที่ 1 มิถุนายน — 30 กันยายน 2569
+        </div>
+
+        {/* Divider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '80%', marginBottom: 10 * p }}>
+          <div style={{ flex: 1, height: 0.5, background: 'linear-gradient(90deg,transparent,#c9a84c60)' }} />
+          <span style={{ color: '#c9a84c80', fontSize: 10 * p }}>🏃 ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา 🏃</span>
+          <div style={{ flex: 1, height: 0.5, background: 'linear-gradient(90deg,#c9a84c60,transparent)' }} />
+        </div>
+
+        {/* Signature */}
+        <div style={{ display: 'flex', justifyContent: 'space-around', width: '80%' }}>
+          {['ผู้อำนวยการโรงเรียน', 'ประธานโครงการ'].map(role => (
+            <div key={role} style={{ textAlign: 'center' }}>
+              <div style={{ height: 24 * p }} /> {/* signature space */}
+              <div style={{ borderTop: '1px solid #c9a84c', width: 100 * p, margin: '0 auto 4px' }} />
+              <div style={{ color: '#8a6530', fontSize: 8 * p, fontFamily: 'Sarabun' }}>{role}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Decorative divider */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, justifyContent:'center', margin: large ? '16px 0' : '10px 0' }}>
-        <div style={{ flex:1, height:1, background:'linear-gradient(90deg,transparent,#c9a84c80)' }} />
-        <span style={{ color:'#c9a84c', fontSize:12 }}>🏃 ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา 🏃</span>
-        <div style={{ flex:1, height:1, background:'linear-gradient(90deg,#c9a84c80,transparent)' }} />
-      </div>
-
-      {/* Signature area */}
-      <div style={{ display:'flex', justifyContent:'space-around', marginTop: large ? 20 : 12 }}>
-        {['ผู้อำนวยการโรงเรียน', 'ประธานโครงการ'].map(role => (
-          <div key={role} style={{ textAlign:'center' }}>
-            <div style={{ borderBottom:'1px solid #c9a84c', width:120, margin:'0 auto 4px' }} />
-            <div style={{ color:'#8a6d2a', fontSize: large ? 10 : 8, fontFamily:'Sarabun' }}>{role}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Seal decoration */}
-      <div style={{ position:'absolute', bottom: large ? 32 : 20, right: large ? 40 : 24, width: large ? 60 : 48, height: large ? 60 : 48, borderRadius:'50%', border:'2px solid #c9a84c88', display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(201,168,76,0.08)' }}>
-        <div style={{ fontSize: large ? 24 : 18 }}>🏫</div>
+      {/* Gold seal */}
+      <div style={{
+        position: 'absolute', bottom: 18 * p, right: 20 * p, zIndex: 5,
+        width: 48 * p, height: 48 * p, borderRadius: '50%',
+        background: 'radial-gradient(circle at 35% 35%, rgba(255,220,100,0.25), rgba(201,168,76,0.1))',
+        border: `1.5px solid #c9a84c66`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4)',
+      }}>
+        <span style={{ fontSize: 20 * p }}>🏫</span>
       </div>
     </div>
   );
