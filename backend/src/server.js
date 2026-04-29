@@ -44,6 +44,12 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 const schema = fs.readFileSync(path.resolve(__dirname, './db/schema.sql'), 'utf8');
 db.exec(schema);
 
+// Migration: เพิ่ม is_baseline ให้ DB เก่าที่สร้างก่อนจะมี column นี้
+try {
+  db.prepare('ALTER TABLE strava_activities ADD COLUMN is_baseline INTEGER NOT NULL DEFAULT 0').run();
+  console.log('[migration] added is_baseline column to strava_activities');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Ensure gallery folder exists & serve statically at /gallery/<filename>
 const galleryDir = path.resolve(__dirname, '../data/gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });

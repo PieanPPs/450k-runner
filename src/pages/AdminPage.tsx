@@ -100,6 +100,7 @@ function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [baselining, setBaselining] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
 
   const reload = () => {
@@ -114,6 +115,16 @@ function Dashboard() {
     const j = await res.json();
     setSyncing(false);
     setSyncMsg(j.ok ? `✅ sync ${j.synced}/${j.total} คน` : `❌ ${j.message}`);
+    reload();
+  };
+
+  const doBaseline = async () => {
+    if (!confirm('⚠️ ตั้ง Baseline ก่อนเริ่ม Season?\n\nกิจกรรมทั้งหมดใน Strava feed ตอนนี้จะถูก mark เป็น "ก่อนฤดูกาล" และไม่นับ km\nกดตกลงเมื่อพร้อมเริ่ม Season จริงๆ')) return;
+    setBaselining(true); setSyncMsg('');
+    const res = await fetch(`${BASE}/api/sync/baseline`, { method:'POST' });
+    const j = await res.json();
+    setBaselining(false);
+    setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
     reload();
   };
 
@@ -147,10 +158,14 @@ function Dashboard() {
           </div>
         </div>
       )}
-      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:24 }}>
-        <button onClick={doSync} disabled={syncing}
+      <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:24 }}>
+        <button onClick={doSync} disabled={syncing || baselining}
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {syncing ? 'กำลัง Sync...' : '↻ Sync Strava'}
+        </button>
+        <button onClick={doBaseline} disabled={syncing || baselining}
+          style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+          {baselining ? 'กำลังตั้ง Baseline...' : '📍 ตั้ง Baseline (ก่อนเริ่มแข่ง)'}
         </button>
         {syncMsg && <span style={{ color: syncMsg.startsWith('✅') ? '#4ade80' : '#f87171', fontSize:13 }}>{syncMsg}</span>}
       </div>

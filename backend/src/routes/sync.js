@@ -36,8 +36,8 @@ router.post('/', async (_req, res) => {
   const total = Object.keys(athleteMap).length;
 
   const insActivity = db.prepare(`
-    INSERT OR IGNORE INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
+    VALUES (?, ?, ?, ?, ?, ?, 0)
   `);
   const thaiNowActivity = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
@@ -65,26 +65,24 @@ router.post('/', async (_req, res) => {
       if (result.changes > 0) newCount++;
     }
 
-    // คำนวณ km จาก activities ที่เก็บใน DB (นับจาก SEASON_START ที่บันทึกครั้งแรก)
+    // คำนวณ km จาก activities ที่ไม่ใช่ baseline (is_baseline=0 = กิจกรรมหลังเริ่ม season)
     const seasonRow = db.prepare(
       `SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt
        FROM strava_activities
-       WHERE strava_key=? AND first_seen >= ?`
-    ).get(stravaKey, SEASON_START + ' 00:00:00');
+       WHERE strava_key=? AND is_baseline=0`
+    ).get(stravaKey);
 
     const totalKm = Math.round(seasonRow.km * 10) / 10;
     const actCount = seasonRow.cnt;
     const steps    = Math.round(totalKm * 1350);
 
-    // weekly km (7 วันล่าสุด แต่ต้องอยู่ใน season ด้วย)
+    // weekly km (7 วันล่าสุด เฉพาะกิจกรรมหลัง baseline)
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
-    const seasonStr = SEASON_START + ' 00:00:00';
-    const weekFromStr = weekStr > seasonStr ? weekStr : seasonStr;
     const weekRow = db.prepare(
-      `SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND first_seen >= ?`
-    ).get(stravaKey, weekFromStr);
+      `SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
+    ).get(stravaKey, weekStr);
     const weeklyKm = Math.round(weekRow.km * 10) / 10;
 
     db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
@@ -100,6 +98,58 @@ router.post('/', async (_req, res) => {
     .run(thaiNow, synced===total?'ok':'partial', JSON.stringify(results));
 
   res.json({ ok:true, synced, total, results });
+});
+
+// POST /api/sync/baseline
+// ดึง feed ปัจจุบันแล้ว mark ทุก activity ว่า is_baseline=1 (ก่อนเริ่ม season — ไม่นับ km)
+router.post('/baseline', async (_req, res) => {
+  const CLUB_ID = process.env.STRAVA_CLUB_ID;
+  if (!CLUB_ID) return res.status(400).json({ ok:false, message:'STRAVA_CLUB_ID ยังไม่ได้ตั้งค่า' });
+
+  const tokenRow = db.prepare('SELECT participant_id,access_token,refresh_token,expires_at FROM strava_tokens LIMIT 1').get();
+  if (!tokenRow) return res.json({ ok:false, message:'ยังไม่มีการเชื่อมต่อ Strava', marked:0 });
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  let { access_token, refresh_token, expires_at } = tokenRow;
+  if (expires_at - nowEpoch < 300) {
+    try {
+      const t = await refreshAccessToken(refresh_token);
+      access_token = t.access_token; refresh_token = t.refresh_token; expires_at = t.expires_at;
+      db.prepare('UPDATE strava_tokens SET access_token=?,refresh_token=?,expires_at=? WHERE participant_id=?')
+        .run(access_token, refresh_token, expires_at, tokenRow.participant_id);
+    } catch(err) { return res.status(500).json({ ok:false, message:`Token refresh failed: ${err.message}` }); }
+  }
+
+  let athleteMap;
+  try { athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID); }
+  catch(err) { return res.status(500).json({ ok:false, message:err.message }); }
+
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  // INSERT กิจกรรมที่ยังไม่มีใน DB พร้อม mark is_baseline=1 ทันที
+  const insBaseline = db.prepare(`
+    INSERT OR IGNORE INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `);
+  // กิจกรรมที่มีใน DB อยู่แล้ว (is_baseline=0) → update เป็น 1 ด้วย
+  const markBaseline = db.prepare(`UPDATE strava_activities SET is_baseline=1 WHERE activity_hash=?`);
+
+  let marked = 0;
+  for (const [stravaKey, data] of Object.entries(athleteMap)) {
+    for (const act of data.activities) {
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+      const r = insBaseline.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNow);
+      if (r.changes === 0) markBaseline.run(hash); // มีอยู่แล้ว → mark
+      marked++;
+    }
+  }
+
+  // Reset km ทุกคนเป็น 0 (เพราะ baseline = ยังไม่มีกิจกรรมใน season)
+  db.prepare('UPDATE participants SET km=0, steps=0, weekly_km=0, activity_count=0').run();
+
+  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)')
+    .run(thaiNow, 'baseline', `Baseline set: ${marked} activities marked as pre-season`);
+
+  res.json({ ok:true, marked, message:`ตั้ง baseline สำเร็จ — ${marked} กิจกรรมถูก mark เป็น pre-season` });
 });
 
 // GET /api/sync/last

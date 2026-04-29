@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS strava_activities (
   distance_km   REAL    NOT NULL,
   elapsed_time  INTEGER NOT NULL DEFAULT 0,
   activity_name TEXT    NOT NULL DEFAULT '',
-  first_seen    TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours'))
+  first_seen    TEXT    NOT NULL DEFAULT (datetime('now', '+7 hours')),
+  is_baseline   INTEGER NOT NULL DEFAULT 0  -- 1 = กิจกรรมก่อนเริ่ม season (ไม่นับ km)
 );
 
 CREATE TABLE IF NOT EXISTS weekly_data (
