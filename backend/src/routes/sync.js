@@ -152,6 +152,40 @@ router.post('/baseline', async (_req, res) => {
   res.json({ ok:true, marked, message:`ตั้ง baseline สำเร็จ — ${marked} กิจกรรมถูก mark เป็น pre-season` });
 });
 
+// GET /api/sync/baseline-status
+router.get('/baseline-status', (_req, res) => {
+  const baselineCount = db.prepare('SELECT COUNT(*) as n FROM strava_activities WHERE is_baseline=1').get().n;
+  const seasonCount   = db.prepare('SELECT COUNT(*) as n FROM strava_activities WHERE is_baseline=0').get().n;
+  const hasBaseline   = baselineCount > 0;
+  res.json({ hasBaseline, baselineCount, seasonCount });
+});
+
+// POST /api/sync/test-activity — เพิ่ม fake activity สำหรับทดสอบ (ลบได้ผ่าน DELETE)
+router.post('/test-activity', (req, res) => {
+  const { strava_key, distance_km = 5 } = req.body;
+  if (!strava_key) return res.status(400).json({ ok:false, message:'ต้องระบุ strava_key' });
+  const participant = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(strava_key);
+  if (!participant) return res.status(404).json({ ok:false, message:'ไม่พบ participant นี้' });
+
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const hash = `TEST|${strava_key}|${thaiNow}`;
+  try {
+    db.prepare(`
+      INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
+      VALUES (?, ?, ?, 0, '[TEST] ทดสอบระบบ', ?, 0)
+    `).run(strava_key, hash, distance_km, thaiNow);
+    res.json({ ok:true, hash, message:`เพิ่ม test activity ${distance_km} km ให้ ${strava_key} แล้ว` });
+  } catch(e) {
+    res.status(500).json({ ok:false, message: e.message });
+  }
+});
+
+// DELETE /api/sync/test-activity — ลบ fake activities ทั้งหมด
+router.delete('/test-activity', (_req, res) => {
+  const r = db.prepare(`DELETE FROM strava_activities WHERE activity_hash LIKE 'TEST|%'`).run();
+  res.json({ ok:true, deleted: r.changes, message:`ลบ test activities ${r.changes} รายการแล้ว` });
+});
+
 // GET /api/sync/last
 router.get('/last', (_req, res) => {
   const log = db.prepare('SELECT synced_at,status,message FROM sync_log ORDER BY id DESC LIMIT 1').get();

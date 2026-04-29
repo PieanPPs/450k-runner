@@ -102,10 +102,18 @@ function Dashboard() {
   const [syncing, setSyncing] = useState(false);
   const [baselining, setBaselining] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+  const [baselineStatus, setBaselineStatus] = useState<{ hasBaseline:boolean; baselineCount:number; seasonCount:number } | null>(null);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [testKey, setTestKey] = useState('');
+  const [testKm, setTestKm] = useState('5');
+  const [testMsg, setTestMsg] = useState('');
+  const [showTestPanel, setShowTestPanel] = useState(false);
 
   const reload = () => {
     fetch(`${BASE}/api/summary`).then(r=>r.json()).then(setData);
     api('/sync-logs').then(setLogs);
+    fetch(`${BASE}/api/sync/baseline-status`).then(r=>r.json()).then(setBaselineStatus);
+    fetch(`${BASE}/api/participants`).then(r=>r.json()).then(setParticipants);
   };
   useEffect(() => { reload(); }, []);
 
@@ -119,12 +127,38 @@ function Dashboard() {
   };
 
   const doBaseline = async () => {
-    if (!confirm('⚠️ ตั้ง Baseline ก่อนเริ่ม Season?\n\nกิจกรรมทั้งหมดใน Strava feed ตอนนี้จะถูก mark เป็น "ก่อนฤดูกาล" และไม่นับ km\nกดตกลงเมื่อพร้อมเริ่ม Season จริงๆ')) return;
+    const alreadySet = baselineStatus?.hasBaseline;
+    const hasSeasonData = (baselineStatus?.seasonCount ?? 0) > 0;
+    const warningExtra = hasSeasonData
+      ? `\n\n⚠️ ขณะนี้มี ${baselineStatus!.seasonCount} กิจกรรม season อยู่แล้ว — กด Baseline อีกครั้งจะ mark ทั้งหมดเป็น pre-season และ reset km เป็น 0!`
+      : '';
+    const msg = alreadySet
+      ? `🔁 Baseline ถูกตั้งไปแล้ว (${baselineStatus!.baselineCount} กิจกรรม)${warningExtra}\n\nยืนยันจะตั้ง Baseline ใหม่?`
+      : `📍 ตั้ง Baseline ก่อนเริ่ม Season?\n\nกิจกรรมทั้งหมดใน Strava feed ตอนนี้จะถูก mark เป็น "ก่อนฤดูกาล" และไม่นับ km\nกดตกลงเมื่อพร้อมเริ่ม Season จริงๆ`;
+    if (!confirm(msg)) return;
     setBaselining(true); setSyncMsg('');
     const res = await fetch(`${BASE}/api/sync/baseline`, { method:'POST' });
     const j = await res.json();
     setBaselining(false);
     setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
+    reload();
+  };
+
+  const doAddTest = async () => {
+    if (!testKey) { setTestMsg('❌ เลือก participant ก่อน'); return; }
+    const res = await fetch(`${BASE}/api/sync/test-activity`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ strava_key: testKey, distance_km: parseFloat(testKm) || 5 }),
+    });
+    const j = await res.json();
+    setTestMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
+    reload();
+  };
+
+  const doDeleteTest = async () => {
+    const res = await fetch(`${BASE}/api/sync/test-activity`, { method:'DELETE' });
+    const j = await res.json();
+    setTestMsg(j.ok ? `🗑️ ${j.message}` : `❌ ${j.message}`);
     reload();
   };
 
@@ -158,7 +192,34 @@ function Dashboard() {
           </div>
         </div>
       )}
-      <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:24 }}>
+      {/* Baseline status bar */}
+      {baselineStatus && (
+        <div style={{
+          background: baselineStatus.hasBaseline ? '#0f2a1a' : '#1a1200',
+          border: `1px solid ${baselineStatus.hasBaseline ? '#166534' : '#713f12'}`,
+          borderRadius:12, padding:'12px 16px', marginBottom:16,
+          display:'flex', alignItems:'center', gap:16, flexWrap:'wrap',
+        }}>
+          <span style={{ fontSize:18 }}>{baselineStatus.hasBaseline ? '✅' : '⚠️'}</span>
+          <div>
+            <div style={{ color: baselineStatus.hasBaseline ? '#4ade80' : '#fbbf24', fontWeight:700, fontSize:13 }}>
+              {baselineStatus.hasBaseline ? 'Baseline ถูกตั้งแล้ว' : 'ยังไม่ได้ตั้ง Baseline'}
+            </div>
+            <div style={{ color:'#888', fontSize:12 }}>
+              Pre-season: <strong style={{color:'#94a3b8'}}>{baselineStatus.baselineCount}</strong> กิจกรรม
+              &nbsp;|&nbsp;
+              Season: <strong style={{color:'#60a5fa'}}>{baselineStatus.seasonCount}</strong> กิจกรรม
+            </div>
+          </div>
+          {(baselineStatus.seasonCount > 0) && (
+            <span style={{ marginLeft:'auto', background:'#1e3a5f', color:'#93c5fd', fontSize:11, padding:'4px 10px', borderRadius:20, fontFamily:'Sarabun' }}>
+              มีข้อมูล season {baselineStatus.seasonCount} กิจกรรม — ห้ามกด Baseline อีก
+            </span>
+          )}
+        </div>
+      )}
+
+      <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:16 }}>
         <button onClick={doSync} disabled={syncing || baselining}
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {syncing ? 'กำลัง Sync...' : '↻ Sync Strava'}
@@ -167,8 +228,44 @@ function Dashboard() {
           style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {baselining ? 'กำลังตั้ง Baseline...' : '📍 ตั้ง Baseline (ก่อนเริ่มแข่ง)'}
         </button>
+        <button onClick={() => setShowTestPanel(p => !p)}
+          style={{ background:'#1e2a3a', border:'1px solid #334155', borderRadius:10, padding:'10px 18px', color:'#94a3b8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Sarabun' }}>
+          🧪 {showTestPanel ? 'ซ่อนแผงทดสอบ' : 'แผงทดสอบ'}
+        </button>
         {syncMsg && <span style={{ color: syncMsg.startsWith('✅') ? '#4ade80' : '#f87171', fontSize:13 }}>{syncMsg}</span>}
       </div>
+
+      {/* Test panel */}
+      {showTestPanel && (
+        <div style={{ background:'#0d1520', border:'1px dashed #334155', borderRadius:12, padding:'16px 20px', marginBottom:20 }}>
+          <div style={{ color:'#94a3b8', fontSize:13, fontWeight:700, marginBottom:12 }}>🧪 แผงทดสอบ (เฉพาะ dev — ไม่ใช่ข้อมูลจริง)</div>
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:10 }}>
+            <select value={testKey} onChange={e=>setTestKey(e.target.value)}
+              style={{ background:'#1e2a3a', border:'1px solid #334155', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, fontFamily:'Sarabun' }}>
+              <option value=''>— เลือก participant —</option>
+              {participants.map((p:any) => (
+                <option key={p.id} value={p.strava_key}>{p.name} ({p.strava_key})</option>
+              ))}
+            </select>
+            <input type='number' value={testKm} onChange={e=>setTestKm(e.target.value)} placeholder='km'
+              style={{ width:70, background:'#1e2a3a', border:'1px solid #334155', borderRadius:8, padding:'8px 10px', color:'#e2e8f0', fontSize:13, textAlign:'center' }} />
+            <span style={{ color:'#64748b', fontSize:12 }}>km</span>
+            <button onClick={doAddTest}
+              style={{ background:'#166534', border:'none', borderRadius:8, padding:'8px 16px', color:'#4ade80', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+              ➕ เพิ่ม Test Activity
+            </button>
+            <button onClick={doDeleteTest}
+              style={{ background:'#7f1d1d', border:'none', borderRadius:8, padding:'8px 16px', color:'#fca5a5', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+              🗑️ ลบ Test ทั้งหมด
+            </button>
+          </div>
+          <div style={{ color:'#64748b', fontSize:11, marginBottom:6 }}>
+            วิธีใช้: กด "เพิ่ม Test Activity" → กด "↻ Sync Strava" → ดูว่า km เพิ่มขึ้นไหม → กด "ลบ Test ทั้งหมด" เมื่อเสร็จ
+          </div>
+          {testMsg && <div style={{ color: testMsg.startsWith('✅')||testMsg.startsWith('🗑️') ? '#4ade80' : '#f87171', fontSize:12 }}>{testMsg}</div>}
+        </div>
+      )}
+
       <div style={s}>
         <div style={{ color:'#a78bfa', fontSize:13, fontWeight:700, marginBottom:12 }}>Sync Log ล่าสุด</div>
         {logs.length === 0 && <div style={{ color:'#555', fontSize:12 }}>ยังไม่มี log</div>}
