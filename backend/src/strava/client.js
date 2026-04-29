@@ -47,10 +47,26 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
     page++;
   }
 
+  // ---- เงื่อนไขขั้นต่ำ — ป้องกันการโกง ----
+  const MIN_DISTANCE_KM  = 1.5;  // ≥ 1.5 km
+  const MIN_DURATION_MIN = 20;   // ≥ 20 นาที
+  const MIN_PACE         = 3.5;  // ≥ 3.5 นาที/km (เร็วกว่า = ขับรถ/ปั่นจักรยาน)
+  const MAX_PACE         = 17;   // ≤ 17 นาที/km (ช้ากว่า = เปิดทิ้งไว้/เดินในห้อง)
+
   const athleteMap = {};
   for (const activity of allActivities) {
-    const isRun = activity.type === 'Run' || activity.sport_type === 'Run';
-    if (!isRun) continue;
+    const isRunOrWalk = activity.type === 'Run'  || activity.sport_type === 'Run'
+                     || activity.type === 'Walk' || activity.sport_type === 'Walk';
+    if (!isRunOrWalk) continue;
+
+    // กรองตามเงื่อนไขขั้นต่ำ
+    const distKm = (activity.distance || 0) / 1000;
+    const durMin = (activity.elapsed_time || 0) / 60;
+    const pace   = distKm > 0 ? durMin / distKm : 999;
+    if (distKm < MIN_DISTANCE_KM)  continue;  // ระยะสั้นเกินไป
+    if (durMin < MIN_DURATION_MIN) continue;  // เวลาน้อยเกินไป
+    if (pace   < MIN_PACE)         continue;  // เร็วเกินไป (ขับรถ/ปั่นจักรยาน)
+    if (pace   > MAX_PACE)         continue;  // ช้าเกินไป (เปิดทิ้งไว้)
 
     const fn  = (activity.athlete?.firstname || '').trim();
     const ln  = (activity.athlete?.lastname  || '').trim();

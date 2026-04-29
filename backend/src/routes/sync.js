@@ -219,6 +219,40 @@ router.get('/baseline-status', (_req, res) => {
   res.json({ hasBaseline, baselineCount, seasonCount });
 });
 
+// POST /api/sync/reset-baseline
+// เปลี่ยนใจ: reset is_baseline=0 ทั้งหมด → นับกิจกรรมทุกรายการเป็น season
+// แล้วคำนวณ km ใหม่ให้ทุก participant
+router.post('/reset-baseline', (_req, res) => {
+  // 1. Reset ทุก activity ให้ is_baseline=0
+  const reset = db.prepare('UPDATE strava_activities SET is_baseline=0').run();
+
+  // 2. คำนวณ km ใหม่สำหรับทุก participant
+  const participants = db.prepare('SELECT id,strava_key FROM participants').all();
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+
+  for (const p of participants) {
+    const row = db.prepare(
+      'SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
+    ).get(p.strava_key);
+    const totalKm = Math.round(row.km * 10) / 10;
+    const steps   = Math.round(totalKm * 1350);
+    const weekRow = db.prepare(
+      'SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
+    ).get(p.strava_key, weekStr);
+    const weeklyKm = Math.round(weekRow.km * 10) / 10;
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
+      .run(totalKm, steps, weeklyKm, row.cnt, p.id);
+  }
+
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)')
+    .run(thaiNow, 'reset-baseline', `Reset baseline: ${reset.changes} activities set to is_baseline=0`);
+
+  res.json({ ok:true, reset: reset.changes, message:`Reset สำเร็จ — ${reset.changes} กิจกรรมถูกนับใหม่ทั้งหมด` });
+});
+
 // POST /api/sync/test-activity — เพิ่ม fake activity สำหรับทดสอบ (ลบได้ผ่าน DELETE)
 router.post('/test-activity', (req, res) => {
   const { strava_key, distance_km = 5 } = req.body;
