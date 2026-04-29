@@ -113,7 +113,7 @@ function Dashboard() {
     fetch(`${BASE}/api/summary`).then(r=>r.json()).then(setData);
     api('/sync-logs').then(setLogs);
     fetch(`${BASE}/api/sync/baseline-status`).then(r=>r.json()).then(setBaselineStatus);
-    fetch(`${BASE}/api/participants`).then(r=>r.json()).then(setParticipants);
+    api('/participants').then(setParticipants);
   };
   useEffect(() => { reload(); }, []);
 
