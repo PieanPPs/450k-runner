@@ -152,6 +152,65 @@ router.post('/baseline', async (_req, res) => {
   res.json({ ok:true, marked, message:`ตั้ง baseline สำเร็จ — ${marked} กิจกรรมถูก mark เป็น pre-season` });
 });
 
+// POST /api/sync/close-preseason
+// บันทึกสถิติ Pre-Season → สร้าง season entry → ตั้ง baseline → reset km
+router.post('/close-preseason', (_req, res) => {
+  // 1. รวมสถิติจาก activities ที่ยังไม่ใช่ baseline (season ปัจจุบัน)
+  const totals = db.prepare(`
+    SELECT COALESCE(SUM(distance_km),0) as totalKm,
+           COUNT(DISTINCT strava_key)   as participantCount
+    FROM strava_activities WHERE is_baseline=0
+  `).get();
+
+  // 2. หาผู้นำ
+  const topRunner = db.prepare(`
+    SELECT p.name, COALESCE(SUM(a.distance_km),0) as km
+    FROM strava_activities a
+    JOIN participants p ON p.strava_key = a.strava_key
+    WHERE a.is_baseline=0
+    GROUP BY a.strava_key ORDER BY km DESC LIMIT 1
+  `).get();
+
+  const totalKm        = Math.round((totals.totalKm || 0) * 10) / 10;
+  const participantCount = totals.participantCount || 0;
+  const topKm          = topRunner ? Math.round(topRunner.km * 10) / 10 : 0;
+  const winner         = topRunner ? topRunner.name : '-';
+
+  // 3. สร้าง date range string (ภาษาไทย)
+  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const thaiNow  = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const endStr   = thaiNow.split(' ')[0]; // YYYY-MM-DD
+  const months   = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const sd = new Date(SEASON_START + 'T00:00:00');
+  const ed = new Date(endStr + 'T00:00:00');
+  const buddhistYear = ed.getFullYear() + 543;
+  const subtitle  = `${months[sd.getMonth()]} — ${months[ed.getMonth()]} ${buddhistYear}`;
+  const dateRange = `${sd.getDate()} ${months[sd.getMonth()]} — ${ed.getDate()} ${months[ed.getMonth()]} ${buddhistYear}`;
+
+  // 4. บันทึก season entry
+  const info = db.prepare(
+    'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
+  ).run('Pre-Season', subtitle, dateRange, 'pre-season', topKm, totalKm, participantCount, winner);
+
+  // 5. Mark กิจกรรม season ทั้งหมดเป็น baseline
+  const marked = db.prepare('UPDATE strava_activities SET is_baseline=1 WHERE is_baseline=0').run();
+
+  // 6. Reset km ทุกคน
+  db.prepare('UPDATE participants SET km=0,steps=0,weekly_km=0,activity_count=0').run();
+
+  // 7. บันทึก log
+  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)')
+    .run(thaiNow, 'close-preseason',
+      `Pre-Season closed — ${marked.changes} activities, totalKm=${totalKm}, winner=${winner}`);
+
+  res.json({
+    ok: true,
+    season_id: info.lastInsertRowid,
+    stats: { totalKm, topKm, winner, participants: participantCount },
+    message: `ปิด Pre-Season สำเร็จ — รวม ${totalKm} km | แชมป์: ${winner}`,
+  });
+});
+
 // GET /api/sync/baseline-status
 router.get('/baseline-status', (_req, res) => {
   const baselineCount = db.prepare('SELECT COUNT(*) as n FROM strava_activities WHERE is_baseline=1').get().n;

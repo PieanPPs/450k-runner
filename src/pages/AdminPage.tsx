@@ -126,6 +126,33 @@ function Dashboard() {
     reload();
   };
 
+  const doClosePreseason = async () => {
+    const status = baselineStatus;
+    if (!status) return;
+    if (status.seasonCount === 0) {
+      alert('ไม่มีข้อมูล Pre-Season — ยังไม่มีกิจกรรมที่บันทึกไว้ในช่วงนี้');
+      return;
+    }
+    const confirmed = confirm(
+      `🏁 ปิด Pre-Season และบันทึกสถิติ?\n\n` +
+      `กิจกรรม ${status.seasonCount} รายการจะถูกบันทึกเป็น "Pre-Season" ใน Seasons\n` +
+      `จากนั้นระบบจะ reset km ทุกคนเป็น 0 พร้อมเริ่ม Season จริง\n\n` +
+      `ยืนยัน?`
+    );
+    if (!confirmed) return;
+    setBaselining(true); setSyncMsg('');
+    try {
+      const res = await fetch(`${BASE}/api/sync/close-preseason`, { method:'POST' });
+      const j = await res.json();
+      setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
+    } catch(e) {
+      setSyncMsg(`❌ เกิดข้อผิดพลาด: ${(e as Error).message}`);
+    } finally {
+      setBaselining(false);
+      reload();
+    }
+  };
+
   const doBaseline = async () => {
     const alreadySet = baselineStatus?.hasBaseline;
     const hasSeasonData = (baselineStatus?.seasonCount ?? 0) > 0;
@@ -224,10 +251,20 @@ function Dashboard() {
           style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
           {syncing ? 'กำลัง Sync...' : '↻ Sync Strava'}
         </button>
-        <button onClick={doBaseline} disabled={syncing || baselining}
-          style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
-          {baselining ? 'กำลังตั้ง Baseline...' : '📍 ตั้ง Baseline (ก่อนเริ่มแข่ง)'}
-        </button>
+
+        {/* ปุ่มหลัก: ปิด Pre-Season (มีข้อมูล) หรือ ตั้ง Baseline (ยังไม่มีข้อมูล) */}
+        {(baselineStatus?.seasonCount ?? 0) > 0 ? (
+          <button onClick={doClosePreseason} disabled={syncing || baselining}
+            style={{ background:'linear-gradient(135deg,#065f46,#10b981)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+            {baselining ? 'กำลังบันทึก...' : '🏁 ปิด Pre-Season & บันทึก'}
+          </button>
+        ) : (
+          <button onClick={doBaseline} disabled={syncing || baselining}
+            style={{ background:'linear-gradient(135deg,#b45309,#f59e0b)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+            {baselining ? 'กำลังตั้ง Baseline...' : '📍 ตั้ง Baseline (ก่อนเริ่มแข่ง)'}
+          </button>
+        )}
+
         <button onClick={() => setShowTestPanel(p => !p)}
           style={{ background:'#1e2a3a', border:'1px solid #334155', borderRadius:10, padding:'10px 18px', color:'#94a3b8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Sarabun' }}>
           🧪 {showTestPanel ? 'ซ่อนแผงทดสอบ' : 'แผงทดสอบ'}

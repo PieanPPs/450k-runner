@@ -7,11 +7,12 @@ export default function Seasons() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
   const { seasons } = data;
-  const statusMeta = {
-    done    : { label:'เสร็จสิ้น',    color:t.accent3 },
-    active  : { label:'กำลังดำเนิน', color:t.accent1 },
-    upcoming: { label:'เร็วๆ นี้',    color:t.textSub },
-  } as const;
+  const statusMeta: Record<string,{label:string;color:string}> = {
+    'done'       : { label:'เสร็จสิ้น',     color:t.accent3 },
+    'active'     : { label:'กำลังดำเนิน',   color:t.accent1 },
+    'upcoming'   : { label:'เร็วๆ นี้',      color:t.textSub },
+    'pre-season' : { label:'Pre-Season',    color:'#06b6d4' },
+  };
 
   return (
     <section id="seasons" style={{ padding:'80px 24px' }}>
@@ -21,8 +22,9 @@ export default function Seasons() {
           {seasons.map((s,i)=>{
             const sm = statusMeta[s.status];
             return (
-              <div key={i} style={{ background:t.card, border:`1px solid ${s.status==='active'?t.accent1+'60':t.cardBorder}`, borderRadius:20, padding:28, position:'relative', overflow:'hidden' }}>
+              <div key={i} style={{ background:t.card, border:`1px solid ${s.status==='active'?t.accent1+'60':s.status==='pre-season'?'#06b6d430':t.cardBorder}`, borderRadius:20, padding:28, position:'relative', overflow:'hidden' }}>
                 {s.status==='active' && <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${t.accent1},${t.accent2})` }} />}
+                {s.status==='pre-season' && <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:'linear-gradient(90deg,#06b6d4,#818cf8)' }} />}
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
                   <div>
                     <div style={{ fontFamily:'Bebas Neue', fontSize:28, color:t.text, letterSpacing:2 }}>{s.name}</div>
@@ -31,7 +33,7 @@ export default function Seasons() {
                   </div>
                   <div style={{ background:sm.color+'22', border:`1px solid ${sm.color}60`, borderRadius:999, padding:'4px 12px', color:sm.color, fontSize:12, fontWeight:700 }}>{sm.label}</div>
                 </div>
-                {s.status!=='upcoming' ? (
+                {s.status !== 'upcoming' ? (
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                     {[
                       {label:'ระยะทางรวม', v:s.totalKm+' km', c:t.accent1},
