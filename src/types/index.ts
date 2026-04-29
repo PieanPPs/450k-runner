@@ -16,7 +16,7 @@ export interface Participant {
 export interface WeeklyData { week: string; km: number; steps: number }
 export interface WeeklySnapshotEntry { id: number; name: string; initials: string; km: number; rank: number }
 export interface WeeklySnapshot { weekNo: number; weekLabel: string; snappedAt: string; participants: WeeklySnapshotEntry[] }
-export type SeasonStatus = 'done' | 'active' | 'upcoming';
+export type SeasonStatus = 'done' | 'active' | 'upcoming' | 'pre-season';
 export interface Season {
   name: string; subtitle: string; dateRange: string; status: SeasonStatus;
   topKm: number; totalKm: number; participants: number; winner: string;
