@@ -38,10 +38,10 @@ const tips = [
 ];
 
 const rules = [
-  { icon: '🏃', label: 'วิ่ง — pace', value: '3.5–17 นาที/km (ไม่บังคับระยะ/เวลา)' },
-  { icon: '🚶', label: 'เดิน — ระยะขั้นต่ำ', value: '1.5 km ต่อครั้ง' },
-  { icon: '⏱️', label: 'เดิน — เวลาขั้นต่ำ', value: '20 นาที ต่อครั้ง' },
-  { icon: '🐢', label: 'เดิน — pace', value: '8–17 นาที/km (ช้ากว่า = ไม่นับ)' },
+  { icon: '🏃', label: 'วิ่ง — pace', value: '3.5–30 นาที/km (ไม่บังคับระยะ/เวลา)' },
+  { icon: '🚶', label: 'เดิน — pace', value: '8–17 นาที/km (ไม่บังคับระยะ/เวลา)' },
+  { icon: '🚗', label: 'ไม่นับ', value: 'ขับรถ, ปั่นจักรยาน, เปิดทิ้งไว้' },
+  { icon: '👑', label: 'กลุ่ม 60+', value: 'admin กำหนดใน Leaderboard แยก' },
 ];
 
 export default function HealthTips() {
@@ -110,7 +110,7 @@ export default function HealthTips() {
           </div>
           <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(6,182,212,0.08)', borderRadius: 10, borderLeft: '3px solid #06b6d4' }}>
             <span style={{ color: '#06b6d4', fontSize: 12 }}>
-              ✅ รับทั้ง <strong>วิ่ง</strong> และ <strong>เดินเร็ว</strong> — วิ่งไม่บังคับระยะ/เวลา | เดินต้อง ≥ 1.5 km และ ≥ 20 นาที | ไม่นับปั่นจักรยาน, ขับรถ, หรือเปิดทิ้งไว้
+              ✅ รับทั้ง <strong>วิ่ง</strong> (pace 3.5–30 นาที/km) และ <strong>เดิน</strong> (pace 8–17 นาที/km) — ไม่บังคับระยะ/เวลา | ไม่นับขับรถ, ปั่นจักรยาน, หรือเปิดทิ้งไว้
             </span>
           </div>
         </div>

@@ -52,8 +52,6 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
   // Walk: บังคับ pace + ระยะ + เวลา (ป้องกันนับเดินในห้อง/เปิดทิ้ง)
   const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ขับรถ/ปั่นจักรยาน
   const RUN_MAX_PACE  = 30;   // ช้ากว่านี้ = เปิดทิ้งไว้
-  const WALK_MIN_DIST = 1.0;  // ≥ 1 km
-  const WALK_MIN_MIN  = 15;   // ≥ 15 นาที
   const WALK_MIN_PACE = 8;    // เร็วกว่านี้ = วิ่งอยู่จริงๆ แต่กด Walk
   const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/เดินในห้อง
 
@@ -71,10 +69,9 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
       if (pace < RUN_MIN_PACE) continue;  // เร็วเกินไป (ขับรถ/ปั่น)
       if (pace > RUN_MAX_PACE) continue;  // ช้าเกินไป (เปิดทิ้งไว้)
     } else {
-      if (distKm < WALK_MIN_DIST) continue;
-      if (durMin < WALK_MIN_MIN)  continue;
-      if (pace   < WALK_MIN_PACE) continue;
-      if (pace   > WALK_MAX_PACE) continue;
+      // Walk: กรองแค่ pace — ไม่บังคับระยะ/เวลา เพราะกลุ่ม 60+ วิ่งได้ไม่นาน
+      if (pace < WALK_MIN_PACE) continue;  // เร็วเกินไป (วิ่งอยู่)
+      if (pace > WALK_MAX_PACE) continue;  // ช้าเกินไป (เปิดทิ้งไว้)
     }
 
     const fn  = (activity.athlete?.firstname || '').trim();
