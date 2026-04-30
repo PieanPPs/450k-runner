@@ -488,7 +488,7 @@ function Participants() {
   };
 
   const save = async () => {
-    await api(`/participants/${editing.id}`, { method:'PUT', body: JSON.stringify({ name: editing.name, initials: editing.initials }) });
+    await api(`/participants/${editing.id}`, { method:'PUT', body: JSON.stringify({ name: editing.name, initials: editing.initials, age_group: editing.age_group || 'general' }) });
     setEditing(null); load();
   };
 
@@ -505,7 +505,7 @@ function Participants() {
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
           <thead>
             <tr style={{ borderBottom:'1px solid #2a2a3e' }}>
-              {['ชื่อ','initials','km','Strava key',''].map(h=>(
+              {['ชื่อ','initials','km','กลุ่ม','Strava key',''].map(h=>(
                 <th key={h} style={{ padding:'10px 14px', color:'#666', fontWeight:500, textAlign:'left' }}>{h}</th>
               ))}
             </tr>
@@ -516,6 +516,13 @@ function Participants() {
                 <td style={{ padding:'10px 14px', color:'#e2e8f0' }}>{r.name}</td>
                 <td style={{ padding:'10px 14px', color:'#888' }}>{r.initials}</td>
                 <td style={{ padding:'10px 14px', color:'#a78bfa', fontFamily:'Bebas Neue', fontSize:16 }}>{r.km}</td>
+                <td style={{ padding:'10px 14px' }}>
+                  <span style={{ fontSize:11, padding:'2px 8px', borderRadius:999, fontWeight:600,
+                    background: r.age_group==='senior' ? '#f59e0b22' : '#2a2a3e',
+                    color: r.age_group==='senior' ? '#f59e0b' : '#555' }}>
+                    {r.age_group==='senior' ? '👑 60+' : 'ทั่วไป'}
+                  </span>
+                </td>
                 <td style={{ padding:'10px 14px', color:'#555', fontSize:11 }}>{r.strava_key||'—'}</td>
                 <td style={{ padding:'10px 14px' }}>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
@@ -554,6 +561,14 @@ function Participants() {
                   style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }} />
               </div>
             ))}
+            <div style={{ marginBottom:12 }}>
+              <label style={{ color:'#888', fontSize:12 }}>กลุ่มอายุ</label>
+              <select value={editing.age_group || 'general'} onChange={e=>setEditing((prev:any)=>({...prev,age_group:e.target.value}))}
+                style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }}>
+                <option value="general">ทั่วไป</option>
+                <option value="senior">👑 กลุ่ม 60+</option>
+              </select>
+            </div>
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
               <button onClick={save} style={{ flex:1, background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:8, padding:'8px', color:'#fff', fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>บันทึก</button>
               <button onClick={()=>setEditing(null)} style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'8px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>ยกเลิก</button>

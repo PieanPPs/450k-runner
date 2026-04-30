@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS participants (
   streak     INTEGER NOT NULL DEFAULT 0,
   weekly_km  REAL    NOT NULL DEFAULT 0,
   strava_key     TEXT    UNIQUE,  -- firstname_L เช่น "piean_p"
-  activity_count INTEGER NOT NULL DEFAULT 0
+  activity_count INTEGER NOT NULL DEFAULT 0,
+  age_group      TEXT    NOT NULL DEFAULT 'general'  -- 'general' | 'senior' (60+)
 );
 
 -- เก็บ activities แต่ละชิ้นถาวร (ป้องกัน km ลด เพราะ Strava Club API ไม่ส่งวันที่)

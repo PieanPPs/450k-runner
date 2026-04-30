@@ -9,12 +9,15 @@ export default function Leaderboard() {
   const { participants } = data;
   const [tab, setTab] = useState(0);
 
+  const seniors = useMemo(() => participants.filter(p => p.ageGroup === 'senior'), [participants]);
+
   const tabs = useMemo(() => [
-    { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>v.toFixed(1),           data:[...participants].sort((a,b)=>b.km-a.km) },
-    { label:'จำนวนครั้ง',    key:'activityCount' as const,  unit:'ครั้ง', fmt:(v:number)=>String(v),              data:[...participants].sort((a,b)=>b.activityCount-a.activityCount) },
-    { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>v.toFixed(1),           data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm) },
-    { label:'Streak (วัน)',  key:'streak' as const,          unit:'วัน',  fmt:(v:number)=>String(v),              data:[...participants].sort((a,b)=>b.streak-a.streak) },
-  ], [participants]);
+    { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>v.toFixed(1), data:[...participants].sort((a,b)=>b.km-a.km),            isSenior: false },
+    { label:'จำนวนครั้ง',    key:'activityCount' as const,  unit:'ครั้ง', fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.activityCount-a.activityCount), isSenior: false },
+    { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>v.toFixed(1), data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm), isSenior: false },
+    { label:'Streak (วัน)',  key:'streak' as const,          unit:'วัน',  fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.streak-a.streak),     isSenior: false },
+    ...(seniors.length > 0 ? [{ label:'👑 กลุ่ม 60+', key:'km' as const, unit:'km', fmt:(v:number)=>v.toFixed(1), data:[...seniors].sort((a,b)=>b.km-a.km), isSenior: true }] : []),
+  ], [participants, seniors]);
 
   const cur = tabs[tab];
   const max = cur.data.length > 0 ? Number(cur.data[0][cur.key]) : 1;
@@ -29,7 +32,9 @@ export default function Leaderboard() {
             <button key={i} onClick={()=>setTab(i)} style={{
               padding:'8px 18px', borderRadius:999, border:'none', cursor:'pointer',
               fontFamily:'Sarabun', fontSize:13, fontWeight:600, transition:'all 0.2s',
-              background:tab===i?t.tabActive:t.tabBg, color:tab===i?'#fff':t.textMuted,
+              background: tab===i ? (tb.isSenior ? '#f59e0b' : t.tabActive) : t.tabBg,
+              color: tab===i ? '#fff' : t.textMuted,
+              boxShadow: tab===i && tb.isSenior ? '0 0 12px #f59e0b55' : 'none',
             }}>{tb.label}</button>
           ))}
         </div>

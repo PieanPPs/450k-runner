@@ -50,13 +50,14 @@ router.put('/settings', requireAdmin, (req, res) => {
 
 // ── Participants ──────────────────────────────────────────
 router.get('/participants', requireAdmin, (_req, res) => {
-  const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,strava_key FROM participants ORDER BY km DESC').all();
+  const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,strava_key,age_group FROM participants ORDER BY km DESC').all();
   res.json(rows);
 });
 
 router.put('/participants/:id', requireAdmin, (req, res) => {
-  const { name, initials } = req.body;
-  db.prepare('UPDATE participants SET name=?,initials=? WHERE id=?').run(name, initials, req.params.id);
+  const { name, initials, age_group } = req.body;
+  db.prepare('UPDATE participants SET name=?,initials=?,age_group=? WHERE id=?')
+    .run(name, initials, age_group || 'general', req.params.id);
   res.json({ ok: true });
 });
 

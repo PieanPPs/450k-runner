@@ -47,15 +47,15 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
     page++;
   }
 
-  // ---- เงื่อนไขขั้นต่ำ — แยก Run กับ Walk ----
-  // Run: กรองแค่ pace (ป้องกันขับรถ/ปั่น/เปิดทิ้ง) ไม่บังคับระยะ/เวลา
-  // Walk: บังคับระยะ + เวลา + pace เพราะโกงง่ายกว่า
-  const RUN_MIN_PACE  = 3.5;  // ≥ 3.5 นาที/km (เร็วกว่า = ขับรถ/ปั่น)
-  const RUN_MAX_PACE  = 17;   // ≤ 17 นาที/km (ช้ากว่า = เปิดทิ้งไว้)
-  const WALK_MIN_DIST = 1.5;  // ≥ 1.5 km
-  const WALK_MIN_MIN  = 20;   // ≥ 20 นาที
-  const WALK_MIN_PACE = 8;    // ≥ 8 นาที/km (เร็วกว่า = วิ่งอยู่จริงๆ แต่กด Walk)
-  const WALK_MAX_PACE = 17;   // ≤ 17 นาที/km (ช้ากว่า = เปิดทิ้งไว้/เดินในห้อง)
+  // ---- เงื่อนไขกรองกิจกรรม ----
+  // Run:  กรองแค่ pace — ไม่บังคับระยะ/เวลา (รองรับวิ่งสั้น/run-walk intervals)
+  // Walk: บังคับ pace + ระยะ + เวลา (ป้องกันนับเดินในห้อง/เปิดทิ้ง)
+  const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ขับรถ/ปั่นจักรยาน
+  const RUN_MAX_PACE  = 30;   // ช้ากว่านี้ = เปิดทิ้งไว้
+  const WALK_MIN_DIST = 1.0;  // ≥ 1 km
+  const WALK_MIN_MIN  = 15;   // ≥ 15 นาที
+  const WALK_MIN_PACE = 8;    // เร็วกว่านี้ = วิ่งอยู่จริงๆ แต่กด Walk
+  const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/เดินในห้อง
 
   const athleteMap = {};
   for (const activity of allActivities) {
@@ -68,15 +68,13 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
     const pace   = distKm > 0 ? durMin / distKm : 999;
 
     if (isRun) {
-      // วิ่ง — กรองแค่ pace ป้องกันขับรถ/เปิดทิ้ง
       if (pace < RUN_MIN_PACE) continue;  // เร็วเกินไป (ขับรถ/ปั่น)
       if (pace > RUN_MAX_PACE) continue;  // ช้าเกินไป (เปิดทิ้งไว้)
     } else {
-      // เดิน — บังคับระยะ + เวลา + pace
-      if (distKm < WALK_MIN_DIST) continue;  // ระยะสั้นเกินไป
-      if (durMin < WALK_MIN_MIN)  continue;  // เวลาน้อยเกินไป
-      if (pace   < WALK_MIN_PACE) continue;  // เร็วเกินไป
-      if (pace   > WALK_MAX_PACE) continue;  // ช้าเกินไป (เปิดทิ้งไว้)
+      if (distKm < WALK_MIN_DIST) continue;
+      if (durMin < WALK_MIN_MIN)  continue;
+      if (pace   < WALK_MIN_PACE) continue;
+      if (pace   > WALK_MAX_PACE) continue;
     }
 
     const fn  = (activity.athlete?.firstname || '').trim();

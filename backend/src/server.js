@@ -44,10 +44,16 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 const schema = fs.readFileSync(path.resolve(__dirname, './db/schema.sql'), 'utf8');
 db.exec(schema);
 
-// Migration: เพิ่ม is_baseline ให้ DB เก่าที่สร้างก่อนจะมี column นี้
+// Migration: เพิ่ม is_baseline
 try {
   db.prepare('ALTER TABLE strava_activities ADD COLUMN is_baseline INTEGER NOT NULL DEFAULT 0').run();
   console.log('[migration] added is_baseline column to strava_activities');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
+// Migration: เพิ่ม age_group
+try {
+  db.prepare("ALTER TABLE participants ADD COLUMN age_group TEXT NOT NULL DEFAULT 'general'").run();
+  console.log('[migration] added age_group column to participants');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
 // Ensure gallery folder exists & serve statically at /gallery/<filename>

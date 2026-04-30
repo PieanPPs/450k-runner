@@ -12,6 +12,7 @@ export type ThemeMode = 'dark' | 'light';
 export interface Participant {
   id: number; name: string; initials: string; km: number;
   steps: number; streak: number; weeklyKm: number; activityCount: number;
+  ageGroup?: 'general' | 'senior';
 }
 export interface WeeklyData { week: string; km: number; steps: number }
 export interface WeeklySnapshotEntry { id: number; name: string; initials: string; km: number; rank: number }
