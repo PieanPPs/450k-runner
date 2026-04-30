@@ -1,7 +1,7 @@
 import { db } from '../db/connection.js';
 
 export function getParticipants(_req, res) {
-  const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount FROM participants ORDER BY id').all();
+  const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,age_group as ageGroup FROM participants ORDER BY id').all();
   res.json(rows);
 }
 
@@ -14,7 +14,7 @@ export function getLeaderboard(req, res) {
     weeklyKm: 'weekly_km',
   };
   const column = keyMap[metric] || 'km';
-  const rows = db.prepare(`SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount FROM participants ORDER BY ${column} DESC, id ASC`).all();
+  const rows = db.prepare(`SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,age_group as ageGroup FROM participants ORDER BY ${column} DESC, id ASC`).all();
   res.json({ metric, rows });
 }
 
