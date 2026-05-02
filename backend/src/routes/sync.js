@@ -1,12 +1,19 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { refreshAccessToken, getClubActivitiesByAthlete, calcStats } from '../strava/client.js';
+import { refreshAccessToken, getClubActivitiesByAthlete } from '../strava/client.js';
+import { requireAdmin } from '../middleware/adminAuth.js';
 
 const router = Router();
 
-// POST /api/sync
-router.post('/', async (_req, res) => {
-  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+// helper: อ่าน season_start จาก project_settings ก่อน fallback .env
+function getSeasonStart() {
+  const row = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get();
+  return row?.value || process.env.SEASON_START || '2026-06-01';
+}
+
+// POST /api/sync  — ต้อง login admin
+router.post('/', requireAdmin, async (_req, res) => {
+  const SEASON_START = getSeasonStart();
   const CLUB_ID      = process.env.STRAVA_CLUB_ID;
   if (!CLUB_ID) return res.status(400).json({ ok:false, message:'STRAVA_CLUB_ID ยังไม่ได้ตั้งค่า' });
 
@@ -192,7 +199,7 @@ router.post('/close-preseason', (_req, res) => {
   const winner         = topRunner ? topRunner.name : '-';
 
   // 3. สร้าง date range string (ภาษาไทย)
-  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const SEASON_START = getSeasonStart();
   const thaiNow  = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
   const endStr   = thaiNow.split(' ')[0]; // YYYY-MM-DD
   const months   = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -300,8 +307,8 @@ router.get('/last', (_req, res) => {
   res.json(log || { synced_at:null, status:'never', message:null });
 });
 
-// GET /api/sync/debug
-router.get('/debug', async (_req, res) => {
+// GET /api/sync/debug  — ต้อง login admin
+router.get('/debug', requireAdmin, async (_req, res) => {
   const CLUB_ID = process.env.STRAVA_CLUB_ID;
   const tokenRow = db.prepare('SELECT access_token FROM strava_tokens LIMIT 1').get();
   if (!tokenRow) return res.json({ error:'no token' });

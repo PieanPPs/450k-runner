@@ -121,7 +121,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     isMounted.current = true;
     fetchAll();
-    return () => { isMounted.current = false; };
+    // auto-refresh ทุก 5 นาที — ผู้ชมเห็นข้อมูลใหม่โดยไม่ต้อง F5
+    const interval = setInterval(() => {
+      if (isMounted.current) fetchAll();
+    }, 5 * 60 * 1000);
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
   }, [fetchAll]);
 
   const refresh = useCallback(async () => {

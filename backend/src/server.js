@@ -77,9 +77,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/adminpp', adminRoutes);
 
+// ---- helpers ----
+function getSeasonStart() {
+  const row = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get();
+  return row?.value || process.env.SEASON_START || '2026-06-01';
+}
+
 // ---- weekly snapshot helper ----
 function takeWeeklySnapshot() {
-  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const SEASON_START = getSeasonStart();
   const start = new Date(SEASON_START);
   const now = new Date();
   const diffDays = Math.max(0, Math.floor((now - start) / 86400000));
@@ -99,64 +105,85 @@ function takeWeeklySnapshot() {
   console.log(`[snapshot] week ${weekNo} saved — ${participants.length} participants`);
 }
 
-// ---- auto sync + snapshot every Sunday 23:59 ----
-if (cron) {
-  cron.schedule('59 23 * * 0', async () => {
-    console.log('[cron] Sunday auto-sync starting...');
-    try {
-      const CLUB_ID = process.env.STRAVA_CLUB_ID;
-      const tokenRow = db.prepare('SELECT access_token,refresh_token,expires_at,participant_id FROM strava_tokens LIMIT 1').get();
-      if (!tokenRow || !CLUB_ID) { console.log('[cron] skip — no token or CLUB_ID'); return; }
+// ---- shared cron sync logic ----
+async function runAutoSync(label = 'cron') {
+  const CLUB_ID = process.env.STRAVA_CLUB_ID;
+  const tokenRow = db.prepare('SELECT access_token,refresh_token,expires_at,participant_id FROM strava_tokens LIMIT 1').get();
+  if (!tokenRow || !CLUB_ID) { console.log(`[${label}] skip — no token or CLUB_ID`); return; }
 
-      const { refreshAccessToken, getClubActivitiesByAthlete, calcStats } = await import('./strava/client.js');
-      const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const { refreshAccessToken, getClubActivitiesByAthlete } = await import('./strava/client.js');
 
-      let { access_token, refresh_token, expires_at } = tokenRow;
-      const nowEpoch = Math.floor(Date.now() / 1000);
-      if (expires_at - nowEpoch < 300) {
-        const t = await refreshAccessToken(refresh_token);
-        access_token = t.access_token; refresh_token = t.refresh_token; expires_at = t.expires_at;
-        db.prepare('UPDATE strava_tokens SET access_token=?,refresh_token=?,expires_at=? WHERE participant_id=?')
-          .run(access_token, refresh_token, expires_at, tokenRow.participant_id);
-      }
+  let { access_token, refresh_token, expires_at } = tokenRow;
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  if (expires_at - nowEpoch < 300) {
+    const t = await refreshAccessToken(refresh_token);
+    access_token = t.access_token; refresh_token = t.refresh_token; expires_at = t.expires_at;
+    db.prepare('UPDATE strava_tokens SET access_token=?,refresh_token=?,expires_at=? WHERE participant_id=?')
+      .run(access_token, refresh_token, expires_at, tokenRow.participant_id);
+  }
 
-      const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
-      // ใช้ is_baseline approach เหมือน manual sync — ไม่ใช้ calcStats เพราะ Club API ไม่มีวันที่
-      const insActivity = db.prepare('INSERT OR IGNORE INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,activity_name,first_seen,is_baseline) VALUES (?,?,?,?,?,?,0)');
-      const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
+  const insActivity = db.prepare('INSERT OR IGNORE INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,activity_name,first_seen,is_baseline) VALUES (?,?,?,?,?,?,0)');
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
-      for (const [stravaKey, data] of Object.entries(athleteMap)) {
-        const { stravaName, firstname, lastname, activities } = data;
-        let p = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(stravaKey);
-        if (!p) {
-          const initials = (firstname.slice(0,1) + (lastname.slice(0,1)||'')).toUpperCase();
-          const info = db.prepare('INSERT INTO participants (name,initials,km,steps,streak,weekly_km,strava_key) VALUES (?,?,0,0,0,0,?)').run(stravaName, initials, stravaKey);
-          p = { id: info.lastInsertRowid };
-        }
-        // insert activities ใหม่ที่ยังไม่มีใน DB
-        for (const act of activities) {
-          const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
-          insActivity.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNow);
-        }
-        // คำนวณจาก DB เฉพาะ is_baseline=0
-        const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
-        const totalKm  = Math.round(seasonRow.km * 10) / 10;
-        const steps    = Math.round(totalKm * 1350);
-        const weekAgo  = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-        const weekStr  = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
-        const weekRow  = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
-        const weeklyKm = Math.round(weekRow.km * 10) / 10;
-        db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
-          .run(totalKm, steps, weeklyKm, seasonRow.cnt, p.id);
-      }
-      db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)').run(thaiNow, 'ok', '[cron] auto-sync Sunday');
-      console.log('[cron] sync done, taking snapshot...');
-      takeWeeklySnapshot();
-    } catch (err) {
-      console.error('[cron] error:', err.message);
+  for (const [stravaKey, data] of Object.entries(athleteMap)) {
+    const { stravaName, firstname, lastname, activities } = data;
+    let p = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(stravaKey);
+    if (!p) {
+      const initials = (firstname.slice(0,1) + (lastname.slice(0,1)||'')).toUpperCase();
+      const info = db.prepare('INSERT INTO participants (name,initials,km,steps,streak,weekly_km,strava_key) VALUES (?,?,0,0,0,0,?)').run(stravaName, initials, stravaKey);
+      p = { id: info.lastInsertRowid };
     }
+    for (const act of activities) {
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+      insActivity.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNow);
+    }
+    // คำนวณ km, weekly_km
+    const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
+    const totalKm  = Math.round(seasonRow.km * 10) / 10;
+    const steps    = Math.round(totalKm * 1350);
+    const weekAgo  = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekStr  = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+    const weekRow  = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
+    const weeklyKm = Math.round(weekRow.km * 10) / 10;
+    // คำนวณ streak จาก first_seen (Strava Club API ไม่มีวันจริง)
+    const seenDates = db.prepare('SELECT DISTINCT substr(first_seen,1,10) as day FROM strava_activities WHERE strava_key=? AND is_baseline=0').all(stravaKey).map(r => r.day);
+    const dateSet = new Set(seenDates);
+    let streak = 0;
+    const todayD = new Date();
+    for (let i = 0; i <= 365; i++) {
+      const d = new Date(todayD); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      if (dateSet.has(key)) { streak++; }
+      else if (i === 0) { continue; }
+      else { break; }
+    }
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,streak=?,activity_count=? WHERE id=?')
+      .run(totalKm, steps, weeklyKm, streak, seasonRow.cnt, p.id);
+  }
+  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)').run(thaiNow, 'ok', `[${label}] auto-sync`);
+  console.log(`[${label}] sync done — ${Object.keys(athleteMap).length} athletes`);
+}
+
+// ---- auto sync ทุก 6 ชั่วโมง ----
+if (cron) {
+  // sync ทุก 6 ชั่วโมง: 00:00, 06:00, 12:00, 18:00
+  cron.schedule('0 */6 * * *', async () => {
+    console.log('[cron] 6-hour auto-sync starting...');
+    try { await runAutoSync('cron-6h'); }
+    catch (err) { console.error('[cron] error:', err.message); }
   }, { timezone: 'Asia/Bangkok' });
-  console.log('Cron: auto-sync scheduled every Sunday 23:59 (Bangkok)');
+
+  // snapshot ทุกวันอาทิตย์ 23:59
+  cron.schedule('59 23 * * 0', async () => {
+    console.log('[cron] Sunday snapshot starting...');
+    try {
+      await runAutoSync('cron-sunday');
+      takeWeeklySnapshot();
+    } catch (err) { console.error('[cron] Sunday error:', err.message); }
+  }, { timezone: 'Asia/Bangkok' });
+
+  console.log('Cron: auto-sync every 6h + snapshot every Sunday 23:59 (Bangkok)');
 } else {
   console.log('node-cron not installed — run: npm install node-cron (in backend folder)');
 }

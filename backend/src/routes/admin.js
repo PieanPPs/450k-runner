@@ -63,6 +63,12 @@ router.put('/participants/:id', requireAdmin, (req, res) => {
 });
 
 router.delete('/participants/:id', requireAdmin, (req, res) => {
+  // ดึง strava_key ก่อนลบ เพื่อลบ activities ที่ผูกด้วย
+  const p = db.prepare('SELECT strava_key FROM participants WHERE id=?').get(req.params.id);
+  if (p?.strava_key) {
+    db.prepare('DELETE FROM strava_activities WHERE strava_key=?').run(p.strava_key);
+    db.prepare('DELETE FROM weekly_snapshots WHERE participant_id=?').run(req.params.id);
+  }
   db.prepare('DELETE FROM strava_tokens WHERE participant_id=?').run(req.params.id);
   db.prepare('DELETE FROM participants WHERE id=?').run(req.params.id);
   res.json({ ok: true });
@@ -142,9 +148,9 @@ router.get('/sync-logs', requireAdmin, (_req, res) => {
 
 // ── Export CSV ────────────────────────────────────────────
 router.get('/export', requireAdmin, (_req, res) => {
-  const rows = db.prepare('SELECT name,initials,km,steps,streak,weekly_km,activity_count FROM participants ORDER BY km DESC').all();
-  const header = 'ชื่อ,initials,km,steps,streak,weekly_km,activity_count';
-  const csv = [header, ...rows.map(r => `${r.name},${r.initials},${r.km},${r.steps},${r.streak},${r.weekly_km},${r.activity_count}`)].join('\n');
+  const rows = db.prepare('SELECT name,initials,age_group,km,steps,streak,weekly_km,activity_count FROM participants ORDER BY km DESC').all();
+  const header = 'ชื่อ,initials,กลุ่มอายุ,km,steps,streak,weekly_km,activity_count';
+  const csv = [header, ...rows.map(r => `${r.name},${r.initials},${r.age_group === 'senior' ? '60+' : 'ทั่วไป'},${r.km},${r.steps},${r.streak},${r.weekly_km},${r.activity_count}`)].join('\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="450k-export.csv"');
   res.send('﻿' + csv);
