@@ -47,7 +47,7 @@ export default function About() {
             {[
               {label:'วันเริ่มต้น',value: settings.season_start ? new Date(settings.season_start).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '1 มิ.ย. 2569',icon:'🚀'},
               {label:'วันสิ้นสุด',value: settings.season_end ? new Date(settings.season_end).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '30 ก.ย. 2569',icon:'🏁'},
-              {label:'ระยะเวลา',value:'90 วัน',icon:'⏱️'},
+              {label:'ระยะเวลา',value: settings.season_start && settings.season_end ? `${Math.round((new Date(settings.season_end).getTime()-new Date(settings.season_start).getTime())/86400000)+1} วัน` : '90 วัน',icon:'⏱️'},
               {label:'เป้าหมายต่อคน',value:`${settings.goal_km_per_person || '450'} กม.`,icon:'🎯'},
               {label:'ผู้เข้าร่วม',value:`${participants.length} คน`,icon:'👥'},
               {label:'ติดตามด้วย',value:'Strava',icon:'📱'},

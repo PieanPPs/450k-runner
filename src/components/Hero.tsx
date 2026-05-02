@@ -6,11 +6,23 @@ export default function Hero() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
   const { participants, totalKm, goalKm, pct, settings } = data;
-  const seasonStart = settings.season_start || '2026-06-01';
-  const cd = useCountdown(`${seasonStart}T00:00:00`);
-  const projectName = settings.project_name || '450K TEACHER\'S SPIRIT';
-  const subtitle    = settings.project_subtitle || 'ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา';
+  const seasonStart  = settings.season_start || '2026-06-01';
+  const seasonEnd    = settings.season_end   || '2026-08-31';
+  const projectName  = settings.project_name || '450K TEACHER\'S SPIRIT';
+  const subtitle     = settings.project_subtitle || 'ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา';
   const goalPerPerson = settings.goal_km_per_person || '450';
+
+  const now       = new Date();
+  const startDate = new Date(seasonStart);
+  const endDate   = new Date(seasonEnd);
+  endDate.setHours(23, 59, 59); // นับถึงสิ้นวัน
+
+  const seasonStatus = now < startDate ? 'pre' : now <= endDate ? 'active' : 'done';
+  // countdown ไปยัง target ตาม phase
+  const countdownTarget = seasonStatus === 'pre'
+    ? `${seasonStart}T00:00:00`
+    : `${seasonEnd}T23:59:59`;
+  const cd = useCountdown(countdownTarget);
 
   return (
     <section style={{
@@ -29,15 +41,21 @@ export default function Hero() {
         <div style={{ color:t.textMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
 
         <div style={{ marginBottom:36 }}>
-          <div style={{ color:t.textSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>เริ่มกิจกรรม {new Date(seasonStart).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}</div>
+          <div style={{ color:t.textSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>
+            {seasonStatus === 'pre'  && `เริ่มกิจกรรม ${startDate.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}`}
+            {seasonStatus === 'active' && `🏃 กำลังดำเนินอยู่ · สิ้นสุด ${endDate.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}`}
+            {seasonStatus === 'done' && '🏁 สิ้นสุดโครงการแล้ว'}
+          </div>
+          {seasonStatus !== 'done' && (
           <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
             {[{v:cd.d,l:'วัน'},{v:cd.h,l:'ชั่วโมง'},{v:cd.m,l:'นาที'},{v:cd.s,l:'วินาที'}].map(({v,l})=>(
               <div key={l} style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:'12px 16px', minWidth:68, textAlign:'center', backdropFilter:'blur(8px)' }}>
-                <div style={{ fontFamily:'Bebas Neue', fontSize:40, color:t.accent1, lineHeight:1 }}>{String(v ?? 0).padStart(2,'0')}</div>
+                <div style={{ fontFamily:'Bebas Neue', fontSize:40, color: seasonStatus==='active' ? t.accent2 : t.accent1, lineHeight:1 }}>{String(v ?? 0).padStart(2,'0')}</div>
                 <div style={{ color:t.textSub, fontSize:10, fontWeight:600, letterSpacing:1 }}>{l}</div>
               </div>
             ))}
           </div>
+          )}
         </div>
 
         <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:28, backdropFilter:'blur(12px)', maxWidth:500, margin:'0 auto' }}>
