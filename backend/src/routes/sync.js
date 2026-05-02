@@ -85,8 +85,23 @@ router.post('/', async (_req, res) => {
     ).get(stravaKey, weekStr);
     const weeklyKm = Math.round(weekRow.km * 10) / 10;
 
-    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
-      .run(totalKm, steps, weeklyKm, actCount, participant.id);
+    // คำนวณ streak จาก first_seen dates (Strava Club API ไม่ส่งวันจริง)
+    const seenDates = db.prepare(
+      `SELECT DISTINCT substr(first_seen,1,10) as day FROM strava_activities WHERE strava_key=? AND is_baseline=0`
+    ).all(stravaKey).map(r => r.day);
+    const dateSet = new Set(seenDates);
+    let streak = 0;
+    const todayD = new Date();
+    for (let i = 0; i <= 365; i++) {
+      const d = new Date(todayD); d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      if (dateSet.has(key)) { streak++; }
+      else if (i === 0) { continue; } // วันนี้ยังไม่มี activity — ข้ามไปวันก่อน
+      else { break; }
+    }
+
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,streak=?,activity_count=? WHERE id=?')
+      .run(totalKm, steps, weeklyKm, streak, actCount, participant.id);
 
     synced++;
     results.push({ id:participant.id, name:participant.name, ok:true, km:totalKm.toFixed(1), new:newCount });

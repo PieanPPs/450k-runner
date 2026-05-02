@@ -868,6 +868,16 @@ export default function AdminPage() {
   const [page, setPage]       = useState('dashboard');
 
   useEffect(() => {
+    const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+    fetch(`${BASE_URL}/api/settings`)
+      .then(r => r.json())
+      .then((s: Record<string,string>) => {
+        if (s.project_name) document.title = `${s.project_name} — Admin`;
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) { setChecking(false); return; }
     api('/verify').then(r => { setAuthed(r.ok); setChecking(false); });
