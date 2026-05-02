@@ -105,7 +105,7 @@ export default function Certificate() {
   );
 }
 
-export function CertificateCard({ name = 'ชื่อ – นามสกุล', km = '450', large = false, sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '' }: { name?: string; km?: string; large?: boolean; sigDirector?: string; sigChair?: string; sigDirectorName?: string; sigChairName?: string }) {
+export function CertificateCard({ name = 'ชื่อ – นามสกุล', km = '400', large = false, sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '' }: { name?: string; km?: string; large?: boolean; sigDirector?: string; sigChair?: string; sigDirectorName?: string; sigChairName?: string }) {
   const p = large ? 1 : 0.78;
 
   return (
@@ -167,7 +167,7 @@ export function CertificateCard({ name = 'ชื่อ – นามสกุล
           color: 'rgba(201,168,76,0.045)', letterSpacing: 8,
           transform: 'rotate(-20deg)', userSelect: 'none',
           whiteSpace: 'nowrap',
-        }}>450K</div>
+        }}>400K</div>
       </div>
 
       {/* Main content */}
@@ -241,8 +241,8 @@ export function CertificateCard({ name = 'ชื่อ – นามสกุล
 
         <div style={{ fontSize: 9 * p, color: '#5a4010', fontFamily: 'Sarabun', lineHeight: 1.8, marginBottom: 10 * p }}>
           ในโครงการ{' '}
-          <strong style={{ color: '#1a1200' }}>450K Teacher's Spirit</strong>
-          <br />ระหว่างวันที่ 1 มิถุนายน — 30 กันยายน 2569
+          <strong style={{ color: '#1a1200' }}>400K Teacher's Spirit</strong>
+          <br />ระหว่างวันที่ 1 มิถุนายน — 31 สิงหาคม 2569
         </div>
 
         {/* Divider */}
