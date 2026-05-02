@@ -11,6 +11,16 @@ async function api(path: string, opts?: RequestInit) {
   return res.json();
 }
 
+// sync endpoints ต้องการ auth ด้วย — ใช้ helper นี้แทน fetch ตรงๆ
+async function syncApi(path: string, opts?: RequestInit) {
+  const token = localStorage.getItem('adminToken');
+  const res = await fetch(`${BASE}/api/sync${path}`, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...opts?.headers },
+  });
+  return res.json();
+}
+
 // ─── Login ────────────────────────────────────────────────
 function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [u, setU] = useState('');
@@ -119,8 +129,7 @@ function Dashboard() {
 
   const doSync = async () => {
     setSyncing(true); setSyncMsg('');
-    const res = await fetch(`${BASE}/api/sync`, { method:'POST' });
-    const j = await res.json();
+    const j = await syncApi('', { method:'POST' });
     setSyncing(false);
     setSyncMsg(j.ok ? `✅ sync ${j.synced}/${j.total} คน` : `❌ ${j.message}`);
     reload();
@@ -142,8 +151,7 @@ function Dashboard() {
     if (!confirmed) return;
     setBaselining(true); setSyncMsg('');
     try {
-      const res = await fetch(`${BASE}/api/sync/close-preseason`, { method:'POST' });
-      const j = await res.json();
+      const j = await syncApi('/close-preseason', { method:'POST' });
       setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
     } catch(e) {
       setSyncMsg(`❌ เกิดข้อผิดพลาด: ${(e as Error).message}`);
@@ -164,8 +172,7 @@ function Dashboard() {
       : `📍 ตั้ง Baseline ก่อนเริ่ม Season?\n\nกิจกรรมทั้งหมดใน Strava feed ตอนนี้จะถูก mark เป็น "ก่อนฤดูกาล" และไม่นับ km\nกดตกลงเมื่อพร้อมเริ่ม Season จริงๆ`;
     if (!confirm(msg)) return;
     setBaselining(true); setSyncMsg('');
-    const res = await fetch(`${BASE}/api/sync/baseline`, { method:'POST' });
-    const j = await res.json();
+    const j = await syncApi('/baseline', { method:'POST' });
     setBaselining(false);
     setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
     reload();
@@ -173,18 +180,16 @@ function Dashboard() {
 
   const doAddTest = async () => {
     if (!testKey) { setTestMsg('❌ เลือก participant ก่อน'); return; }
-    const res = await fetch(`${BASE}/api/sync/test-activity`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const j = await syncApi('/test-activity', {
+      method:'POST',
       body: JSON.stringify({ strava_key: testKey, distance_km: parseFloat(testKm) || 5 }),
     });
-    const j = await res.json();
     setTestMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
     reload();
   };
 
   const doDeleteTest = async () => {
-    const res = await fetch(`${BASE}/api/sync/test-activity`, { method:'DELETE' });
-    const j = await res.json();
+    const j = await syncApi('/test-activity', { method:'DELETE' });
     setTestMsg(j.ok ? `🗑️ ${j.message}` : `❌ ${j.message}`);
     reload();
   };

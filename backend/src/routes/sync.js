@@ -124,7 +124,7 @@ router.post('/', requireAdmin, async (_req, res) => {
 
 // POST /api/sync/baseline
 // ดึง feed ปัจจุบันแล้ว mark ทุก activity ว่า is_baseline=1 (ก่อนเริ่ม season — ไม่นับ km)
-router.post('/baseline', async (_req, res) => {
+router.post('/baseline', requireAdmin, async (_req, res) => {
   const CLUB_ID = process.env.STRAVA_CLUB_ID;
   if (!CLUB_ID) return res.status(400).json({ ok:false, message:'STRAVA_CLUB_ID ยังไม่ได้ตั้งค่า' });
 
@@ -176,7 +176,7 @@ router.post('/baseline', async (_req, res) => {
 
 // POST /api/sync/close-preseason
 // บันทึกสถิติ Pre-Season → สร้าง season entry → ตั้ง baseline → reset km
-router.post('/close-preseason', (_req, res) => {
+router.post('/close-preseason', requireAdmin, (_req, res) => {
   // 1. รวมสถิติจาก activities ที่ยังไม่ใช่ baseline (season ปัจจุบัน)
   const totals = db.prepare(`
     SELECT COALESCE(SUM(distance_km),0) as totalKm,
@@ -244,7 +244,7 @@ router.get('/baseline-status', (_req, res) => {
 // POST /api/sync/reset-baseline
 // เปลี่ยนใจ: reset is_baseline=0 ทั้งหมด → นับกิจกรรมทุกรายการเป็น season
 // แล้วคำนวณ km ใหม่ให้ทุก participant
-router.post('/reset-baseline', (_req, res) => {
+router.post('/reset-baseline', requireAdmin, (_req, res) => {
   // 1. Reset ทุก activity ให้ is_baseline=0
   const reset = db.prepare('UPDATE strava_activities SET is_baseline=0').run();
 
@@ -276,7 +276,7 @@ router.post('/reset-baseline', (_req, res) => {
 });
 
 // POST /api/sync/test-activity — เพิ่ม fake activity สำหรับทดสอบ (ลบได้ผ่าน DELETE)
-router.post('/test-activity', (req, res) => {
+router.post('/test-activity', requireAdmin, (req, res) => {
   const { strava_key, distance_km = 5 } = req.body;
   if (!strava_key) return res.status(400).json({ ok:false, message:'ต้องระบุ strava_key' });
   const participant = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(strava_key);
@@ -296,7 +296,7 @@ router.post('/test-activity', (req, res) => {
 });
 
 // DELETE /api/sync/test-activity — ลบ fake activities ทั้งหมด
-router.delete('/test-activity', (_req, res) => {
+router.delete('/test-activity', requireAdmin, (_req, res) => {
   const r = db.prepare(`DELETE FROM strava_activities WHERE activity_hash LIKE 'TEST|%'`).run();
   res.json({ ok:true, deleted: r.changes, message:`ลบ test activities ${r.changes} รายการแล้ว` });
 });
@@ -311,29 +311,4 @@ router.get('/last', (_req, res) => {
 router.get('/debug', requireAdmin, async (_req, res) => {
   const CLUB_ID = process.env.STRAVA_CLUB_ID;
   const tokenRow = db.prepare('SELECT access_token FROM strava_tokens LIMIT 1').get();
-  if (!tokenRow) return res.json({ error:'no token' });
-  const url = `https://www.strava.com/api/v3/clubs/${CLUB_ID}/activities?per_page=5`;
-  const r = await fetch(url, { headers:{ Authorization:`Bearer ${tokenRow.access_token}` } });
-  const raw = await r.json();
-  res.json({ status:r.status, count:Array.isArray(raw)?raw.length:'N/A', raw });
-});
-
-export default router;
-
-function rebuildWeeklyData(seasonStart) {
-  const ps = db.prepare('SELECT km,weekly_km FROM participants').all();
-  const totalKm  = ps.reduce((s,p) => s+p.km, 0);
-  const weeklyKm = ps.reduce((s,p) => s+p.weekly_km, 0);
-  const start    = new Date(seasonStart);
-  const diffDays = Math.max(0, Math.floor((new Date()-start)/86400000));
-  const numWeeks = Math.max(1, Math.ceil(diffDays/7));
-  const avgPerWeek = totalKm/numWeeks;
-  db.prepare('DELETE FROM weekly_data').run();
-  const ins = db.prepare('INSERT INTO weekly_data (week,km,steps) VALUES (?,?,?)');
-  db.transaction(() => {
-    for (let w=1; w<=numWeeks; w++) {
-      const wKm = w===numWeeks ? weeklyKm : avgPerWeek;
-      ins.run(`สัปดาห์ ${w}`, Math.round(wKm*10)/10, Math.round(wKm*1350));
-    }
-  })();
-}
+  if (!tokenRow) return res
