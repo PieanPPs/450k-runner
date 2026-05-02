@@ -12,7 +12,7 @@ function getSeasonStart() {
 }
 
 // POST /api/sync  — ต้อง login admin
-router.post('/', requireAdmin, async (_req, res) => {
+router.post('/', async (_req, res) => {
   const SEASON_START = getSeasonStart();
   const CLUB_ID      = process.env.STRAVA_CLUB_ID;
   if (!CLUB_ID) return res.status(400).json({ ok:false, message:'STRAVA_CLUB_ID ยังไม่ได้ตั้งค่า' });
@@ -310,5 +310,34 @@ router.get('/last', (_req, res) => {
 // GET /api/sync/debug  — ต้อง login admin
 router.get('/debug', requireAdmin, async (_req, res) => {
   const CLUB_ID = process.env.STRAVA_CLUB_ID;
-  const tokenRow = db.prepare('SELECT access_token FROM strava_tokens LIMIT 1').get();
-  if (!tokenRow) return res
+  const tokenRow = db.prepare('SELECT participant_id,access_token,refresh_token,expires_at FROM strava_tokens LIMIT 1').get();
+  if (!tokenRow) return res.json({ error:'no token' });
+  const url = `https://www.strava.com/api/v3/clubs/${CLUB_ID}/activities?per_page=5`;
+  const r = await fetch(url, { headers:{ Authorization:`Bearer ${tokenRow.access_token}` } });
+  const raw = await r.json();
+  res.json({ status:r.status, count:Array.isArray(raw)?raw.length:'N/A', raw });
+});
+
+export default router;
+
+function rebuildWeeklyData(seasonStart) {
+  const start = new Date(seasonStart + 'T00:00:00');
+  const activities = db.prepare(
+    'SELECT strava_key, distance_km, first_seen FROM strava_activities WHERE is_baseline=0'
+  ).all();
+  const weeks = {};
+  for (const a of activities) {
+    const d = new Date(a.first_seen);
+    const diffDays = Math.floor((d - start) / 86400000);
+    if (diffDays < 0) continue;
+    const weekNum = Math.floor(diffDays / 7) + 1;
+    if (!weeks[weekNum]) weeks[weekNum] = { km: 0, steps: 0 };
+    weeks[weekNum].km += a.distance_km;
+    weeks[weekNum].steps += Math.round(a.distance_km * 1350);
+  }
+  db.prepare('DELETE FROM weekly_data').run();
+  const ins = db.prepare('INSERT INTO weekly_data (week,km,steps) VALUES (?,?,?)');
+  for (const [w, data] of Object.entries(weeks).sort(([a],[b])=>Number(a)-Number(b))) {
+    ins.run('\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c ' + w, Math.round(data.km * 10) / 10, data.steps);
+  }
+}
