@@ -1,4 +1,5 @@
-import { useContext } from 'react';
+import { useContext, useEffect } from 'react';
+import { useAppData } from '@/context/DataContext';
 import Nav from '@/components/Nav';
 import Hero from '@/components/Hero';
 import About from '@/components/About';
@@ -17,6 +18,13 @@ import { DataProvider } from '@/context/DataContext';
 
 function AppBody() {
   const { theme: t } = useContext(ThemeCtx);
+  const { data } = useAppData();
+
+  useEffect(() => {
+    const name = data.settings.project_name;
+    if (name) document.title = `${name} — โรงเรียนอนุสรณ์ศุภมาศ`;
+  }, [data.settings.project_name]);
+
   return (
     <div style={{ background:t.bg, minHeight:'100vh', color:t.text, fontFamily:'Sarabun, sans-serif' }}>
       <Nav />
