@@ -73,7 +73,8 @@ export function getSummary(_req, res) {
   const totalActivities= db.prepare('SELECT COALESCE(SUM(activity_count),0) as v FROM participants').get().v;
   const participantCount = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
   const top            = db.prepare('SELECT name, km FROM participants ORDER BY km DESC LIMIT 1').get();
-  const goalKm         = participantCount * 450;
+  const goalPerPerson  = Number(db.prepare("SELECT value FROM project_settings WHERE key='goal_km_per_person'").get()?.value || 450);
+  const goalKm         = participantCount * goalPerPerson;
   const pct            = goalKm > 0 ? Math.min(100, (totalKm / goalKm) * 100) : 0;
   res.json({
     totalKm: Math.round(totalKm * 10) / 10,
@@ -81,10 +82,16 @@ export function getSummary(_req, res) {
     totalActivities,
     participantCount,
     goalKm,
+    goalPerPerson,
     pct: Math.round(pct * 10) / 10,
     topName: top?.name || '—',
     topKm: top?.km || 0,
   });
+}
+
+export function getSettings(_req, res) {
+  const rows = db.prepare('SELECT key,value FROM project_settings').all();
+  res.json(Object.fromEntries(rows.map(r => [r.key, r.value])));
 }
 
 export function getGallery(_req, res) {

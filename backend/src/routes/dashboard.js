@@ -9,6 +9,7 @@ import {
   getMilestones,
   getSummary,
   getGallery,
+  getSettings,
 } from '../controllers/dashboardController.js';
 
 const router = Router();
@@ -22,5 +23,6 @@ router.get('/distances', getDistances);
 router.get('/milestones', getMilestones);
 router.get('/summary', getSummary);
 router.get('/gallery', getGallery);
+router.get('/settings', getSettings);
 
 export default router;

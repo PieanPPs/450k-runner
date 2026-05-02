@@ -50,6 +50,7 @@ router.put('/settings', requireAdmin, (req, res) => {
 
 // ── Participants ──────────────────────────────────────────
 router.get('/participants', requireAdmin, (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,strava_key,age_group FROM participants ORDER BY km DESC').all();
   res.json(rows);
 });
