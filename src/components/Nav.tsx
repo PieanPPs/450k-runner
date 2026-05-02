@@ -60,7 +60,7 @@ export default function Nav() {
           <img src="/logo.png" alt="AS-Run Logo"
             style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${t.accent1}66` }} />
           <span style={{ fontFamily: 'Bebas Neue', fontSize: 18, color: t.accent1, letterSpacing: 2 }}>
-            450K TEACHER'S SPIRIT
+            {data.settings.project_name || '450K TEACHER\'S SPIRIT'}
           </span>
         </div>
 

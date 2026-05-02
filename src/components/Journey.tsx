@@ -15,8 +15,8 @@ function getCurrentLocation(km: number, distances: { km: number; label: string; 
 export default function Journey() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
-  const { distances, participants, totalKm, goalKm } = data;
-  const perPersonGoal = 450;
+  const { distances, participants, totalKm, goalKm, settings } = data;
+  const perPersonGoal = Number(settings.goal_km_per_person || 450);
 
   return (
     <section id="journey" style={{ padding:'80px 24px' }}>
@@ -92,7 +92,7 @@ export default function Journey() {
                   <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
                     <span style={{ color:t.textSub, fontSize:10 }}>0 km</span>
                     <span style={{ color:t.accent2, fontSize:10, fontWeight:600 }}>{pct.toFixed(0)}%</span>
-                    <span style={{ color:t.textSub, fontSize:10 }}>450 km</span>
+                    <span style={{ color:t.textSub, fontSize:10 }}>{perPersonGoal} km</span>
                   </div>
                 </div>
               );

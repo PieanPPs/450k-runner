@@ -5,8 +5,12 @@ import { useAppData } from '@/context/DataContext';
 export default function Hero() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
-  const { participants, totalKm, goalKm, pct } = data;
-  const cd = useCountdown('2026-06-01T00:00:00');
+  const { participants, totalKm, goalKm, pct, settings } = data;
+  const seasonStart = settings.season_start || '2026-06-01';
+  const cd = useCountdown(`${seasonStart}T00:00:00`);
+  const projectName = settings.project_name || '450K TEACHER\'S SPIRIT';
+  const subtitle    = settings.project_subtitle || 'ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา';
+  const goalPerPerson = settings.goal_km_per_person || '450';
 
   return (
     <section style={{
@@ -20,12 +24,12 @@ export default function Hero() {
       <img src="/logo.png" alt="AS-Run Logo" style={{ width:160, height:160, borderRadius:'50%', objectFit:'cover', border:`3px solid ${t.accent1}`, boxShadow:`0 0 40px ${t.accent1}66`, marginBottom:24 }} />
 
       <div style={{ textAlign:'center', maxWidth:720 }}>
-        <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:8 }}>450K TEACHER'S SPIRIT</div>
-        <div style={{ color:t.text, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา</div>
-        <div style={{ color:t.textMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · 90 วัน · 450 กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
+        <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:8 }}>{projectName}</div>
+        <div style={{ color:t.text, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>{subtitle}</div>
+        <div style={{ color:t.textMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
 
         <div style={{ marginBottom:36 }}>
-          <div style={{ color:t.textSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>เริ่มกิจกรรม 1 มิ.ย. 2569</div>
+          <div style={{ color:t.textSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>เริ่มกิจกรรม {new Date(seasonStart).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}</div>
           <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
             {[{v:cd.d,l:'วัน'},{v:cd.h,l:'ชั่วโมง'},{v:cd.m,l:'นาที'},{v:cd.s,l:'วินาที'}].map(({v,l})=>(
               <div key={l} style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:'12px 16px', minWidth:68, textAlign:'center', backdropFilter:'blur(8px)' }}>
