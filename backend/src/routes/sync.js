@@ -64,11 +64,17 @@ router.post('/', async (_req, res) => {
     }
 
     // บันทึก activities ใหม่ลง DB (INSERT OR IGNORE ป้องกัน duplicate)
-    // hash = strava_key + distance + elapsed_time (ไม่รวม name เพราะ group run ชื่อต่างกันแต่เป็น activity เดียวกัน)
+    // hash = strava_key + distance + elapsed_time + name
+    // + pre-check distance+elapsed ป้องกัน group run ที่ชื่อต่างกันแต่เป็น activity เดียวกัน
     let newCount = 0;
     for (const act of activities) {
-      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}`;
-      const result = insActivity.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNowActivity);
+      const distKm = (act.distance||0)/1000;
+      const elapsed = act.elapsed_time||0;
+      // ถ้ามี activity ที่ distance และ elapsed_time เหมือนกันอยู่แล้ว → ข้าม (group run dedup)
+      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.001 AND elapsed_time=?').get(stravaKey, distKm, elapsed);
+      if (dup) continue;
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+      const result = insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', thaiNowActivity);
       if (result.changes > 0) newCount++;
     }
 
@@ -158,7 +164,7 @@ router.post('/baseline', requireAdmin, async (_req, res) => {
   let marked = 0;
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
     for (const act of data.activities) {
-      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}`;
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
       const r = insBaseline.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNow);
       if (r.changes === 0) markBaseline.run(hash); // มีอยู่แล้ว → mark
       marked++;
