@@ -69,6 +69,7 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 // ─── Sidebar ──────────────────────────────────────────────
 const MENUS = [
   { key:'dashboard',    label:'📊 ภาพรวม' },
+  { key:'daily',        label:'📆 รายวัน' },
   { key:'settings',     label:'⚙️ ตั้งค่าโครงการ' },
   { key:'participants', label:'👥 ผู้เข้าร่วม' },
   { key:'milestones',   label:'🏆 Milestones' },
@@ -866,6 +867,141 @@ function GalleryAdmin() {
   );
 }
 
+// ─── Daily Report ─────────────────────────────────────────
+function DailyReport() {
+  const todayBkk = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).slice(0,10);
+  const [date, setDate]   = useState(todayBkk);
+  const [data, setData]   = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async (d: string) => {
+    setLoading(true);
+    const res = await api(`/daily?date=${d}`);
+    setData(res);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(date); }, [date, load]);
+
+  const fmtPace = (distKm: number, elapsed: number) => {
+    if (!distKm) return '—';
+    const paceMin = (elapsed / 60) / distKm;
+    const m = Math.floor(paceMin);
+    const s = Math.round((paceMin - m) * 60).toString().padStart(2,'0');
+    return `${m}:${s} /km`;
+  };
+  const fmtTime = (elapsed: number) => {
+    const h = Math.floor(elapsed / 3600);
+    const m = Math.floor((elapsed % 3600) / 60);
+    const s = elapsed % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m ${s}s`;
+  };
+
+  const totalKm = data?.activities?.filter((a:any)=>!a.is_baseline).reduce((s:number,a:any)=>s+a.distance_km,0) ?? 0;
+  const runners = new Set(data?.activities?.filter((a:any)=>!a.is_baseline).map((a:any)=>a.strava_key)).size;
+
+  return (
+    <div>
+      <div style={{ marginBottom:24 }}>
+        <div style={{ fontFamily:'Bebas Neue', fontSize:24, color:'#a78bfa', letterSpacing:2 }}>📆 รายงานรายวัน</div>
+        <div style={{ color:'#666', fontSize:13, marginTop:2 }}>ตรวจสอบกิจกรรมรายวัน — ใช้ track ปัญหาย้อนหลัง</div>
+      </div>
+
+      <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+        {/* ── ซ้าย: รายชื่อวัน ── */}
+        <div style={{ width:200, flexShrink:0 }}>
+          <div style={{ background:'#1a1a2e', border:'1px solid #2a2a3e', borderRadius:12, overflow:'hidden' }}>
+            <div style={{ padding:'10px 14px', borderBottom:'1px solid #2a2a3e', fontSize:12, color:'#888', fontWeight:700 }}>
+              วันที่มีข้อมูล ({data?.days?.length ?? 0} วัน)
+            </div>
+            <div style={{ maxHeight:520, overflowY:'auto' }}>
+              {(data?.days ?? []).map((d:any) => (
+                <div key={d.day} onClick={() => setDate(d.day)}
+                  style={{ padding:'8px 14px', cursor:'pointer', borderBottom:'1px solid #1a1a2e',
+                    background: date===d.day ? '#2a1f4e' : 'transparent',
+                    borderLeft: date===d.day ? '3px solid #a78bfa' : '3px solid transparent',
+                    transition:'all 0.1s' }}>
+                  <div style={{ fontSize:12, color: date===d.day ? '#a78bfa' : '#ccc', fontWeight: date===d.day ? 700 : 400 }}>{d.day}</div>
+                  <div style={{ fontSize:11, color:'#666', marginTop:1 }}>
+                    🏃 {d.runners} คน · {d.total_km} km · {d.count} กิจกรรม
+                  </div>
+                </div>
+              ))}
+              {(!data?.days?.length) && <div style={{ padding:16, color:'#444', fontSize:12 }}>ยังไม่มีข้อมูล</div>}
+            </div>
+          </div>
+        </div>
+
+        {/* ── ขวา: ตารางกิจกรรม ── */}
+        <div style={{ flex:1, minWidth:0 }}>
+          {/* date picker + summary */}
+          <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{ background:'#1a1a2e', border:'1px solid #333', borderRadius:8, padding:'7px 12px',
+                color:'#e2e8f0', fontSize:13, fontFamily:'Sarabun' }} />
+            <div style={{ display:'flex', gap:10 }}>
+              {[
+                { label:`${runners} คน`, icon:'🏃' },
+                { label:`${Math.round(totalKm*10)/10} km`, icon:'📏' },
+                { label:`${data?.activities?.filter((a:any)=>!a.is_baseline).length ?? 0} กิจกรรม`, icon:'⚡' },
+              ].map(s=>(
+                <div key={s.label} style={{ background:'#1a1a2e', border:'1px solid #2a2a3e', borderRadius:8,
+                  padding:'6px 12px', fontSize:13, color:'#ccc' }}>
+                  {s.icon} {s.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={{ color:'#666', padding:32, textAlign:'center' }}>กำลังโหลด...</div>
+          ) : !data?.activities?.length ? (
+            <div style={{ background:'#1a1a2e', border:'1px solid #2a2a3e', borderRadius:12, padding:48, textAlign:'center', color:'#444' }}>
+              ไม่มีกิจกรรมในวันที่ {date}
+            </div>
+          ) : (
+            <div style={{ background:'#1a1a2e', border:'1px solid #2a2a3e', borderRadius:12, overflow:'hidden' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <thead>
+                  <tr style={{ borderBottom:'1px solid #2a2a3e', background:'#12122a' }}>
+                    {['เวลา','ชื่อ','กิจกรรม','ระยะ','เวลาวิ่ง','Pace','สถานะ'].map(h=>(
+                      <th key={h} style={{ padding:'10px 12px', textAlign:'left', color:'#888', fontWeight:600, fontSize:11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.activities.map((a:any, i:number) => (
+                    <tr key={i} style={{ borderBottom:'1px solid #1e1e2e',
+                      background: a.is_baseline ? '#1a120a' : i%2===0 ? 'transparent' : '#141428' }}>
+                      <td style={{ padding:'9px 12px', color:'#666', fontSize:11, whiteSpace:'nowrap' }}>
+                        {a.first_seen?.slice(11,16) ?? '—'}
+                      </td>
+                      <td style={{ padding:'9px 12px', color:'#e2e8f0', fontWeight:600 }}>{a.name}</td>
+                      <td style={{ padding:'9px 12px', color:'#aaa' }}>{a.activity_name || '—'}</td>
+                      <td style={{ padding:'9px 12px', color: a.is_baseline ? '#888' : '#a78bfa', fontWeight:700 }}>
+                        {Math.round(a.distance_km*100)/100} km
+                      </td>
+                      <td style={{ padding:'9px 12px', color:'#888' }}>{fmtTime(a.elapsed_time)}</td>
+                      <td style={{ padding:'9px 12px', color:'#888' }}>{fmtPace(a.distance_km, a.elapsed_time)}</td>
+                      <td style={{ padding:'9px 12px' }}>
+                        {a.is_baseline
+                          ? <span style={{ background:'#2a1a00', color:'#f59e0b', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Baseline</span>
+                          : <span style={{ background:'#0f2a1a', color:'#34d399', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Season</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main AdminPage ───────────────────────────────────────
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(false);
@@ -909,6 +1045,7 @@ export default function AdminPage() {
   ];
   const content: Record<string, React.ReactNode> = {
     dashboard:    <Dashboard />,
+    daily:        <DailyReport />,
     settings:     <Settings />,
     participants: <Participants />,
     milestones:   <CrudList title="Milestones" endpoint="milestones" fields={MILESTONE_FIELDS} />,

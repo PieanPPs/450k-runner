@@ -146,6 +146,40 @@ router.get('/sync-logs', requireAdmin, (_req, res) => {
   res.json(logs);
 });
 
+// ── Daily Report ──────────────────────────────────────────
+// GET /api/adminpp/daily?date=2026-05-03
+router.get('/daily', requireAdmin, (req, res) => {
+  // วันที่ default = วันนี้ (Bangkok time)
+  const date = req.query.date ||
+    new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).slice(0, 10);
+
+  // กิจกรรมในวันที่เลือก
+  const activities = db.prepare(`
+    SELECT sa.strava_key,
+           COALESCE(p.name, sa.strava_key) AS name,
+           sa.activity_name, sa.distance_km, sa.elapsed_time,
+           sa.first_seen, sa.is_baseline
+    FROM strava_activities sa
+    LEFT JOIN participants p ON p.strava_key = sa.strava_key
+    WHERE substr(sa.first_seen, 1, 10) = ?
+    ORDER BY sa.first_seen
+  `).all(date);
+
+  // รายชื่อวันที่มีข้อมูล (90 วันล่าสุด) สำหรับ navigation
+  const days = db.prepare(`
+    SELECT substr(first_seen,1,10) AS day,
+           COUNT(*) AS count,
+           ROUND(SUM(CASE WHEN is_baseline=0 THEN distance_km ELSE 0 END),1) AS total_km,
+           COUNT(DISTINCT strava_key) AS runners
+    FROM strava_activities
+    GROUP BY day
+    ORDER BY day DESC
+    LIMIT 90
+  `).all();
+
+  res.json({ date, activities, days });
+});
+
 // ── Export CSV ────────────────────────────────────────────
 router.get('/export', requireAdmin, (_req, res) => {
   const rows = db.prepare('SELECT name,initials,age_group,km,steps,streak,weekly_km,activity_count FROM participants ORDER BY km DESC').all();
