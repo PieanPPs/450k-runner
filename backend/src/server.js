@@ -123,7 +123,11 @@ async function runAutoSync(label = 'cron') {
   }
 
   const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
-  const insActivity = db.prepare('INSERT OR IGNORE INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,activity_name,first_seen,is_baseline) VALUES (?,?,?,?,?,?,0)');
+  const insActivity = db.prepare(`
+    INSERT INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,activity_name,first_seen,is_baseline)
+    VALUES (?,?,?,?,?,?,0)
+    ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
+  `);
   const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
@@ -137,11 +141,17 @@ async function runAutoSync(label = 'cron') {
     for (const act of activities) {
       const distKm = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
-      // dedup: ป้องกัน group run ซ้ำ (distance+elapsed เหมือนกัน = activity เดียวกัน)
+      const actDate = act.start_date_local
+        ? act.start_date_local.replace('T',' ').slice(0,19)
+        : thaiNow;
+      // dedup: ป้องกัน group run ซ้ำ
       const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.001 AND elapsed_time=?').get(stravaKey, distKm, elapsed);
-      if (dup) continue;
+      if (dup) {
+        if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
+        continue;
+      }
       const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
-      insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', thaiNow);
+      insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
     }
     // คำนวณ km, weekly_km
     const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
