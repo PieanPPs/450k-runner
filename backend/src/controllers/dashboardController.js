@@ -98,3 +98,36 @@ export function getGallery(_req, res) {
   const rows = db.prepare('SELECT filename, caption, uploaded_at FROM gallery_images ORDER BY id DESC').all();
   res.json(rows);
 }
+
+// GET /api/daily?date=YYYY-MM-DD  — public, ไม่ต้อง auth
+export function getDailyLog(req, res) {
+  const date = req.query.date ||
+    new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).slice(0, 10);
+
+  const activities = db.prepare(`
+    SELECT sa.strava_key,
+           COALESCE(p.name, sa.strava_key) AS name,
+           p.initials,
+           sa.activity_name, sa.distance_km, sa.elapsed_time,
+           sa.first_seen, sa.is_baseline
+    FROM strava_activities sa
+    LEFT JOIN participants p ON p.strava_key = sa.strava_key
+    WHERE substr(sa.first_seen,1,10) = ? AND sa.is_baseline = 0
+    ORDER BY sa.distance_km DESC
+  `).all(date);
+
+  // รายชื่อ 30 วันล่าสุดที่มีข้อมูล (สำหรับ date picker)
+  const days = db.prepare(`
+    SELECT substr(first_seen,1,10) AS day,
+           COUNT(*) AS count,
+           ROUND(SUM(distance_km),1) AS total_km,
+           COUNT(DISTINCT strava_key) AS runners
+    FROM strava_activities
+    WHERE is_baseline = 0
+    GROUP BY day
+    ORDER BY day DESC
+    LIMIT 30
+  `).all();
+
+  res.json({ date, activities, days });
+}

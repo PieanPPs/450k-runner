@@ -10,6 +10,7 @@ import {
   getSummary,
   getGallery,
   getSettings,
+  getDailyLog,
 } from '../controllers/dashboardController.js';
 
 const router = Router();
@@ -24,5 +25,6 @@ router.get('/milestones', getMilestones);
 router.get('/summary', getSummary);
 router.get('/gallery', getGallery);
 router.get('/settings', getSettings);
+router.get('/daily', getDailyLog);
 
 export default router;
