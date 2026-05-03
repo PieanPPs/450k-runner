@@ -104,10 +104,6 @@ export function getDailyLog(req, res) {
   const date = req.query.date ||
     new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).slice(0, 10);
 
-  // อ่าน season_start เพื่อ filter activities ก่อน season ออก
-  const seasonStart = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get()?.value
-    || process.env.SEASON_START || '2026-06-01';
-
   const activities = db.prepare(`
     SELECT sa.strava_key,
            COALESCE(p.name, sa.strava_key) AS name,
@@ -117,24 +113,21 @@ export function getDailyLog(req, res) {
     FROM strava_activities sa
     LEFT JOIN participants p ON p.strava_key = sa.strava_key
     WHERE substr(sa.first_seen,1,10) = ?
-      AND sa.is_baseline = 0
-      AND sa.first_seen >= ?
-    ORDER BY sa.distance_km DESC
-  `).all(date, seasonStart);
+    ORDER BY sa.is_baseline ASC, sa.distance_km DESC
+  `).all(date);
 
-  // รายชื่อวันที่มีข้อมูล (เฉพาะหลัง season start)
+  // รายชื่อวันที่มีข้อมูลทั้งหมด (รวม pre-season)
   const days = db.prepare(`
     SELECT substr(first_seen,1,10) AS day,
            COUNT(*) AS count,
-           ROUND(SUM(distance_km),1) AS total_km,
-           COUNT(DISTINCT strava_key) AS runners
+           ROUND(SUM(CASE WHEN is_baseline=0 THEN distance_km ELSE 0 END),1) AS total_km,
+           COUNT(DISTINCT strava_key) AS runners,
+           SUM(CASE WHEN is_baseline=1 THEN 1 ELSE 0 END) AS baseline_count
     FROM strava_activities
-    WHERE is_baseline = 0
-      AND first_seen >= ?
     GROUP BY day
     ORDER BY day DESC
-    LIMIT 60
-  `).all(seasonStart);
+    LIMIT 90
+  `).all();
 
-  res.json({ date, activities, days, seasonStart });
+  res.json({ date, activities, days });
 }

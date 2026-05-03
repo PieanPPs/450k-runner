@@ -72,16 +72,20 @@ export default function DailyLog() {
 
         {/* ── date tabs (30 วันล่าสุด) ── */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 24, overflowX: 'auto', paddingBottom: 4 }}>
-          {days.map(d => (
+          {days.map((d: any) => (
             <button key={d.day} onClick={() => setDate(d.day)} style={{
               padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
               fontFamily: 'Sarabun', fontSize: 12, fontWeight: 600, flexShrink: 0,
               background: date === d.day ? t.tabActive : t.tabBg,
               color: date === d.day ? '#fff' : t.textMuted,
               transition: 'all 0.2s',
+              outline: d.baseline_count > 0 ? '1px solid #f59e0b55' : 'none',
             }}>
-              {d.day.slice(5)}{/* MM-DD */}
-              <span style={{ display: 'block', fontSize: 10, opacity: 0.8 }}>{d.total_km} km</span>
+              {d.day.slice(5)}
+              <span style={{ display: 'block', fontSize: 10, opacity: 0.8 }}>
+                {d.total_km > 0 ? `${d.total_km} km` : '—'}
+                {d.baseline_count > 0 ? ' 📋' : ''}
+              </span>
             </button>
           ))}
         </div>
