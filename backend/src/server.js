@@ -135,8 +135,13 @@ async function runAutoSync(label = 'cron') {
       p = { id: info.lastInsertRowid };
     }
     for (const act of activities) {
+      const distKm = (act.distance||0)/1000;
+      const elapsed = act.elapsed_time||0;
+      // dedup: ป้องกัน group run ซ้ำ (distance+elapsed เหมือนกัน = activity เดียวกัน)
+      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.001 AND elapsed_time=?').get(stravaKey, distKm, elapsed);
+      if (dup) continue;
       const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
-      insActivity.run(stravaKey, hash, (act.distance||0)/1000, act.elapsed_time||0, act.name||'', thaiNow);
+      insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', thaiNow);
     }
     // คำนวณ km, weekly_km
     const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
@@ -165,25 +170,47 @@ async function runAutoSync(label = 'cron') {
   console.log(`[${label}] sync done — ${Object.keys(athleteMap).length} athletes`);
 }
 
-// ---- auto sync ทุก 6 ชั่วโมง ----
+// ---- daily backup helper ----
+async function dailyBackup() {
+  const backupDir = process.env.BACKUP_DIR || '/app/data/backups';
+  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+  const ts   = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' })
+                         .replace(/[: ]/g, '-').slice(0, 19);
+  const dest = path.join(backupDir, `daily_${ts}.sqlite`);
+  await db.backup(dest);
+  // เก็บ daily backup ไว้ 90 ไฟล์ (3 เดือน)
+  const files = fs.readdirSync(backupDir)
+    .filter(f => f.startsWith('daily_') && f.endsWith('.sqlite'))
+    .sort();
+  if (files.length > 90) {
+    files.slice(0, files.length - 90).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
+  }
+  console.log(`[backup] daily backup saved: ${dest}`);
+}
+
+// ---- cron schedule ----
 if (cron) {
   // sync ทุก 6 ชั่วโมง: 00:00, 06:00, 12:00, 18:00
   cron.schedule('0 */6 * * *', async () => {
-    console.log('[cron] 6-hour auto-sync starting...');
     try { await runAutoSync('cron-6h'); }
-    catch (err) { console.error('[cron] error:', err.message); }
+    catch (err) { console.error('[cron-6h] error:', err.message); }
   }, { timezone: 'Asia/Bangkok' });
 
-  // snapshot ทุกวันอาทิตย์ 23:59
-  cron.schedule('59 23 * * 0', async () => {
-    console.log('[cron] Sunday snapshot starting...');
+  // ทุกคืน 23:59 — sync สุดท้ายของวัน + backup รายวัน
+  cron.schedule('59 23 * * *', async () => {
+    console.log('[cron] daily end-of-day sync + backup...');
     try {
-      await runAutoSync('cron-sunday');
-      takeWeeklySnapshot();
-    } catch (err) { console.error('[cron] Sunday error:', err.message); }
+      await runAutoSync('cron-daily');
+      await dailyBackup();
+      // วันอาทิตย์ → เพิ่ม weekly snapshot
+      if (new Date().getDay() === 0) {
+        takeWeeklySnapshot();
+        console.log('[cron] Sunday weekly snapshot done');
+      }
+    } catch (err) { console.error('[cron-daily] error:', err.message); }
   }, { timezone: 'Asia/Bangkok' });
 
-  console.log('Cron: auto-sync every 6h + snapshot every Sunday 23:59 (Bangkok)');
+  console.log('Cron: sync every 6h | daily sync+backup at 23:59 | weekly snapshot on Sunday (Bangkok)');
 } else {
   console.log('node-cron not installed — run: npm install node-cron (in backend folder)');
 }

@@ -1,15 +1,13 @@
 #!/bin/bash
 # ========================================
 # backup.sh — Backup ฐานข้อมูล 450K Runner
-# วิธีใช้ (manual): bash backup.sh
-# วิธีตั้ง auto (cron): ดูด้านล่าง
+# วิธีใช้ (manual): bash /home/450k-runner/backup.sh
+# WAL-safe: ใช้ Node.js better-sqlite3 db.backup() ผ่าน Docker
 # ========================================
 
-# ── ตั้งค่า Path ─────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DB_SOURCE="${SCRIPT_DIR}/backend/data/450k.sqlite"
-BACKUP_DIR="${SCRIPT_DIR}/backend/data/backups"
-MAX_BACKUPS=30          # เก็บ backup สูงสุด 30 ไฟล์ (ประมาณ 1 เดือน)
+CONTAINER="backend-450k"
+HOST_BACKUP_DIR="/home/450k-runner/db-backups"   # นอก Docker — ปลอดภัยกว่า
+MAX_BACKUPS=90                                     # เก็บ 90 วัน (3 เดือน)
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -20,54 +18,64 @@ BOLD='\033[1m'
 echo ""
 echo -e "${BOLD}💾 Backup 450K Database${NC} — $(date '+%Y-%m-%d %H:%M:%S')"
 
-# ── สร้าง backup directory ──────────────────────
-mkdir -p "$BACKUP_DIR"
-
-# ── ตรวจสอบว่า DB มีอยู่ ────────────────────────
-if [ ! -f "$DB_SOURCE" ]; then
-  echo -e "${RED}❌ ไม่พบไฟล์ DB: ${DB_SOURCE}${NC}"
+# ── ตรวจสอบ container ──────────────────────────
+if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+  echo -e "${RED}❌ Container '${CONTAINER}' ไม่ได้ทำงานอยู่${NC}"
   exit 1
 fi
 
-# ── สร้างชื่อไฟล์ backup ────────────────────────
-TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
-BACKUP_FILE="${BACKUP_DIR}/450k_${TIMESTAMP}.sqlite"
+# ── สร้าง host backup directory ────────────────
+mkdir -p "$HOST_BACKUP_DIR"
 
-# ── Copy ไฟล์ (SQLite-safe: ใช้ cp ไม่ใช่ mv) ──
-cp "$DB_SOURCE" "$BACKUP_FILE"
+TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
+CONTAINER_DEST="/app/data/backups/manual_${TIMESTAMP}.sqlite"
+HOST_DEST="${HOST_BACKUP_DIR}/450k_${TIMESTAMP}.sqlite"
+
+# ── Backup ผ่าน Node.js (WAL-safe) ─────────────
+docker exec "$CONTAINER" node -e "
+const Database = require('better-sqlite3');
+const db = new Database('/app/data/450k.sqlite');
+db.backup('${CONTAINER_DEST}').then(() => {
+  console.log('ok');
+}).catch(e => { console.error(e.message); process.exit(1); });
+"
+
+if [ $? -ne 0 ]; then
+  echo -e "${RED}❌ Backup ล้มเหลว (Docker/Node error)${NC}"
+  exit 1
+fi
+
+# ── Copy ออกมาไว้นอก Docker volume (host filesystem) ──
+docker cp "${CONTAINER}:${CONTAINER_DEST}" "$HOST_DEST"
 
 if [ $? -eq 0 ]; then
-  SIZE=$(du -sh "$BACKUP_FILE" | cut -f1)
-  echo -e "${GREEN}✅ Backup สำเร็จ: ${BACKUP_FILE} (${SIZE})${NC}"
+  SIZE=$(du -sh "$HOST_DEST" | cut -f1)
+  echo -e "${GREEN}✅ Backup สำเร็จ${NC}"
+  echo -e "   📦 ใน Docker : ${CONTAINER_DEST}"
+  echo -e "   💾 บน Host   : ${HOST_DEST} (${SIZE})"
 else
-  echo -e "${RED}❌ Backup ล้มเหลว!${NC}"
-  exit 1
+  echo -e "${YELLOW}⚠️  Backup อยู่ใน Docker แต่ copy ออก host ไม่สำเร็จ${NC}"
 fi
 
-# ── ลบ backup เก่าเกิน MAX_BACKUPS ─────────────
-BACKUP_COUNT=$(ls -1 "${BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | wc -l)
+# ── ลบ host backup เก่าเกิน MAX_BACKUPS ────────
+BACKUP_COUNT=$(ls -1 "${HOST_BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | wc -l)
 if [ "$BACKUP_COUNT" -gt "$MAX_BACKUPS" ]; then
   DELETE_COUNT=$((BACKUP_COUNT - MAX_BACKUPS))
-  echo -e "${YELLOW}🗑️  ลบ backup เก่า ${DELETE_COUNT} ไฟล์ (เก็บไว้ ${MAX_BACKUPS} ล่าสุด)${NC}"
-  ls -1t "${BACKUP_DIR}"/450k_*.sqlite | tail -n "$DELETE_COUNT" | xargs rm -f
+  echo -e "${YELLOW}🗑️  ลบ backup เก่า ${DELETE_COUNT} ไฟล์${NC}"
+  ls -1t "${HOST_BACKUP_DIR}"/450k_*.sqlite | tail -n "$DELETE_COUNT" | xargs rm -f
 fi
 
-# ── แสดงรายการ backup ทั้งหมด ──────────────────
+# ── แสดงรายการ backup ล่าสุด 10 ไฟล์ ──────────
 echo ""
-echo -e "${BOLD}📁 Backup ที่มีทั้งหมด (${BACKUP_DIR}):${NC}"
-ls -lht "${BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | \
-  awk '{printf "   %s  %s  %s\n", $6, $7, $9}' | head -10
+echo -e "${BOLD}📁 Backup ล่าสุด (${HOST_BACKUP_DIR}):${NC}"
+ls -lht "${HOST_BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | \
+  awk '{printf "   %s %s  %s  %s\n", $6, $7, $5, $9}' | head -10
 echo ""
-echo -e "รวม: $(ls -1 "${BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | wc -l) ไฟล์"
+echo -e "รวม: $(ls -1 "${HOST_BACKUP_DIR}"/450k_*.sqlite 2>/dev/null | wc -l) ไฟล์"
 echo ""
 
 # ========================================
 # วิธีตั้ง Auto Backup ด้วย Cron (ทำครั้งเดียว)
-# ========================================
-# รัน: crontab -e
-# แล้วเพิ่มบรรทัดนี้ (backup ทุกวันตี 2):
-#   0 2 * * * /path/to/450k-runner/backup.sh >> /path/to/450k-runner/backend/data/backups/backup.log 2>&1
-#
-# ตรวจสอบ cron: crontab -l
-# ดู log: tail -f /path/to/450k-runner/backend/data/backups/backup.log
+# crontab -e แล้วเพิ่ม:
+#   0 2 * * * /home/450k-runner/backup.sh >> /home/450k-runner/db-backups/backup.log 2>&1
 # ========================================

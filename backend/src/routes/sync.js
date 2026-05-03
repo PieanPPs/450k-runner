@@ -2,8 +2,33 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { refreshAccessToken, getClubActivitiesByAthlete } from '../strava/client.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
+
+const DB_PATH      = process.env.DB_PATH || '/app/data/450k.sqlite';
+const BACKUP_DIR   = process.env.BACKUP_DIR || '/app/data/backups';
+const MAX_BACKUPS  = 60; // เก็บย้อนหลัง 60 ไฟล์ (daily = 2 เดือน, ถ้า sync วันละครั้ง)
+
+// helper: สำรองข้อมูลก่อน sync — คืน path ที่บันทึก
+async function autoBackup(label = 'sync') {
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const ts   = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' })
+                         .replace(/[: ]/g, '-').slice(0, 19);
+  const dest = path.join(BACKUP_DIR, `auto_${label}_${ts}.sqlite`);
+  await db.backup(dest);
+
+  // ลบไฟล์เก่าเกิน MAX_BACKUPS (เรียงตามชื่อ = เรียงตามเวลา)
+  const files = fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.endsWith('.sqlite'))
+    .sort();
+  if (files.length > MAX_BACKUPS) {
+    files.slice(0, files.length - MAX_BACKUPS)
+         .forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+  }
+  return dest;
+}
 
 // helper: อ่าน season_start จาก project_settings ก่อน fallback .env
 function getSeasonStart() {
@@ -11,11 +36,14 @@ function getSeasonStart() {
   return row?.value || process.env.SEASON_START || '2026-06-01';
 }
 
-// POST /api/sync  — ต้อง login admin
+// POST /api/sync  — public (ครูกดเองได้)
 router.post('/', async (_req, res) => {
   const SEASON_START = getSeasonStart();
   const CLUB_ID      = process.env.STRAVA_CLUB_ID;
   if (!CLUB_ID) return res.status(400).json({ ok:false, message:'STRAVA_CLUB_ID ยังไม่ได้ตั้งค่า' });
+
+  // สำรองข้อมูลก่อนทุก sync — ป้องกัน data เสียหาย
+  try { await autoBackup('sync'); } catch(e) { console.warn('[sync] backup failed (non-fatal):', e.message); }
 
   const tokenRow = db.prepare('SELECT participant_id,access_token,refresh_token,expires_at FROM strava_tokens LIMIT 1').get();
   if (!tokenRow) return res.json({ ok:false, message:'ยังไม่มีการเชื่อมต่อ Strava', synced:0, total:0 });
