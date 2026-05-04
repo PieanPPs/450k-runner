@@ -205,7 +205,8 @@ router.get('/seasons/compute', requireAdmin, (_req, res) => {
   const totalKm      = db.prepare('SELECT COALESCE(SUM(km),0) as v FROM participants').get().v;
   const participants = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
   const top          = db.prepare('SELECT name, km FROM participants ORDER BY km DESC LIMIT 1').get();
-  const SEASON_START = process.env.SEASON_START || '2026-06-01';
+  const settingRow   = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get();
+  const SEASON_START = settingRow?.value || process.env.SEASON_START || '2026-06-01';
   const now          = new Date().toISOString().slice(0,10);
   res.json({
     total_km:     Math.round(totalKm * 10) / 10,
