@@ -443,102 +443,164 @@ async function generateCertificatePDF(name: string, km: string) {
   await document.fonts.load('bold 28px "Bebas Neue"');
   await document.fonts.load('bold 20px Sarabun');
 
-  // ---- สร้าง canvas ขนาด A4 landscape 2× (1587×1123 px = 210×297 mm @ 192dpi) ----
-  const W = 1587, H = 1123;
+  // ---- สร้าง canvas ขนาด A4 portrait (794×1123 px ≈ 210×297 mm @ 96dpi) ----
+  const W = 794, H = 1123;
   const canvas = document.createElement('canvas');
   canvas.width  = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  // พื้นหลัง gradient
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#fefaf0'); bg.addColorStop(0.6, '#fdf3d8'); bg.addColorStop(1, '#fef7e8');
-  ctx.fillStyle = bg;
+  const PINK   = '#e91e8c';
+  const PINK2  = '#ff3399';
+  const GOLD   = '#ffcc44';
+
+  // ── พื้นหลัง dark ──
+  ctx.fillStyle = '#0d0818';
   ctx.fillRect(0, 0, W, H);
 
-  // กรอบทอง 2 ชั้น
-  ctx.strokeStyle = '#c9a84c'; ctx.lineWidth = 3;   ctx.strokeRect(20, 20, W-40, H-40);
-  ctx.strokeStyle = '#e8cc80'; ctx.lineWidth = 1;   ctx.strokeRect(28, 28, W-56, H-56);
+  // glow กลาง
+  const glow = ctx.createRadialGradient(W/2, H*0.38, 40, W/2, H*0.38, 380);
+  glow.addColorStop(0, 'rgba(160,0,130,0.38)');
+  glow.addColorStop(1, 'rgba(13,8,24,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
 
-  // helpers
+  // ── กรอบ pink ──
+  ctx.strokeStyle = PINK; ctx.lineWidth = 2.5;
+  ctx.strokeRect(12, 12, W-24, H-24);
+  ctx.strokeStyle = 'rgba(233,30,140,0.28)'; ctx.lineWidth = 1;
+  ctx.strokeRect(19, 19, W-38, H-38);
+
   const cx = W / 2;
   const fill = (t: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = 'center') => {
     ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(t, x, y);
   };
-  const line = (x1: number, y: number, x2: number, color = '#c9a84c', lw = 1) => {
+  const hline = (x1: number, y: number, x2: number, color = PINK, lw = 1) => {
     ctx.strokeStyle = color; ctx.lineWidth = lw;
     ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
   };
 
-  let y = 120;
+  // ── corner HUD brackets ──
+  const corner = (ox: number, oy: number, fx: number, fy: number) => {
+    const s = 52, c = PINK;
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(fx, fy);
+    ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.lineCap = 'square';
+    ctx.beginPath(); ctx.moveTo(0, s); ctx.lineTo(0, 0); ctx.lineTo(s, 0); ctx.stroke();
+    ctx.strokeStyle = 'rgba(233,30,140,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, s*0.55); ctx.lineTo(0, s*0.2); ctx.lineTo(s*0.55, s*0.2); ctx.stroke();
+    ctx.fillStyle = c;
+    ctx.fillRect(s+5, -1, 12, 2);
+    ctx.fillRect(-1, s+5, 2, 12);
+    ctx.restore();
+  };
+  corner(12, 12,  1,  1);
+  corner(W-12, 12, -1,  1);
+  corner(12, H-12,  1, -1);
+  corner(W-12, H-12, -1, -1);
 
-  // ชื่อโรงเรียน
-  fill('โรงเรียนอนุสรณ์ศุภมาศ · จังหวัดสมุทรสาคร', cx, y, '600 22px Sarabun,serif', '#8a6530');
+  // ── แถบข้าง ──
+  ctx.strokeStyle = 'rgba(233,30,140,0.5)'; ctx.lineWidth = 1.2;
+  [[14, 90, 14, H-90],[W-14, 90, W-14, H-90]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
 
-  // เส้นคั่น + ดาว
-  y += 30;
-  line(cx - 460, y, cx - 26); fill('✦', cx, y+8, '20px serif', '#c9a84c'); line(cx+26, y, cx+460);
+  let y = 72;
 
-  // หัวข้อ
-  y += 72; fill('เกียรติบัตร', cx, y, 'bold 68px "Bebas Neue",serif', '#1a1200');
-  y += 40; fill('ขอมอบเกียรติบัตรฉบับนี้เพื่อรับรองว่า', cx, y, '400 20px Sarabun,serif', '#7a5c20');
+  // ── Badge วงกลมบน ──
+  ctx.beginPath(); ctx.arc(cx, y, 38, 0, Math.PI*2);
+  ctx.strokeStyle = PINK; ctx.lineWidth = 2; ctx.stroke();
+  const bdg = ctx.createRadialGradient(cx, y, 5, cx, y, 38);
+  bdg.addColorStop(0, 'rgba(233,30,140,0.15)'); bdg.addColorStop(1, 'rgba(13,8,24,0.2)');
+  ctx.fillStyle = bdg; ctx.fill();
+  fill('🏃', cx, y+8, '28px serif', '#fff');
+  fill("THE TEACHER'S", cx, y+22, '500 7px Sarabun,serif', PINK);
+  fill('GAME', cx, y+32, '600 7px Sarabun,serif', PINK);
 
-  // ชื่อผู้รับ + underline
-  y += 70;
-  fill(name, cx, y, 'bold 44px Sarabun,serif', '#1a1200');
-  ctx.font = 'bold 44px Sarabun,serif';
-  const nw = ctx.measureText(name).width;
-  line(cx - nw/2 - 30, y+10, cx + nw/2 + 30, '#c9a84c', 3);
+  // ── THE TEACHER'S GAME ──
+  y += 76;
+  fill('THE', cx, y, 'italic bold 36px "Bebas Neue",serif', '#e8e0ff');
+  y += 64;
+  const tg = ctx.createLinearGradient(cx-160, y-60, cx+160, y);
+  tg.addColorStop(0, '#ff99dd'); tg.addColorStop(0.5, '#e91e8c'); tg.addColorStop(1, '#c2185b');
+  ctx.font = 'bold 82px "Bebas Neue",serif'; ctx.fillStyle = tg; ctx.textAlign = 'center';
+  ctx.fillText("TEACHER'S", cx, y);
+  y += 58;
+  fill('GAME', cx, y, 'bold 64px "Bebas Neue",serif', '#d4c8f0');
+  y += 28;
+  fill('>>> RUN TOGETHER, WIN TOGETHER <<<', cx, y, '600 13px Sarabun,serif', PINK2);
 
-  // ข้อความเนื้อหา
-  y += 54; fill('ได้ปฏิบัติตนเป็นแบบอย่างที่ดีในการดูแลสุขภาพ', cx, y, '400 20px Sarabun,serif', '#5a4010');
-  y += 30; fill('โดยวิ่งออกกำลังกายได้ระยะทางทั้งสิ้น', cx, y, '400 20px Sarabun,serif', '#5a4010');
+  // ── Thai title ──
+  y += 38;
+  ctx.font = 'bold 36px Sarabun,serif';
+  ctx.fillStyle = PINK2; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255,51,153,0.7)'; ctx.shadowBlur = 18;
+  ctx.fillText('เกียรติบัตรแห่งความสำเร็จ', cx, y);
+  ctx.shadowBlur = 0;
 
-  // KM (ใหญ่ + สีทอง)
-  y += 80;
-  ctx.font = 'bold 96px "Bebas Neue",serif'; ctx.fillStyle = '#b8860b'; ctx.textAlign = 'center';
-  ctx.fillText(String(km), cx, y);
-  const kmW = ctx.measureText(String(km)).width;
-  fill('กิโลเมตร', cx + kmW/2 + 14, y - 6, '400 28px Sarabun,serif', '#8a6530', 'left');
+  y += 22;
+  hline(cx-200, y, cx-12, 'rgba(233,30,140,0.5)');
+  fill('CERTIFICATE OF ACHIEVEMENT', cx, y+5, '400 11px Sarabun,serif', 'rgba(255,255,255,0.7)');
+  hline(cx+12, y, cx+200, 'rgba(233,30,140,0.5)');
 
-  y += 38; fill("ในโครงการ 400K Teacher's Spirit", cx, y, '400 20px Sarabun,serif', '#5a4010');
-  y += 30; fill('ระหว่างวันที่ 1 มิถุนายน — 31 สิงหาคม 2569', cx, y, '400 20px Sarabun,serif', '#5a4010');
+  y += 24;
+  fill('ขอมอบเกียรติบัตรฉบับนี้ไว้เพื่อแสดงว่า', cx, y, '400 14px Sarabun,serif', 'rgba(255,255,255,0.7)');
 
-  // เส้นกลาง
-  y += 36;
-  line(cx-360, y, cx-130, '#c9a84c60');
-  fill('🏃 ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา 🏃', cx, y+8, '400 18px Sarabun,serif', '#c9a84c80');
-  line(cx+130, y, cx+360, '#c9a84c60');
+  // ── Name box ──
+  y += 22;
+  const bx = 80, bw = W - 160, bh = 76;
+  ctx.strokeStyle = PINK; ctx.lineWidth = 2;
+  ctx.strokeRect(bx, y, bw, bh);
+  const nbg = ctx.createLinearGradient(bx, y, bx, y+bh);
+  nbg.addColorStop(0, 'rgba(233,30,140,0.08)'); nbg.addColorStop(1, 'rgba(13,8,24,0.4)');
+  ctx.fillStyle = nbg; ctx.fillRect(bx+1, y+1, bw-2, bh-2);
+  fill(name, cx, y + 44, 'bold 26px Sarabun,serif', '#ffffff');
+  fill(`วิ่ง ${km} กิโลเมตร`, cx, y + 66, '400 14px Sarabun,serif', PINK);
 
-  // ลายเซ็น
-  y += 70;
-  const sigs = [
-    { x: cx - 310, label: 'ผู้อำนวยการโรงเรียน', sigName: sigDirectorName, img: sigDirImg },
-    { x: cx + 310, label: 'ประธานโครงการ',        sigName: sigChairName,    img: sigChairImg },
-  ];
-  for (const s of sigs) {
-    if (s.img) {
-      const ih = 72;
-      const iw = Math.min(240, (s.img.naturalWidth / s.img.naturalHeight) * ih);
-      try { ctx.drawImage(s.img, s.x - iw/2, y - ih, iw, ih); } catch {}
-    }
-    line(s.x - 120, y+8, s.x + 120, '#c9a84c', 2);
-    let ly = y + 32;
-    if (s.sigName) { fill(s.sigName, s.x, ly, '400 17px Sarabun,serif', '#4a3010'); ly += 26; }
-    fill(s.label, s.x, ly, '400 15px Sarabun,serif', '#8a6530');
+  // ── Body text ──
+  y += bh + 28;
+  fill('ได้เข้าร่วมกิจกรรม', cx, y, '400 14px Sarabun,serif', 'rgba(255,255,255,0.75)');
+  y += 28;
+  ctx.font = 'italic bold 26px "Bebas Neue",serif';
+  ctx.fillStyle = PINK2; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255,51,153,0.5)'; ctx.shadowBlur = 10;
+  ctx.fillText("THE TEACHER'S GAME", cx, y);
+  ctx.shadowBlur = 0;
+  y += 22;
+  fill('RUN CHALLENGE', cx, y, '600 14px Sarabun,serif', 'rgba(255,255,255,0.8)');
+  y += 24;
+  fill('และสามารถพิชิตเป้าหมายด้วยความมุ่งมั่น', cx, y, '400 13px Sarabun,serif', 'rgba(255,255,255,0.65)');
+  y += 20;
+  fill('ขอชื่นชมในความพยายามและความตั้งใจในการดูแลสุขภาพ', cx, y, '400 13px Sarabun,serif', 'rgba(255,255,255,0.65)');
+  y += 20;
+  fill('คุณคือ "ครูต้นแบบ" ที่ไม่หยุดพัฒนา', cx, y, '600 13px Sarabun,serif', GOLD);
+
+  // ── เส้นคั่น ──
+  y += 28;
+  hline(cx-180, y, cx-14, 'rgba(233,30,140,0.4)', 1);
+  fill('◆', cx, y+5, '12px serif', PINK);
+  hline(cx+14, y, cx+180, 'rgba(233,30,140,0.4)', 1);
+
+  // ── ลายเซ็น ──
+  y += 42;
+  if (sigDirImg) {
+    const ih = 52, iw = Math.min(160, (sigDirImg.naturalWidth / sigDirImg.naturalHeight) * ih);
+    try { ctx.drawImage(sigDirImg, cx - iw/2, y - ih, iw, ih); } catch {}
+    y += 6;
   }
+  hline(cx - 130, y, cx + 130, 'rgba(255,255,255,0.35)', 1);
+  y += 24;
+  if (sigDirectorName) {
+    ctx.font = 'bold 20px Sarabun,serif';
+    ctx.fillStyle = GOLD; ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(255,204,68,0.5)'; ctx.shadowBlur = 8;
+    ctx.fillText(sigDirectorName, cx, y);
+    ctx.shadowBlur = 0;
+    y += 22;
+  }
+  fill('ผู้อำนวยการโรงเรียนอนุสรณ์ศุภมาศ', cx, y, '400 13px Sarabun,serif', 'rgba(255,255,255,0.7)');
 
-  // ตราประทับ
-  const sx = W - 76, sy = H - 76, sr = 48;
-  const sg = ctx.createRadialGradient(sx-12, sy-12, 4, sx, sy, sr);
-  sg.addColorStop(0, 'rgba(255,220,100,0.25)'); sg.addColorStop(1, 'rgba(201,168,76,0.1)');
-  ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fillStyle = sg; ctx.fill();
-  ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 3; ctx.stroke();
-  fill('🏫', sx, sy+14, '40px serif', '#000');
-
-  // ---- สร้าง PDF A4 landscape ----
-  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
+  // ---- สร้าง PDF A4 portrait ----
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
   pdf.save(`certificate_${name.replace(/\s+/g, '_')}.pdf`);
 }
 

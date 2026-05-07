@@ -18,34 +18,30 @@ export default function Certificate() {
         </p>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 32, justifyContent: 'center', alignItems: 'flex-start' }}>
-
-          {/* Certificate preview */}
-          <div style={{ flex: '1', minWidth: 300, maxWidth: 600 }}>
-            <CertificateCard sigDirector={settings.sig_director||''} sigChair={settings.sig_chair||''} sigDirectorName={settings.sig_director_name||''} sigChairName={settings.sig_chair_name||''} />
+          <div style={{ flex: '0 0 320px', maxWidth: 360 }}>
+            <CertificateCard
+              sigDirector={settings.sig_director || ''}
+              sigChair={settings.sig_chair || ''}
+              sigDirectorName={settings.sig_director_name || ''}
+              sigChairName={settings.sig_chair_name || ''}
+            />
             <p style={{ textAlign: 'center', color: t.textMuted, fontSize: 12, marginTop: 12 }}>
               ✦ ตัวอย่างเกียรติบัตร — ออกให้เมื่อวิ่งครบเป้าหมาย
             </p>
           </div>
 
-          {/* Info side */}
           <div style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-            {/* Highlight box */}
             <div style={{
               background: `linear-gradient(135deg, ${t.accent1}18, ${t.accent2}12)`,
               border: `1px solid ${t.accent1}40`,
               borderRadius: 16, padding: 24,
             }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>🏅</div>
-              <div style={{ color: t.text, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>
-                เกียรติบัตรดิจิทัล
-              </div>
+              <div style={{ color: t.text, fontWeight: 700, fontSize: 15, marginBottom: 6 }}>เกียรติบัตรดิจิทัล</div>
               <div style={{ color: t.textMuted, fontSize: 13, lineHeight: 1.7 }}>
                 ออกให้โดยผู้อำนวยการโรงเรียน สำหรับผู้เข้าร่วมโครงการ
               </div>
             </div>
-
-            {/* Conditions */}
             <div style={{ background: t.card, border: `1px solid ${t.cardBorder}`, borderRadius: 16, padding: 20 }}>
               <div style={{ color: t.accent2, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>📋 เงื่อนไขการรับ</div>
               {[
@@ -60,44 +56,37 @@ export default function Certificate() {
                 </div>
               ))}
             </div>
-
-            {/* Expand button */}
-            <button
-              onClick={() => setExpanded(true)}
-              style={{
-                width: '100%',
-                background: `linear-gradient(135deg,${t.accent1},${t.accent2})`,
-                border: 'none', borderRadius: 12, padding: '12px',
-                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Sarabun',
-              }}
-            >
+            <button onClick={() => setExpanded(true)} style={{
+              width: '100%',
+              background: `linear-gradient(135deg,${t.accent1},${t.accent2})`,
+              border: 'none', borderRadius: 12, padding: '12px',
+              color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Sarabun',
+            }}>
               🔎 ดูตัวอย่างเต็มจอ
             </button>
           </div>
         </div>
       </div>
 
-      {/* Fullscreen modal */}
       {expanded && (
-        <div
-          onClick={() => setExpanded(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 9999, padding: 24,
-          }}
-        >
-          <div onClick={e => e.stopPropagation()} style={{ maxWidth: 680, width: '100%' }}>
-            <CertificateCard large sigDirector={settings.sig_director||''} sigChair={settings.sig_chair||''} sigDirectorName={settings.sig_director_name||''} sigChairName={settings.sig_chair_name||''} />
-            <button
-              onClick={() => setExpanded(false)}
-              style={{
-                display: 'block', margin: '20px auto 0',
-                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8, padding: '8px 32px', color: '#fff', cursor: 'pointer',
-                fontSize: 13, fontFamily: 'Sarabun',
-              }}
-            >✕ ปิด</button>
+        <div onClick={() => setExpanded(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: 24,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{ maxWidth: 420, width: '100%' }}>
+            <CertificateCard large
+              sigDirector={settings.sig_director || ''}
+              sigChair={settings.sig_chair || ''}
+              sigDirectorName={settings.sig_director_name || ''}
+              sigChairName={settings.sig_chair_name || ''}
+            />
+            <button onClick={() => setExpanded(false)} style={{
+              display: 'block', margin: '20px auto 0',
+              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: 8, padding: '8px 32px', color: '#fff', cursor: 'pointer',
+              fontSize: 13, fontFamily: 'Sarabun',
+            }}>✕ ปิด</button>
           </div>
         </div>
       )}
@@ -105,182 +94,198 @@ export default function Certificate() {
   );
 }
 
-export function CertificateCard({ name = 'ชื่อ – นามสกุล', km = '400', large = false, sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '' }: { name?: string; km?: string; large?: boolean; sigDirector?: string; sigChair?: string; sigDirectorName?: string; sigChairName?: string }) {
-  const p = large ? 1 : 0.78;
+// ─── Corner HUD bracket (SVG) ────────────────────────────────
+function HUDCorner({ size = 50, flip = [false, false] as [boolean, boolean] }) {
+  const [fx, fy] = flip;
+  const c = '#e91e8c';
+  return (
+    <svg width={size + 18} height={size + 18} style={{
+      transform: `scale(${fx ? -1 : 1},${fy ? -1 : 1})`,
+      transformOrigin: 'center', display: 'block',
+    }}>
+      <path d={`M0,${size} L0,2 L${size},2`} stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <path d={`M0,${size * 0.55} L0,${size * 0.22} L${size * 0.55},${size * 0.22}`} stroke={c} strokeWidth="1" fill="none" opacity="0.6" />
+      <rect x={size + 4} y={1} width={12} height={2} fill={c} opacity="0.7" />
+      <rect x={1} y={size + 4} width={2} height={12} fill={c} opacity="0.7" />
+    </svg>
+  );
+}
+
+// ─── CertificateCard ──────────────────────────────────────────
+export function CertificateCard({
+  name = 'ชื่อ – นามสกุล',
+  km = '400',
+  large = false,
+  sigDirector = '',
+  sigChair = '',
+  sigDirectorName = '',
+  sigChairName = '',
+}: {
+  name?: string; km?: string; large?: boolean;
+  sigDirector?: string; sigChair?: string;
+  sigDirectorName?: string; sigChairName?: string;
+}) {
+  const p = large ? 1 : 0.6;
 
   return (
     <div style={{
       width: '100%',
-      aspectRatio: '1.414 / 1',
+      aspectRatio: '1 / 1.414',
       position: 'relative',
-      borderRadius: 12,
+      borderRadius: 8 * p,
       overflow: 'hidden',
-      background: 'linear-gradient(160deg, #fefaf0 0%, #fdf3d8 60%, #fef7e8 100%)',
+      background: '#0d0818',
+      fontFamily: 'Sarabun, sans-serif',
       boxShadow: large
-        ? '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.3)'
-        : '0 12px 40px rgba(0,0,0,0.25), 0 0 0 1px rgba(201,168,76,0.2)',
-      fontFamily: 'serif',
+        ? '0 0 60px rgba(233,30,140,0.4), 0 0 120px rgba(233,30,140,0.15)'
+        : '0 8px 32px rgba(233,30,140,0.3)',
     }}>
 
-      {/* Outer gold border */}
+      {/* Centre purple glow */}
       <div style={{
-        position: 'absolute', inset: 10,
-        border: '1.5px solid #c9a84c',
-        borderRadius: 6,
-        pointerEvents: 'none',
-        zIndex: 2,
-      }} />
-      <div style={{
-        position: 'absolute', inset: 13,
-        border: '0.5px solid #e8cc80',
-        borderRadius: 4,
-        pointerEvents: 'none',
-        zIndex: 2,
+        position: 'absolute', top: '15%', left: '5%', right: '5%', height: '50%',
+        background: 'radial-gradient(ellipse, rgba(140,0,120,0.35) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* Corner ornaments */}
-      {[
-        { top: 6, left: 6 },
-        { top: 6, right: 6 },
-        { bottom: 6, left: 6 },
-        { bottom: 6, right: 6 },
-      ].map((pos, i) => (
-        <div key={i} style={{
-          position: 'absolute', ...pos,
-          width: 28 * p, height: 28 * p,
-          zIndex: 3,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M2 2 L12 2 M2 2 L2 12' stroke='%23c9a84c' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='2' cy='2' r='1.5' fill='%23c9a84c'/%3E%3C/svg%3E")`,
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
-          transform: i === 1 ? 'scaleX(-1)' : i === 2 ? 'scaleY(-1)' : i === 3 ? 'scale(-1,-1)' : 'none',
-        }} />
+      {/* Pink border inner */}
+      <div style={{
+        position: 'absolute', inset: 6 * p,
+        border: `${1.5 * p}px solid #e91e8c`,
+        borderRadius: 6 * p, pointerEvents: 'none', zIndex: 2,
+        boxShadow: 'inset 0 0 12px rgba(233,30,140,0.15)',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 10 * p,
+        border: `${0.5 * p}px solid rgba(233,30,140,0.3)`,
+        borderRadius: 4 * p, pointerEvents: 'none', zIndex: 2,
+      }} />
+
+      {/* Corner decorations */}
+      {([
+        { top: 0,    left: 0,    flip: [false, false] },
+        { top: 0,    right: 0,   flip: [true,  false] },
+        { bottom: 0, left: 0,    flip: [false, true]  },
+        { bottom: 0, right: 0,   flip: [true,  true]  },
+      ] as any[]).map((pos, i) => (
+        <div key={i} style={{ position: 'absolute', ...pos, zIndex: 3 }}>
+          <HUDCorner size={50 * p} flip={pos.flip} />
+        </div>
       ))}
-
-      {/* Decorative background watermark */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        pointerEvents: 'none', zIndex: 1,
-      }}>
-        <div style={{
-          fontFamily: 'Bebas Neue, serif', fontSize: 120 * p,
-          color: 'rgba(201,168,76,0.045)', letterSpacing: 8,
-          transform: 'rotate(-20deg)', userSelect: 'none',
-          whiteSpace: 'nowrap',
-        }}>400K</div>
-      </div>
 
       {/* Main content */}
       <div style={{
         position: 'relative', zIndex: 4,
         height: '100%',
         display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: `${20 * p}px ${36 * p}px`,
-        boxSizing: 'border-box',
-        textAlign: 'center',
-        gap: 0,
+        alignItems: 'center',
+        padding: `${56 * p}px ${28 * p}px ${28 * p}px`,
+        boxSizing: 'border-box', textAlign: 'center',
       }}>
 
-        {/* School name */}
+        {/* Badge top */}
         <div style={{
-          fontSize: 10 * p, color: '#8a6530',
-          letterSpacing: 3, textTransform: 'uppercase',
-          marginBottom: 6 * p,
+          marginBottom: 10 * p,
+          width: 70 * p, height: 70 * p,
+          border: `${2 * p}px solid #e91e8c`,
+          borderRadius: '50%',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 0 16px rgba(233,30,140,0.5)',
+          background: 'rgba(233,30,140,0.08)',
+          gap: 2,
         }}>
-          โรงเรียนอนุสรณ์ศุภมาศ · จังหวัดสมุทรสาคร
+          <div style={{ fontSize: 18 * p }}>🏃</div>
+          <div style={{ color: '#e91e8c', fontSize: 5 * p, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>
+            THE TEACHER'S<br />GAME
+          </div>
         </div>
 
-        {/* Divider top */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '70%', marginBottom: 10 * p }}>
-          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,#c9a84c)' }} />
-          <span style={{ color: '#c9a84c', fontSize: 14 * p }}>✦</span>
-          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,#c9a84c,transparent)' }} />
+        {/* Title */}
+        <div style={{ lineHeight: 1, marginBottom: 4 * p }}>
+          <div style={{ color: '#fff', fontSize: 16 * p, fontStyle: 'italic', fontFamily: '"Bebas Neue",serif', letterSpacing: 4 }}>THE</div>
+          <div style={{
+            fontFamily: '"Bebas Neue",serif',
+            fontSize: 42 * p,
+            letterSpacing: 3,
+            background: 'linear-gradient(180deg, #ff66cc 0%, #e91e8c 50%, #c2185b 100%)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            lineHeight: 1,
+          }}>TEACHER'S</div>
+          <div style={{ color: '#e8e0ff', fontFamily: '"Bebas Neue",serif', fontSize: 34 * p, letterSpacing: 6, lineHeight: 1 }}>GAME</div>
         </div>
 
-        {/* Main title */}
+        {/* Tagline */}
+        <div style={{ color: '#e91e8c', fontSize: 8 * p, letterSpacing: 2, marginBottom: 10 * p, fontWeight: 600 }}>
+          {'>>> RUN TOGETHER, WIN TOGETHER <<<'}
+        </div>
+
+        {/* Thai title */}
         <div style={{
-          fontFamily: 'Bebas Neue, serif',
-          fontSize: 28 * p, color: '#1a1200',
-          letterSpacing: 6, marginBottom: 6 * p,
+          color: '#ff3399', fontWeight: 700, fontSize: 16 * p,
+          fontFamily: 'Sarabun, sans-serif', letterSpacing: 0.5,
+          textShadow: '0 0 20px rgba(255,51,153,0.6)',
+          marginBottom: 4 * p,
         }}>
-          เกียรติบัตร
+          เกียรติบัตรแห่งความสำเร็จ
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 * p }}>
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,transparent,rgba(233,30,140,0.6))' }} />
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 6.5 * p, letterSpacing: 2 }}>CERTIFICATE OF ACHIEVEMENT</div>
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg,rgba(233,30,140,0.6),transparent)' }} />
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 7.5 * p, marginBottom: 10 * p }}>
+          ขอมอบเกียรติบัตรฉบับนี้ไว้เพื่อแสดงว่า
         </div>
 
-        <div style={{ fontSize: 9 * p, color: '#7a5c20', letterSpacing: 2, marginBottom: 10 * p }}>
-          ขอมอบเกียรติบัตรฉบับนี้เพื่อรับรองว่า
-        </div>
-
-        {/* Name placeholder */}
+        {/* Name box */}
         <div style={{
-          fontFamily: 'Sarabun, serif', fontSize: 20 * p, fontWeight: 700,
-          color: '#1a1200', letterSpacing: 1,
-          borderBottom: '2px solid #c9a84c',
-          paddingBottom: 4, minWidth: 180 * p,
+          width: '85%',
+          border: `${1.5 * p}px solid #e91e8c`,
+          borderRadius: 4 * p,
+          padding: `${12 * p}px ${16 * p}px`,
+          background: 'rgba(233,30,140,0.06)',
+          boxShadow: '0 0 20px rgba(233,30,140,0.2)',
           marginBottom: 10 * p,
         }}>
-          {name}
+          <div style={{
+            color: '#fff', fontWeight: 700, fontSize: 14 * p,
+            fontFamily: 'Sarabun, sans-serif',
+          }}>{name}</div>
+          <div style={{ color: '#e91e8c', fontSize: 8 * p, marginTop: 3 * p }}>
+            วิ่ง {km} กิโลเมตร
+          </div>
         </div>
 
-        <div style={{ fontSize: 9 * p, color: '#5a4010', lineHeight: 2, fontFamily: 'Sarabun', marginBottom: 4 * p }}>
-          ได้ปฏิบัติตนเป็นแบบอย่างที่ดีในการดูแลสุขภาพ
-          <br />โดยวิ่งออกกำลังกายได้ระยะทางทั้งสิ้น
+        {/* Body */}
+        <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 7 * p, marginBottom: 4 * p }}>ได้เข้าร่วมกิจกรรม</div>
+        <div style={{ color: '#ff3399', fontStyle: 'italic', fontSize: 11 * p, fontWeight: 700, fontFamily: '"Bebas Neue",serif', letterSpacing: 2 }}>
+          THE TEACHER'S GAME
         </div>
-
-        {/* KM highlight */}
-        <div style={{ marginBottom: 8 * p }}>
-          <span style={{
-            fontFamily: 'Bebas Neue, serif', fontSize: 42 * p,
-            color: '#b8860b', letterSpacing: 4,
-            textShadow: '0 2px 8px rgba(184,134,11,0.25)',
-          }}>{km}</span>
-          <span style={{ fontFamily: 'Sarabun', fontSize: 13 * p, color: '#8a6530', marginLeft: 6 }}>
-            กิโลเมตร
-          </span>
-        </div>
-
-        <div style={{ fontSize: 9 * p, color: '#5a4010', fontFamily: 'Sarabun', lineHeight: 1.8, marginBottom: 10 * p }}>
-          ในโครงการ{' '}
-          <strong style={{ color: '#1a1200' }}>400K Teacher's Spirit</strong>
-          <br />ระหว่างวันที่ 1 มิถุนายน — 31 สิงหาคม 2569
+        <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 7.5 * p, marginBottom: 6 * p }}>RUN CHALLENGE</div>
+        <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 6.5 * p, lineHeight: 1.7, marginBottom: 8 * p }}>
+          และสามารถพิชิตเป้าหมายด้วยความมุ่งมั่น<br />
+          ขอชื่นชมในความพยายามและความตั้งใจในการดูแลสุขภาพ<br />
+          <span style={{ color: '#ffcc44' }}>คุณคือ "ครูต้นแบบ" ที่ไม่หยุดพัฒนา</span>
         </div>
 
         {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '80%', marginBottom: 10 * p }}>
-          <div style={{ flex: 1, height: 0.5, background: 'linear-gradient(90deg,transparent,#c9a84c60)' }} />
-          <span style={{ color: '#c9a84c80', fontSize: 10 * p }}>🏃 ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา 🏃</span>
-          <div style={{ flex: 1, height: 0.5, background: 'linear-gradient(90deg,#c9a84c60,transparent)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '60%', marginBottom: 12 * p }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(233,30,140,0.4)' }} />
+          <div style={{ color: '#e91e8c', fontSize: 8 * p }}>◆</div>
+          <div style={{ flex: 1, height: 1, background: 'rgba(233,30,140,0.4)' }} />
         </div>
 
         {/* Signature */}
-        <div style={{ display: 'flex', justifyContent: 'space-around', width: '80%' }}>
-          {[
-            { role: 'ผู้อำนวยการโรงเรียน', img: sigDirector, sigName: sigDirectorName },
-            { role: 'ประธานโครงการ',        img: sigChair,    sigName: sigChairName },
-          ].map(({ role, img, sigName }) => (
-            <div key={role} style={{ textAlign: 'center', minWidth: 110 * p }}>
-              {img
-                ? <img src={img} alt={role} style={{ height: 36 * p, maxWidth: 120 * p, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
-                : <div style={{ height: 36 * p }} />
-              }
-              <div style={{ borderTop: '1px solid #c9a84c', width: 110 * p, margin: '4px auto 3px' }} />
-              {sigName && <div style={{ color: '#4a3010', fontSize: 7.5 * p, fontFamily: 'Sarabun', marginBottom: 2 }}>{sigName}</div>}
-              <div style={{ color: '#8a6530', fontSize: 7 * p, fontFamily: 'Sarabun' }}>{role}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Gold seal */}
-      <div style={{
-        position: 'absolute', bottom: 18 * p, right: 20 * p, zIndex: 5,
-        width: 48 * p, height: 48 * p, borderRadius: '50%',
-        background: 'radial-gradient(circle at 35% 35%, rgba(255,220,100,0.25), rgba(201,168,76,0.1))',
-        border: `1.5px solid #c9a84c66`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.4)',
-      }}>
-        <span style={{ fontSize: 20 * p }}>🏫</span>
+        {sigDirector
+          ? <img src={sigDirector} alt="ลายเซ็น" style={{ height: 30 * p, maxWidth: 120 * p, objectFit: 'contain', marginBottom: 4 * p }} />
+          : <div style={{ height: 30 * p }} />
+        }
+        <div style={{ width: 120 * p, height: 1, background: 'rgba(255,255,255,0.4)', marginBottom: 6 * p }} />
+        {sigDirectorName && (
+          <div style={{ color: '#ffcc44', fontWeight: 700, fontSize: 9 * p, marginBottom: 2 * p }}>{sigDirectorName}</div>
+        )}
+        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 7.5 * p }}>ผู้อำนวยการโรงเรียนอนุสรณ์ศุภมาศ</div>
       </div>
     </div>
   );
