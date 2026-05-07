@@ -453,8 +453,17 @@ async function generateCertificatePDF(name: string, km: string) {
     cardEl.style.height = '561px';
     cardEl.style.aspectRatio = 'unset';
   }
+
+  // รอให้ทุก <img> โหลดครบก่อน capture (ป้องกัน canvas 0x0 error)
+  await Promise.all(
+    Array.from(container.querySelectorAll('img')).map(img =>
+      (img as HTMLImageElement).complete
+        ? Promise.resolve()
+        : new Promise(r => { (img as HTMLImageElement).onload = r; (img as HTMLImageElement).onerror = r; })
+    )
+  );
   // รอ layout อีกรอบ
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 200));
 
   const canvas = await html2canvas(container, {
     scale: 2,
@@ -462,7 +471,15 @@ async function generateCertificatePDF(name: string, km: string) {
     allowTaint: true,
     backgroundColor: '#fdf3d8',
     width: 794, height: 562,
+    windowWidth: 794, windowHeight: 562,
     logging: false,
+    onclone: (_doc: Document, el: HTMLElement) => {
+      // ซ่อน img ที่มีขนาด 0 เพื่อป้องกัน createPattern error
+      el.querySelectorAll('img').forEach(img => {
+        const i = img as HTMLImageElement;
+        if (!i.naturalWidth || !i.naturalHeight) i.style.display = 'none';
+      });
+    },
   });
 
   root.unmount();
