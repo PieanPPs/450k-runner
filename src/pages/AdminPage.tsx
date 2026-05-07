@@ -406,111 +406,140 @@ function Settings() {
   );
 }
 
-// ─── Certificate PDF Generator ────────────────────────────
-
-/** โหลด URL/dataURL แล้วตรวจว่ามี pixel จริงไหม — ถ้าเสียคืน '' */
-function safeLoadImg(src: string): Promise<string> {
-  if (!src) return Promise.resolve('');
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload  = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0 ? src : '');
-    img.onerror = () => resolve('');
-    img.src = src;
-    // timeout 5 วิ — ถ้าโหลดช้าเกินให้ข้ามไปเลย
-    setTimeout(() => resolve(''), 5000);
-  });
-}
-
+// ─── Certificate PDF Generator (Canvas-based — ไม่ใช้ html2canvas) ────────────
 async function generateCertificatePDF(name: string, km: string) {
-  const { default: html2canvas } = await import('html2canvas');
   const { jsPDF } = await import('jspdf');
 
-  // ดึง settings + pre-validate ลายเซ็น (ป้องกัน canvas 0x0)
-  let sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '';
+  // ---- โหลด settings + ลายเซ็น ----
+  let sigDirectorName = '', sigChairName = '';
+  let sigDirImg: HTMLImageElement | null = null;
+  let sigChairImg: HTMLImageElement | null = null;
+
+  const loadImg = (src: string): Promise<HTMLImageElement | null> => {
+    if (!src) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0 ? img : null);
+      img.onerror = () => resolve(null);
+      img.src = src;
+      setTimeout(() => resolve(null), 5000);
+    });
+  };
+
   try {
     const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
     const s = await fetch(`${BASE_URL}/api/settings`).then(r => r.json());
     sigDirectorName = s.sig_director_name || '';
     sigChairName    = s.sig_chair_name    || '';
-    // โหลดรูปและตรวจ dimension ก่อนส่งเข้า CertificateCard
-    [sigDirector, sigChair] = await Promise.all([
-      safeLoadImg(s.sig_director || ''),
-      safeLoadImg(s.sig_chair    || ''),
+    [sigDirImg, sigChairImg] = await Promise.all([
+      loadImg(s.sig_director || ''),
+      loadImg(s.sig_chair    || ''),
     ]);
   } catch {}
 
-  // สร้าง container ชั่วคราวนอกจอ
-  const container = document.createElement('div');
-  container.style.cssText = `
-    position:fixed; left:-9999px; top:0;
-    width:794px; height:562px;
-    background:#fdf3d8; font-family:serif;
-    overflow:hidden;
-  `;
-  document.body.appendChild(container);
+  // รอ web fonts โหลดครบ
+  await document.fonts.ready;
+  await document.fonts.load('bold 28px "Bebas Neue"');
+  await document.fonts.load('bold 20px Sarabun');
 
-  // render CertificateCard ลงใน container
-  const { createRoot } = await import('react-dom/client');
-  const { CertificateCard } = await import('@/components/Certificate');
-  const root = createRoot(container);
+  // ---- สร้าง canvas 2× ----
+  const W = 794, H = 562;
+  const canvas = document.createElement('canvas');
+  canvas.width  = W * 2;
+  canvas.height = H * 2;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(2, 2);
 
-  await new Promise<void>(resolve => {
-    root.render(
-      // @ts-ignore
-      <CertificateCard name={name} km={String(km)} large
-        sigDirector={sigDirector} sigChair={sigChair}
-        sigDirectorName={sigDirectorName} sigChairName={sigChairName} />
-    );
-    setTimeout(resolve, 800); // รอ render + web fonts
-  });
+  // พื้นหลัง gradient
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#fefaf0'); bg.addColorStop(0.6, '#fdf3d8'); bg.addColorStop(1, '#fef7e8');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
 
-  // html2canvas ไม่รองรับ CSS aspect-ratio → force size ด้วย JS
-  const cardEl = container.firstElementChild as HTMLElement | null;
-  if (cardEl) {
-    cardEl.style.width       = '794px';
-    cardEl.style.height      = '561px';
-    cardEl.style.aspectRatio = 'unset';
+  // กรอบทอง 2 ชั้น
+  ctx.strokeStyle = '#c9a84c'; ctx.lineWidth = 1.5; ctx.strokeRect(10, 10, W-20, H-20);
+  ctx.strokeStyle = '#e8cc80'; ctx.lineWidth = 0.5; ctx.strokeRect(13, 13, W-26, H-26);
+
+  // helpers
+  const cx = W / 2;
+  const fill = (t: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = 'center') => {
+    ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.fillText(t, x, y);
+  };
+  const line = (x1: number, y: number, x2: number, color = '#c9a84c', lw = 0.5) => {
+    ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+  };
+
+  let y = 62;
+
+  // ชื่อโรงเรียน
+  fill('โรงเรียนอนุสรณ์ศุภมาศ · จังหวัดสมุทรสาคร', cx, y, '600 10px Sarabun,serif', '#8a6530');
+
+  // เส้นคั่น + ดาว
+  y += 14;
+  line(cx - 230, y, cx - 14); fill('✦', cx, y+4, '10px serif', '#c9a84c'); line(cx+14, y, cx+230);
+
+  // หัวข้อ
+  y += 28; fill('เกียรติบัตร', cx, y, 'bold 28px "Bebas Neue",serif', '#1a1200');
+  y += 18; fill('ขอมอบเกียรติบัตรฉบับนี้เพื่อรับรองว่า', cx, y, '400 9px Sarabun,serif', '#7a5c20');
+
+  // ชื่อผู้รับ + underline
+  y += 28;
+  fill(name, cx, y, 'bold 20px Sarabun,serif', '#1a1200');
+  ctx.font = 'bold 20px Sarabun,serif';
+  const nw = ctx.measureText(name).width;
+  line(cx - nw/2 - 20, y+5, cx + nw/2 + 20, '#c9a84c', 2);
+
+  // ข้อความเนื้อหา
+  y += 22; fill('ได้ปฏิบัติตนเป็นแบบอย่างที่ดีในการดูแลสุขภาพ', cx, y, '400 9px Sarabun,serif', '#5a4010');
+  y += 14; fill('โดยวิ่งออกกำลังกายได้ระยะทางทั้งสิ้น', cx, y, '400 9px Sarabun,serif', '#5a4010');
+
+  // KM (ใหญ่ + สีทอง)
+  y += 34;
+  ctx.font = 'bold 42px "Bebas Neue",serif'; ctx.fillStyle = '#b8860b'; ctx.textAlign = 'center';
+  ctx.fillText(String(km), cx, y);
+  const kmW = ctx.measureText(String(km)).width;
+  fill('กิโลเมตร', cx + kmW/2 + 8, y-2, '400 13px Sarabun,serif', '#8a6530', 'left');
+
+  y += 16; fill("ในโครงการ 400K Teacher's Spirit", cx, y, '400 9px Sarabun,serif', '#5a4010');
+  y += 13; fill('ระหว่างวันที่ 1 มิถุนายน — 31 สิงหาคม 2569', cx, y, '400 9px Sarabun,serif', '#5a4010');
+
+  // เส้นกลาง
+  y += 16;
+  line(cx-180, y, cx-70, '#c9a84c60');
+  fill('🏃 ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา 🏃', cx, y+4, '400 9px Sarabun,serif', '#c9a84c80');
+  line(cx+70, y, cx+180, '#c9a84c60');
+
+  // ลายเซ็น
+  y += 26;
+  const sigs = [
+    { x: cx - 140, label: 'ผู้อำนวยการโรงเรียน', sigName: sigDirectorName, img: sigDirImg },
+    { x: cx + 140, label: 'ประธานโครงการ',        sigName: sigChairName,    img: sigChairImg },
+  ];
+  for (const s of sigs) {
+    if (s.img) {
+      const ih = 36;
+      const iw = Math.min(120, (s.img.naturalWidth / s.img.naturalHeight) * ih);
+      try { ctx.drawImage(s.img, s.x - iw/2, y - ih, iw, ih); } catch {}
+    }
+    line(s.x - 55, y+4, s.x + 55, '#c9a84c', 1);
+    let ly = y + 16;
+    if (s.sigName) { fill(s.sigName, s.x, ly, '400 7.5px Sarabun,serif', '#4a3010'); ly += 12; }
+    fill(s.label, s.x, ly, '400 7px Sarabun,serif', '#8a6530');
   }
 
-  // รอให้ทุก <img> โหลดครบอีกครั้ง (safeLoadImg โหลดแล้ว แต่ React อาจสร้าง img ใหม่)
-  await Promise.all(
-    Array.from(container.querySelectorAll('img')).map(img => {
-      const i = img as HTMLImageElement;
-      if (i.complete) return Promise.resolve();
-      return new Promise(r => { i.onload = r; i.onerror = r; });
-    })
-  );
-  await new Promise(r => setTimeout(r, 200));
+  // ตราประทับ
+  const [sx, sy, sr] = [W - 38, H - 38, 24];
+  const sg = ctx.createRadialGradient(sx-6, sy-6, 2, sx, sy, sr);
+  sg.addColorStop(0, 'rgba(255,220,100,0.25)'); sg.addColorStop(1, 'rgba(201,168,76,0.1)');
+  ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fillStyle = sg; ctx.fill();
+  ctx.strokeStyle = 'rgba(201,168,76,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+  fill('🏫', sx, sy+8, '20px serif', '#000');
 
-  const canvas = await html2canvas(container, {
-    scale          : 2,
-    useCORS        : true,
-    allowTaint     : true,
-    backgroundColor: '#fdf3d8',
-    width          : 794,
-    height         : 562,
-    windowWidth    : 794,
-    windowHeight   : 562,
-    logging        : false,
-    onclone: (_doc: Document, el: HTMLElement) => {
-      // สุดท้าย: ซ่อน img ที่ยังมีขนาด 0 เพื่อป้องกัน createPattern error
-      el.querySelectorAll('img').forEach(img => {
-        const i = img as HTMLImageElement;
-        if (!i.naturalWidth || !i.naturalHeight) {
-          i.style.visibility = 'hidden';
-          i.style.width = '0';
-          i.style.height = '0';
-        }
-      });
-    },
-  });
-
-  root.unmount();
-  document.body.removeChild(container);
-
+  // ---- สร้าง PDF ----
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const imgData = canvas.toDataURL('image/jpeg', 0.95);
-  pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210);
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 297, 210);
   pdf.save(`certificate_${name.replace(/\s+/g, '_')}.pdf`);
 }
 
