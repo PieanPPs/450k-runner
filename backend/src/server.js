@@ -141,9 +141,11 @@ async function runAutoSync(label = 'cron') {
     for (const act of activities) {
       const distKm = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
-      const actDate = act.start_date_local
-        ? act.start_date_local.replace('T',' ').slice(0,19)
-        : thaiNow;
+      let actDate = thaiNow;
+      if (act.start_date_local) {
+        const d = act.start_date_local.replace('T',' ').slice(0,19);
+        actDate = d < thaiNow ? d : thaiNow; // ป้องกัน future date
+      }
       // dedup: ป้องกัน group run ซ้ำ + phone vs smartwatch (threshold 0.1km / 60s)
       const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60').get(stravaKey, distKm, elapsed);
       if (dup) {

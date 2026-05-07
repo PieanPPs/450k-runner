@@ -102,9 +102,12 @@ router.post('/', async (_req, res) => {
       const distKm = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
       // วันที่วิ่งจริงจาก Strava (start_date_local = local time แต่ Z suffix = quirk ของ Strava)
-      const actDate = act.start_date_local
-        ? act.start_date_local.replace('T',' ').slice(0,19)
-        : thaiNowActivity;
+      // ตรวจสอบ start_date_local ไม่อยู่ในอนาคต
+      let actDate = thaiNowActivity;
+      if (act.start_date_local) {
+        const d = act.start_date_local.replace('T',' ').slice(0,19);
+        actDate = d < thaiNowActivity ? d : thaiNowActivity; // ป้องกัน future date
+      }
       // ถ้ามี activity distance+elapsed เหมือนกันอยู่แล้ว → group run dedup
       // threshold 0.1 km (100m) รองรับ phone vs smartwatch GPS ต่างกันเล็กน้อย
       // elapsed_time ±60s รองรับ watch pause/resume ต่างจาก phone
@@ -158,8 +161,10 @@ router.post('/', async (_req, res) => {
     db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,streak=?,activity_count=? WHERE id=?')
       .run(totalKm, steps, weeklyKm, streak, actCount, participant.id);
 
+    // แจ้งเตือนถ้ามี activity ใหม่เยอะผิดปกติในการ sync เดียว (อาจเป็น bulk upload)
+    const warning = newCount >= 5 ? `⚠️ bulk: ${newCount} new activities` : null;
     synced++;
-    results.push({ id:participant.id, name:participant.name, ok:true, km:totalKm.toFixed(1), new:newCount });
+    results.push({ id:participant.id, name:participant.name, ok:true, km:totalKm.toFixed(1), new:newCount, ...(warning && { warning }) });
   }
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
