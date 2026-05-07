@@ -19,12 +19,13 @@ export async function refreshAccessToken(refreshToken) {
 
 /**
  * สร้าง strava_key จาก firstname + อักษรแรกของ lastname
- * เช่น firstname="Piean" lastname="PPs" หรือ "P." → key = "Piean_P"
+ * เช่น firstname="Piean" lastname="PPs" หรือ "P." → key = "piean_p"
+ * เช่น firstname="K."  lastname="B."  → key = "k_b"  (ตัด dot ออกทั้งสองฝั่ง)
  * ใช้ match ระหว่าง OAuth data กับ Club activities data
  */
 export function makeStravaKey(firstname, lastname) {
-  const fn = (firstname || '').trim();
-  const ln = (lastname  || '').trim().replace(/\.$/,''); // strip trailing dot
+  const fn = (firstname || '').trim().replace(/\.$/, ''); // strip trailing dot จาก firstname ด้วย
+  const ln = (lastname  || '').trim().replace(/\.$/, ''); // strip trailing dot จาก lastname
   return `${fn}_${ln.slice(0,1)}`.toLowerCase();
 }
 
