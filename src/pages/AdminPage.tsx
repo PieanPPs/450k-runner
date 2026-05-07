@@ -407,9 +407,37 @@ function Settings() {
 }
 
 // ─── Certificate PDF Generator ────────────────────────────
+
+/** โหลด URL/dataURL แล้วตรวจว่ามี pixel จริงไหม — ถ้าเสียคืน '' */
+function safeLoadImg(src: string): Promise<string> {
+  if (!src) return Promise.resolve('');
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0 ? src : '');
+    img.onerror = () => resolve('');
+    img.src = src;
+    // timeout 5 วิ — ถ้าโหลดช้าเกินให้ข้ามไปเลย
+    setTimeout(() => resolve(''), 5000);
+  });
+}
+
 async function generateCertificatePDF(name: string, km: string) {
   const { default: html2canvas } = await import('html2canvas');
   const { jsPDF } = await import('jspdf');
+
+  // ดึง settings + pre-validate ลายเซ็น (ป้องกัน canvas 0x0)
+  let sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '';
+  try {
+    const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+    const s = await fetch(`${BASE_URL}/api/settings`).then(r => r.json());
+    sigDirectorName = s.sig_director_name || '';
+    sigChairName    = s.sig_chair_name    || '';
+    // โหลดรูปและตรวจ dimension ก่อนส่งเข้า CertificateCard
+    [sigDirector, sigChair] = await Promise.all([
+      safeLoadImg(s.sig_director || ''),
+      safeLoadImg(s.sig_chair    || ''),
+    ]);
+  } catch {}
 
   // สร้าง container ชั่วคราวนอกจอ
   const container = document.createElement('div');
@@ -417,6 +445,7 @@ async function generateCertificatePDF(name: string, km: string) {
     position:fixed; left:-9999px; top:0;
     width:794px; height:562px;
     background:#fdf3d8; font-family:serif;
+    overflow:hidden;
   `;
   document.body.appendChild(container);
 
@@ -425,17 +454,6 @@ async function generateCertificatePDF(name: string, km: string) {
   const { CertificateCard } = await import('@/components/Certificate');
   const root = createRoot(container);
 
-  // ดึง settings จาก localStorage cache หรือ fetch ใหม่
-  let sigDirector = '', sigChair = '', sigDirectorName = '', sigChairName = '';
-  try {
-    const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
-    const s = await fetch(`${BASE_URL}/api/settings`).then(r => r.json());
-    sigDirector = s.sig_director || '';
-    sigChair = s.sig_chair || '';
-    sigDirectorName = s.sig_director_name || '';
-    sigChairName = s.sig_chair_name || '';
-  } catch {}
-
   await new Promise<void>(resolve => {
     root.render(
       // @ts-ignore
@@ -443,41 +461,46 @@ async function generateCertificatePDF(name: string, km: string) {
         sigDirector={sigDirector} sigChair={sigChair}
         sigDirectorName={sigDirectorName} sigChairName={sigChairName} />
     );
-    setTimeout(resolve, 800); // รอ render + fonts
+    setTimeout(resolve, 800); // รอ render + web fonts
   });
 
-  // html2canvas ไม่รองรับ CSS aspect-ratio → force height ด้วย JS
+  // html2canvas ไม่รองรับ CSS aspect-ratio → force size ด้วย JS
   const cardEl = container.firstElementChild as HTMLElement | null;
   if (cardEl) {
-    cardEl.style.width  = '794px';
-    cardEl.style.height = '561px';
+    cardEl.style.width       = '794px';
+    cardEl.style.height      = '561px';
     cardEl.style.aspectRatio = 'unset';
   }
 
-  // รอให้ทุก <img> โหลดครบก่อน capture (ป้องกัน canvas 0x0 error)
+  // รอให้ทุก <img> โหลดครบอีกครั้ง (safeLoadImg โหลดแล้ว แต่ React อาจสร้าง img ใหม่)
   await Promise.all(
-    Array.from(container.querySelectorAll('img')).map(img =>
-      (img as HTMLImageElement).complete
-        ? Promise.resolve()
-        : new Promise(r => { (img as HTMLImageElement).onload = r; (img as HTMLImageElement).onerror = r; })
-    )
+    Array.from(container.querySelectorAll('img')).map(img => {
+      const i = img as HTMLImageElement;
+      if (i.complete) return Promise.resolve();
+      return new Promise(r => { i.onload = r; i.onerror = r; });
+    })
   );
-  // รอ layout อีกรอบ
   await new Promise(r => setTimeout(r, 200));
 
   const canvas = await html2canvas(container, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
+    scale          : 2,
+    useCORS        : true,
+    allowTaint     : true,
     backgroundColor: '#fdf3d8',
-    width: 794, height: 562,
-    windowWidth: 794, windowHeight: 562,
-    logging: false,
+    width          : 794,
+    height         : 562,
+    windowWidth    : 794,
+    windowHeight   : 562,
+    logging        : false,
     onclone: (_doc: Document, el: HTMLElement) => {
-      // ซ่อน img ที่มีขนาด 0 เพื่อป้องกัน createPattern error
+      // สุดท้าย: ซ่อน img ที่ยังมีขนาด 0 เพื่อป้องกัน createPattern error
       el.querySelectorAll('img').forEach(img => {
         const i = img as HTMLImageElement;
-        if (!i.naturalWidth || !i.naturalHeight) i.style.display = 'none';
+        if (!i.naturalWidth || !i.naturalHeight) {
+          i.style.visibility = 'hidden';
+          i.style.width = '0';
+          i.style.height = '0';
+        }
       });
     },
   });
