@@ -55,6 +55,15 @@ router.get('/participants', requireAdmin, (_req, res) => {
   res.json(rows);
 });
 
+router.post('/participants', requireAdmin, (req, res) => {
+  const { name, initials, age_group } = req.body;
+  if (!name || !initials) return res.status(400).json({ ok: false, message: 'ต้องระบุ name และ initials' });
+  const info = db.prepare(
+    "INSERT INTO participants (name,initials,km,steps,streak,weekly_km,age_group) VALUES (?,?,0,0,0,0,?)"
+  ).run(name.trim(), initials.trim().toUpperCase(), age_group || 'general');
+  res.json({ ok: true, id: info.lastInsertRowid });
+});
+
 router.put('/participants/:id', requireAdmin, (req, res) => {
   const { name, initials, age_group } = req.body;
   db.prepare('UPDATE participants SET name=?,initials=?,age_group=? WHERE id=?')

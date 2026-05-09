@@ -608,7 +608,11 @@ async function generateCertificatePDF(name: string, km: string) {
 function Participants() {
   const [rows, setRows] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
+  const [adding, setAdding] = useState(false);
+  const [newForm, setNewForm] = useState({ name:'', initials:'', age_group:'general' });
+  const [newId, setNewId] = useState<number|null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
+  const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
   const load = useCallback(() => api('/participants').then(setRows), []);
   useEffect(() => { load(); }, [load]);
 
@@ -628,6 +632,13 @@ function Participants() {
     setEditing(null); load();
   };
 
+  const addNew = async () => {
+    if (!newForm.name || !newForm.initials) { alert('กรุณากรอก ชื่อ และ Initials'); return; }
+    const res = await api('/participants', { method:'POST', body: JSON.stringify(newForm) });
+    if (res.ok) { setNewId(res.id); load(); }
+    else alert(res.message || 'เกิดข้อผิดพลาด');
+  };
+
   const del = async (id: number, name: string) => {
     if (!confirm(`ลบ "${name}" ออกจากระบบ?`)) return;
     await api(`/participants/${id}`, { method:'DELETE' });
@@ -636,7 +647,13 @@ function Participants() {
 
   return (
     <div>
-      <h2 style={{ color:'#e2e8f0', marginBottom:20 }}>ผู้เข้าร่วม ({rows.length} คน)</h2>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+        <h2 style={{ color:'#e2e8f0', margin:0 }}>ผู้เข้าร่วม ({rows.length} คน)</h2>
+        <button onClick={()=>{ setAdding(true); setNewId(null); setNewForm({ name:'', initials:'', age_group:'general' }); }}
+          style={{ background:'linear-gradient(135deg,#059669,#34d399)', border:'none', borderRadius:8, padding:'7px 16px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+          + เพิ่มผู้เข้าร่วม
+        </button>
+      </div>
       <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, overflow:'hidden' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
           <thead>
@@ -686,6 +703,7 @@ function Participants() {
           </tbody>
         </table>
       </div>
+      {/* Modal แก้ไข */}
       {editing && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999 }}>
           <div style={{ background:'#1e1e30', border:'1px solid #333', borderRadius:16, padding:28, width:340 }}>
@@ -709,6 +727,53 @@ function Participants() {
               <button onClick={save} style={{ flex:1, background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:8, padding:'8px', color:'#fff', fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>บันทึก</button>
               <button onClick={()=>setEditing(null)} style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'8px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>ยกเลิก</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal เพิ่มผู้เข้าร่วม */}
+      {adding && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999 }}>
+          <div style={{ background:'#1e1e30', border:'1px solid #333', borderRadius:16, padding:28, width:380 }}>
+            <div style={{ color:'#34d399', fontSize:15, fontWeight:700, marginBottom:16 }}>+ เพิ่มผู้เข้าร่วมใหม่</div>
+
+            {!newId ? (
+              <>
+                {[['name','ชื่อ-นามสกุล'],['initials','Initials (2-3 ตัว)']].map(([k,l])=>(
+                  <div key={k} style={{ marginBottom:12 }}>
+                    <label style={{ color:'#888', fontSize:12 }}>{l}</label>
+                    <input value={(newForm as any)[k]} onChange={e=>setNewForm(p=>({...p,[k]:e.target.value}))}
+                      style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }} />
+                  </div>
+                ))}
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ color:'#888', fontSize:12 }}>กลุ่มอายุ</label>
+                  <select value={newForm.age_group} onChange={e=>setNewForm(p=>({...p,age_group:e.target.value}))}
+                    style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }}>
+                    <option value="general">ทั่วไป</option>
+                    <option value="senior">👑 กลุ่ม 60+</option>
+                  </select>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={addNew} style={{ flex:1, background:'linear-gradient(135deg,#059669,#34d399)', border:'none', borderRadius:8, padding:'8px', color:'#fff', fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>สร้าง</button>
+                  <button onClick={()=>setAdding(false)} style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'8px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>ยกเลิก</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background:'#0d2010', border:'1px solid #059669', borderRadius:10, padding:14, marginBottom:16 }}>
+                  <div style={{ color:'#34d399', fontSize:13, fontWeight:700, marginBottom:6 }}>✅ สร้างผู้เข้าร่วมแล้ว (id = {newId})</div>
+                  <div style={{ color:'#888', fontSize:12 }}>ขั้นตอนต่อไป: กดลิงก์ด้านล่างเพื่อเชื่อมต่อ Strava</div>
+                </div>
+                <a
+                  href={`${BASE_URL}/api/auth/strava?participant_id=${newId}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display:'block', textAlign:'center', background:'linear-gradient(135deg,#fc4c02,#ff6b35)', borderRadius:10, padding:'10px 16px', color:'#fff', fontWeight:700, fontSize:14, textDecoration:'none', marginBottom:12, fontFamily:'Sarabun' }}>
+                  🔗 เชื่อมต่อ Strava (id={newId})
+                </a>
+                <button onClick={()=>setAdding(false)} style={{ width:'100%', background:'#2a2a3e', border:'none', borderRadius:8, padding:'8px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>ปิด</button>
+              </>
+            )}
           </div>
         </div>
       )}
