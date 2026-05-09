@@ -605,6 +605,106 @@ async function generateCertificatePDF(name: string, km: string) {
   pdf.save(`certificate_${name.replace(/\s+/g, '_')}.pdf`);
 }
 
+// ─── Activity Drilldown Modal ─────────────────────────────
+function ActivityModal({ participant, onClose, onDeleted }: { participant: any; onClose: () => void; onDeleted: () => void }) {
+  const [acts, setActs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number|null>(null);
+
+  useEffect(() => {
+    api(`/activities?participant_id=${participant.id}`).then(d => { setActs(d); setLoading(false); });
+  }, [participant.id]);
+
+  const fmtPace = (distKm: number, elapsed: number) => {
+    if (!distKm) return '—';
+    const paceMin = (elapsed / 60) / distKm;
+    const m = Math.floor(paceMin), s = Math.round((paceMin-m)*60).toString().padStart(2,'0');
+    return `${m}:${s}`;
+  };
+  const fmtDate = (s: string) => s?.slice(0,10) ?? '—';
+
+  const deleteAct = async (id: number, km: number) => {
+    if (!confirm(`ลบกิจกรรม ${km} km ของ "${participant.name}"?`)) return;
+    setDeleting(id);
+    await api(`/activities/${id}`, { method:'DELETE' });
+    setActs(prev => prev.filter(a => a.id !== id));
+    setDeleting(null);
+    onDeleted();
+  };
+
+  const seasonActs = acts.filter(a => !a.is_baseline);
+  const suspiciousCount = seasonActs.filter(a => a.pace < 4.5 || a.distance_km > 20).length;
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:'#1a1a2e', border:'1px solid #333', borderRadius:16, width:'min(780px,100%)', maxHeight:'80vh', display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'16px 20px', borderBottom:'1px solid #2a2a3e', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div style={{ color:'#a78bfa', fontWeight:700, fontSize:15 }}>📋 กิจกรรมของ {participant.name}</div>
+            <div style={{ color:'#666', fontSize:12, marginTop:2 }}>
+              {seasonActs.length} season · {acts.filter(a=>a.is_baseline).length} baseline
+              {suspiciousCount > 0 && <span style={{ color:'#f87171', marginLeft:8 }}>⚠️ {suspiciousCount} น่าสงสัย</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'#2a2a3e', border:'none', borderRadius:8, padding:'6px 12px', color:'#888', cursor:'pointer', fontSize:13 }}>✕ ปิด</button>
+        </div>
+        <div style={{ overflowY:'auto', flex:1 }}>
+          {loading ? (
+            <div style={{ padding:32, textAlign:'center', color:'#555' }}>กำลังโหลด...</div>
+          ) : acts.length === 0 ? (
+            <div style={{ padding:32, textAlign:'center', color:'#555' }}>ไม่มีกิจกรรม</div>
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead style={{ position:'sticky', top:0 }}>
+                <tr style={{ background:'#12122a', borderBottom:'1px solid #2a2a3e' }}>
+                  {['วันที่','ชื่อกิจกรรม','ระยะ','Pace','สถานะ',''].map(h => (
+                    <th key={h} style={{ padding:'8px 12px', textAlign:'left', color:'#666', fontWeight:600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {acts.map((a, i) => {
+                  const suspicious = a.pace < 4.5 || a.distance_km > 20;
+                  return (
+                    <tr key={a.id} style={{ borderBottom:'1px solid #1a1a2e',
+                      background: suspicious ? '#2a1500' : a.is_baseline ? '#141208' : i%2===0 ? 'transparent' : '#141420' }}>
+                      <td style={{ padding:'7px 12px', color:'#888', whiteSpace:'nowrap' }}>{fmtDate(a.first_seen)}</td>
+                      <td style={{ padding:'7px 12px', color:'#ccc' }}>{a.activity_name || '—'}</td>
+                      <td style={{ padding:'7px 12px', fontWeight:700,
+                        color: a.distance_km > 20 ? '#f87171' : a.is_baseline ? '#888' : '#a78bfa' }}>
+                        {a.distance_km.toFixed(2)} km
+                        {a.distance_km > 20 && ' ⚠️'}
+                      </td>
+                      <td style={{ padding:'7px 12px',
+                        color: a.pace < 4.5 ? '#f87171' : a.pace > 20 ? '#555' : '#a3e635' }}>
+                        {fmtPace(a.distance_km, a.elapsed_time)} /km
+                        {a.pace < 4.5 && ' ⚠️'}
+                      </td>
+                      <td style={{ padding:'7px 12px' }}>
+                        {a.is_baseline
+                          ? <span style={{ color:'#f59e0b', fontSize:10 }}>Baseline</span>
+                          : <span style={{ color:'#34d399', fontSize:10 }}>Season</span>}
+                      </td>
+                      <td style={{ padding:'7px 12px' }}>
+                        <button onClick={() => deleteAct(a.id, a.distance_km)}
+                          disabled={deleting === a.id}
+                          style={{ background:'#2a1010', border:'none', borderRadius:5, padding:'3px 8px',
+                            color:'#f87171', fontSize:11, cursor:'pointer', opacity: deleting===a.id ? 0.5 : 1 }}>
+                          {deleting === a.id ? '...' : '🗑 ลบ'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Participants ─────────────────────────────────────────
 function Participants() {
   const [rows, setRows] = useState<any[]>([]);
@@ -613,6 +713,7 @@ function Participants() {
   const [newForm, setNewForm] = useState({ name:'', initials:'', age_group:'general' });
   const [newId, setNewId] = useState<number|null>(null);
   const [generating, setGenerating] = useState<number | null>(null);
+  const [actModal, setActModal] = useState<any>(null);
   const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
   const load = useCallback(() => api('/participants').then(setRows), []);
   useEffect(() => { load(); }, [load]);
@@ -696,6 +797,8 @@ function Participants() {
                     >
                       {generating === r.id ? '⏳...' : '📜 PDF'}
                     </button>
+                    <button onClick={()=>setActModal(r)} title="ดู/ลบกิจกรรมรายการ"
+                      style={{ background:'#1a2a1a', border:'none', borderRadius:6, padding:'4px 10px', color:'#34d399', fontSize:12, cursor:'pointer' }}>📋</button>
                     <button onClick={()=>del(r.id,r.name)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>ลบ</button>
                   </div>
                 </td>
@@ -704,6 +807,14 @@ function Participants() {
           </tbody>
         </table>
       </div>
+      {/* Activity modal */}
+      {actModal && (
+        <ActivityModal
+          participant={actModal}
+          onClose={() => setActModal(null)}
+          onDeleted={load}
+        />
+      )}
       {/* Modal แก้ไข */}
       {editing && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999 }}>
@@ -1180,6 +1291,7 @@ function DailyReport() {
   const [date, setDate]   = useState(todayBkk);
   const [data, setData]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number|null>(null);
 
   const load = useCallback(async (d: string) => {
     setLoading(true);
@@ -1189,6 +1301,14 @@ function DailyReport() {
   }, []);
 
   useEffect(() => { load(date); }, [date, load]);
+
+  const deleteActivity = async (id: number, name: string, km: number) => {
+    if (!confirm(`ลบกิจกรรมของ "${name}" (${km} km)?\n\nระบบจะคำนวณ km ใหม่ทันที`)) return;
+    setDeleting(id);
+    await api(`/activities/${id}`, { method: 'DELETE' });
+    setDeleting(null);
+    load(date);
+  };
 
   const fmtPace = (distKm: number, elapsed: number) => {
     if (!distKm) return '—';
@@ -1272,33 +1392,55 @@ function DailyReport() {
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                 <thead>
                   <tr style={{ borderBottom:'1px solid #2a2a3e', background:'#12122a' }}>
-                    {['เวลา','ชื่อ','กิจกรรม','ระยะ','เวลาวิ่ง','Pace','สถานะ'].map(h=>(
+                    {['เวลา','ชื่อ','กิจกรรม','ระยะ','เวลาวิ่ง','Pace','สถานะ',''].map(h=>(
                       <th key={h} style={{ padding:'10px 12px', textAlign:'left', color:'#888', fontWeight:600, fontSize:11 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {data.activities.map((a:any, i:number) => (
+                  {data.activities.map((a:any, i:number) => {
+                    const paceNum = a.distance_km > 0 ? (a.elapsed_time/60)/a.distance_km : 999;
+                    const isSuspicious = paceNum < 4.5 || a.distance_km > 20;
+                    return (
                     <tr key={i} style={{ borderBottom:'1px solid #1e1e2e',
-                      background: a.is_baseline ? '#1a120a' : i%2===0 ? 'transparent' : '#141428' }}>
+                      background: isSuspicious ? '#2a1a00' : a.is_baseline ? '#161208' : i%2===0 ? 'transparent' : '#141428' }}>
                       <td style={{ padding:'9px 12px', color:'#666', fontSize:11, whiteSpace:'nowrap' }}>
                         {a.first_seen?.slice(11,16) ?? '—'}
                       </td>
                       <td style={{ padding:'9px 12px', color:'#e2e8f0', fontWeight:600 }}>{a.name}</td>
                       <td style={{ padding:'9px 12px', color:'#aaa' }}>{a.activity_name || '—'}</td>
-                      <td style={{ padding:'9px 12px', color: a.is_baseline ? '#888' : '#a78bfa', fontWeight:700 }}>
+                      <td style={{ padding:'9px 12px', fontWeight:700,
+                        color: a.distance_km > 20 ? '#f87171' : a.is_baseline ? '#888' : '#a78bfa' }}>
                         {Math.round(a.distance_km*100)/100} km
+                        {a.distance_km > 20 && <span title="ระยะผิดปกติ" style={{ marginLeft:4 }}>⚠️</span>}
                       </td>
                       <td style={{ padding:'9px 12px', color:'#888' }}>{fmtTime(a.elapsed_time)}</td>
-                      <td style={{ padding:'9px 12px', color:'#888' }}>{fmtPace(a.distance_km, a.elapsed_time)}</td>
+                      <td style={{ padding:'9px 12px',
+                        color: paceNum < 4.5 ? '#f87171' : paceNum > 20 ? '#666' : '#a3e635' }}>
+                        {fmtPace(a.distance_km, a.elapsed_time)}
+                        {paceNum < 4.5 && <span title="เร็วผิดปกติ — อาจปั่น/ขับ" style={{ marginLeft:4 }}>⚠️</span>}
+                      </td>
                       <td style={{ padding:'9px 12px' }}>
                         {a.is_baseline
                           ? <span style={{ background:'#2a1a00', color:'#f59e0b', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Baseline</span>
                           : <span style={{ background:'#0f2a1a', color:'#34d399', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Season</span>
                         }
                       </td>
+                      <td style={{ padding:'9px 12px' }}>
+                        {a.id && (
+                          <button
+                            onClick={() => deleteActivity(a.id, a.name, a.distance_km)}
+                            disabled={deleting === a.id}
+                            title="ลบ activity นี้"
+                            style={{ background:'#2a1010', border:'1px solid #7f1d1d', borderRadius:5,
+                              padding:'3px 8px', color:'#f87171', fontSize:11, cursor:'pointer',
+                              opacity: deleting === a.id ? 0.5 : 1 }}>
+                            {deleting === a.id ? '...' : '🗑'}
+                          </button>
+                        )}
+                      </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>

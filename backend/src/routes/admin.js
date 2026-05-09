@@ -191,7 +191,7 @@ router.get('/daily', requireAdmin, (req, res) => {
 
   // กิจกรรมในวันที่เลือก (admin เห็นทั้งหมด รวม pre-season และ baseline)
   const activities = db.prepare(`
-    SELECT sa.strava_key,
+    SELECT sa.id, sa.strava_key,
            COALESCE(p.name, sa.strava_key) AS name,
            sa.activity_name, sa.distance_km, sa.elapsed_time,
            sa.first_seen, sa.is_baseline
@@ -215,6 +215,44 @@ router.get('/daily', requireAdmin, (req, res) => {
   `).all();
 
   res.json({ date, activities, days });
+});
+
+// ── Activities (ตรวจสอบ/ลบกิจกรรมเฉพาะราย) ──────────────
+// GET /api/adminpp/activities?participant_id=5
+router.get('/activities', requireAdmin, (req, res) => {
+  const { participant_id } = req.query;
+  if (!participant_id) return res.status(400).json({ ok: false, message: 'ต้องระบุ participant_id' });
+  const p = db.prepare('SELECT strava_key, name FROM participants WHERE id=?').get(Number(participant_id));
+  if (!p?.strava_key) return res.json([]);
+  const rows = db.prepare(`
+    SELECT id, activity_name, distance_km, elapsed_time, first_seen, is_baseline,
+           ROUND(CASE WHEN distance_km > 0 THEN (elapsed_time / 60.0) / distance_km ELSE 999 END, 2) AS pace
+    FROM strava_activities
+    WHERE strava_key = ?
+    ORDER BY first_seen DESC
+    LIMIT 500
+  `).all(p.strava_key);
+  res.json(rows);
+});
+
+// DELETE /api/adminpp/activities/:id — ลบ 1 activity + คำนวณ km ใหม่
+router.delete('/activities/:id', requireAdmin, (req, res) => {
+  const act = db.prepare('SELECT strava_key, distance_km, is_baseline FROM strava_activities WHERE id=?').get(Number(req.params.id));
+  if (!act) return res.status(404).json({ ok: false, message: 'ไม่พบ activity นี้' });
+
+  db.prepare('DELETE FROM strava_activities WHERE id=?').run(Number(req.params.id));
+
+  // คำนวณ km ใหม่สำหรับ participant เจ้าของ activity
+  const participant = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(act.strava_key);
+  if (participant) {
+    const row = db.prepare(
+      'SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
+    ).get(act.strava_key);
+    const totalKm = Math.round(row.km * 10) / 10;
+    db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
+      .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
+  }
+  res.json({ ok: true, message: 'ลบ activity แล้ว' });
 });
 
 // ── Export CSV ────────────────────────────────────────────

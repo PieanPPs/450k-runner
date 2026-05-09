@@ -49,14 +49,16 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
   }
 
   // ---- เงื่อนไขกรองกิจกรรม ----
-  // Run:  pace 3.5–20 min/km + ระยะ ≥ 1 km
-  // Walk: pace 8–17 min/km + ระยะ ≥ 0.5 km
-  const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ขับรถ/ปั่นจักรยาน
+  // Run:  pace 3.5–30 min/km + ระยะ 0.5–35 km
+  // Walk: pace 8–17 min/km  + ระยะ 0.5–20 km
+  const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ขับรถ/ปั่นจักรยาน (< 3.5 min/km ≈ > 17 km/h)
   const RUN_MAX_PACE  = 30;   // ช้ากว่านี้ = เปิดทิ้งไว้
   const RUN_MIN_DIST  = 0.5;  // วิ่งต้องได้อย่างน้อย 0.5 km
+  const RUN_MAX_DIST  = 35;   // ไม่ควรเกิน ultra threshold — ป้องกันลืมปิดแอปแล้วขับรถนาน
   const WALK_MIN_PACE = 8;    // เร็วกว่านี้ = วิ่งอยู่จริงๆ แต่กด Walk
   const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/เดินในห้อง
   const WALK_MIN_DIST = 0.5;  // เดินต้องได้อย่างน้อย 0.5 km
+  const WALK_MAX_DIST = 20;   // เดินทางไกลเกิน 20 km ต่อครั้ง = ผิดปกติ
 
   const athleteMap = {};
   for (const activity of allActivities) {
@@ -69,14 +71,16 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
     const pace   = distKm > 0 ? durMin / distKm : 999;
 
     if (isRun) {
-      if (pace < RUN_MIN_PACE) continue;   // เร็วเกินไป (ขับรถ/ปั่น)
-      if (pace > RUN_MAX_PACE) continue;   // ช้าเกินไป (> 20 min/km กด Run = น่าสงสัย)
-      if (distKm < RUN_MIN_DIST) continue; // สั้นเกินไป (< 1 km)
+      if (pace < RUN_MIN_PACE) continue;    // เร็วเกินไป (ขับรถ/ปั่น)
+      if (pace > RUN_MAX_PACE) continue;    // ช้าเกินไป (> 30 min/km กด Run = น่าสงสัย)
+      if (distKm < RUN_MIN_DIST) continue;  // สั้นเกินไป (< 0.5 km)
+      if (distKm > RUN_MAX_DIST) continue;  // ไกลเกินจริง — ลืมปิดแอป/ขับรถกลับบ้าน
     } else {
       // Walk: กลุ่ม 60+ ใช้เยอะ — pace + ระยะขั้นต่ำ
       if (pace < WALK_MIN_PACE) continue;   // เร็วเกินไป (วิ่งอยู่)
       if (pace > WALK_MAX_PACE) continue;   // ช้าเกินไป (เปิดทิ้งไว้)
       if (distKm < WALK_MIN_DIST) continue; // สั้นเกินไป (< 0.5 km)
+      if (distKm > WALK_MAX_DIST) continue; // ไกลเกินจริง — ผิดปกติ
     }
 
     const fn  = (activity.athlete?.firstname || '').trim();
