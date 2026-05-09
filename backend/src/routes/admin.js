@@ -55,6 +55,33 @@ router.get('/participants', requireAdmin, (_req, res) => {
   res.json(rows);
 });
 
+// Pre-season breakdown: km รายเดือน + pre-season vs season
+router.get('/preseason', requireAdmin, (_req, res) => {
+  const participants = db.prepare('SELECT id,name,initials,strava_key FROM participants ORDER BY name').all();
+  const result = participants.map(p => {
+    if (!p.strava_key) return { ...p, preseason_km:0, season_km:0, total_km:0, monthly:{} };
+    const rows = db.prepare(`
+      SELECT strftime('%Y-%m', first_seen) as month,
+             SUM(distance_km) as km, is_baseline
+      FROM strava_activities
+      WHERE strava_key=?
+      GROUP BY month, is_baseline
+      ORDER BY month
+    `).all(p.strava_key);
+    const preKm  = rows.filter(r=>r.is_baseline===1).reduce((s,r)=>s+r.km,0);
+    const seaKm  = rows.filter(r=>r.is_baseline===0).reduce((s,r)=>s+r.km,0);
+    const monthly = {};
+    rows.forEach(r => { monthly[r.month] = Math.round(((monthly[r.month]||0)+r.km)*10)/10; });
+    return { ...p,
+      preseason_km : Math.round(preKm*10)/10,
+      season_km    : Math.round(seaKm*10)/10,
+      total_km     : Math.round((preKm+seaKm)*10)/10,
+      monthly,
+    };
+  });
+  res.json(result);
+});
+
 router.post('/participants', requireAdmin, (req, res) => {
   const { name, initials, age_group } = req.body;
   if (!name || !initials) return res.status(400).json({ ok: false, message: 'ต้องระบุ name และ initials' });

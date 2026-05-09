@@ -74,6 +74,7 @@ const MENUS = [
   { key:'participants', label:'👥 ผู้เข้าร่วม' },
   { key:'milestones',   label:'🏆 Milestones' },
   { key:'distances',    label:'🗺️ Distances' },
+  { key:'preseason',    label:'📈 Pre-Season' },
   { key:'seasons',      label:'📅 Seasons' },
   { key:'gallery',      label:'🖼️ Gallery' },
   { key:'export',       label:'📤 Export' },
@@ -855,6 +856,117 @@ function CrudList({ title, endpoint, fields }: { title:string; endpoint:string; 
   );
 }
 
+// ─── Pre-Season ───────────────────────────────────────────
+function PreSeasonPage() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api('/preseason').then(d => { setRows(d); setLoading(false); });
+  }, []);
+
+  // รวบรวม months ทั้งหมดที่มีข้อมูล เรียงตามลำดับ
+  const allMonths = Array.from(
+    new Set(rows.flatMap(r => Object.keys(r.monthly || {})))
+  ).sort();
+
+  const MONTH_TH: Record<string,string> = {
+    '01':'ม.ค.','02':'ก.พ.','03':'มี.ค.','04':'เม.ย.',
+    '05':'พ.ค.','06':'มิ.ย.','07':'ก.ค.','08':'ส.ค.',
+    '09':'ก.ย.','10':'ต.ค.','11':'พ.ย.','12':'ธ.ค.',
+  };
+  const monthLabel = (m: string) => {
+    const [y, mo] = m.split('-');
+    return `${MONTH_TH[mo] || mo}\n${y.slice(2)}`;
+  };
+
+  const totalPre = rows.reduce((s,r) => s + r.preseason_km, 0);
+  const totalSea = rows.reduce((s,r) => s + r.season_km, 0);
+  const totalAll = rows.reduce((s,r) => s + r.total_km, 0);
+
+  if (loading) return <div style={{ color:'#666', padding:40 }}>กำลังโหลด...</div>;
+
+  return (
+    <div>
+      <h2 style={{ color:'#e2e8f0', marginBottom:4 }}>📈 Pre-Season Summary</h2>
+      <p style={{ color:'#666', fontSize:13, marginBottom:20 }}>
+        เปรียบเทียบ Pre-season + Season km กับ "This year" ใน Strava app ของแต่ละคน
+      </p>
+
+      {/* Summary cards */}
+      <div style={{ display:'flex', gap:12, marginBottom:24, flexWrap:'wrap' }}>
+        {[
+          { label:'Pre-season รวม', val:`${Math.round(totalPre*10)/10} km`, color:'#f59e0b' },
+          { label:'Season รวม',     val:`${Math.round(totalSea*10)/10} km`, color:'#a78bfa' },
+          { label:'รวมทั้งหมด (= This year)', val:`${Math.round(totalAll*10)/10} km`, color:'#34d399' },
+        ].map(c => (
+          <div key={c.label} style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:12, padding:'14px 20px', flex:'1', minWidth:160 }}>
+            <div style={{ color:'#666', fontSize:11, marginBottom:6 }}>{c.label}</div>
+            <div style={{ color:c.color, fontSize:22, fontFamily:'Bebas Neue', letterSpacing:1 }}>{c.val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ตารางรายคน */}
+      <div style={{ overflowX:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr style={{ borderBottom:'1px solid #2a2a3e' }}>
+              <th style={{ padding:'8px 12px', color:'#666', textAlign:'left', position:'sticky', left:0, background:'#1e1e30', zIndex:1 }}>ชื่อ</th>
+              <th style={{ padding:'8px 12px', color:'#f59e0b', textAlign:'right', whiteSpace:'nowrap' }}>Pre-season</th>
+              <th style={{ padding:'8px 12px', color:'#a78bfa', textAlign:'right', whiteSpace:'nowrap' }}>Season</th>
+              <th style={{ padding:'8px 12px', color:'#34d399', textAlign:'right', whiteSpace:'nowrap' }}>รวม≈This year</th>
+              {allMonths.map(m => (
+                <th key={m} style={{ padding:'8px 8px', color:'#555', textAlign:'right', whiteSpace:'pre', lineHeight:1.3, fontSize:11 }}>
+                  {monthLabel(m)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id} style={{ borderBottom:'1px solid #161625' }}>
+                <td style={{ padding:'8px 12px', color:'#e2e8f0', position:'sticky', left:0, background:'#0d0d1a' }}>{r.name}</td>
+                <td style={{ padding:'8px 12px', color:'#f59e0b', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>
+                  {r.preseason_km > 0 ? `${r.preseason_km}` : '—'}
+                </td>
+                <td style={{ padding:'8px 12px', color:'#a78bfa', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>
+                  {r.season_km > 0 ? `${r.season_km}` : '—'}
+                </td>
+                <td style={{ padding:'8px 12px', color:'#34d399', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15, fontWeight:700 }}>
+                  {r.total_km}
+                </td>
+                {allMonths.map(m => (
+                  <td key={m} style={{ padding:'8px 8px', textAlign:'right', color: r.monthly[m] ? '#c4b5fd' : '#2a2a3e' }}>
+                    {r.monthly[m] ? r.monthly[m].toFixed(1) : '·'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop:'2px solid #2a2a3e' }}>
+              <td style={{ padding:'8px 12px', color:'#888', fontWeight:700 }}>รวม</td>
+              <td style={{ padding:'8px 12px', color:'#f59e0b', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{Math.round(totalPre*10)/10}</td>
+              <td style={{ padding:'8px 12px', color:'#a78bfa', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{Math.round(totalSea*10)/10}</td>
+              <td style={{ padding:'8px 12px', color:'#34d399', textAlign:'right', fontFamily:'Bebas Neue', fontSize:16, fontWeight:700 }}>{Math.round(totalAll*10)/10}</td>
+              {allMonths.map(m => {
+                const s = rows.reduce((sum,r) => sum + (r.monthly[m]||0), 0);
+                return <td key={m} style={{ padding:'8px 8px', textAlign:'right', color:'#888' }}>{s>0?s.toFixed(1):'·'}</td>;
+              })}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div style={{ marginTop:16, padding:12, background:'#1a1208', border:'1px solid #f59e0b44', borderRadius:10, fontSize:12, color:'#f59e0b88' }}>
+        💡 คอลัมน์ <strong style={{color:'#34d399'}}>"รวม≈This year"</strong> ควรตรงกับ Statistics → This year ใน Strava app ของแต่ละคน
+        <br/>ถ้าตัวเลขต่างกัน = มีกิจกรรมที่ Club API ดึงไม่ได้ (เก่าเกิน 200 activities ของคลับ)
+      </div>
+    </div>
+  );
+}
+
 // ─── Export ───────────────────────────────────────────────
 function ExportPage() {
   const doExport = async () => {
@@ -1245,6 +1357,7 @@ export default function AdminPage() {
     participants: <Participants />,
     milestones:   <CrudList title="Milestones" endpoint="milestones" fields={MILESTONE_FIELDS} />,
     distances:    <CrudList title="Distances (เส้นทาง)" endpoint="distances" fields={DISTANCE_FIELDS} />,
+    preseason:    <PreSeasonPage />,
     seasons:      <SeasonsPage />,
     gallery:      <GalleryAdmin />,
     export:       <ExportPage />,
