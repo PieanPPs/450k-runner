@@ -77,6 +77,7 @@ const MENUS = [
   { key:'preseason',    label:'📈 Pre-Season' },
   { key:'seasons',      label:'📅 Seasons' },
   { key:'gallery',      label:'🖼️ Gallery' },
+  { key:'trash',        label:'🗑️ ถังขยะ' },
   { key:'export',       label:'📤 Export' },
 ];
 
@@ -1121,6 +1122,134 @@ function PreSeasonPage() {
   );
 }
 
+// ─── Recycle Bin ─────────────────────────────────────────
+function TrashPage() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState<number|null>(null);
+  const [clearing, setClearing] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api('/trash').then(d => { setItems(d); setLoading(false); });
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const restore = async (id: number, name: string) => {
+    if (!confirm(`กู้คืนกิจกรรมของ "${name}" กลับเข้าระบบ?`)) return;
+    setRestoring(id);
+    const res = await api(`/trash/${id}/restore`, { method: 'POST' });
+    alert(res.message);
+    setRestoring(null);
+    load();
+  };
+
+  const permDelete = async (id: number) => {
+    if (!confirm('ลบถาวร? ไม่สามารถกู้คืนได้อีก')) return;
+    await api(`/trash/${id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const clearAll = async () => {
+    if (!confirm(`ล้างถังขยะทั้งหมด ${items.length} รายการ?\n\nจะไม่สามารถกู้คืนได้อีก`)) return;
+    setClearing(true);
+    await api('/trash', { method: 'DELETE' });
+    setClearing(false);
+    load();
+  };
+
+  const fmtPace = (km: number, elapsed: number) => {
+    if (!km || !elapsed) return '—';
+    const p = (elapsed/60)/km;
+    return `${Math.floor(p)}:${Math.round((p%1)*60).toString().padStart(2,'0')} /km`;
+  };
+  const fmtTime = (s: number) => {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+        <div>
+          <h2 style={{ color:'#e2e8f0', margin:0 }}>🗑️ ถังขยะ ({items.length} รายการ)</h2>
+          <div style={{ color:'#666', fontSize:12, marginTop:4 }}>
+            กิจกรรมที่ถูกลบออกจากระบบ — กู้คืนได้ทุกเมื่อ
+          </div>
+        </div>
+        {items.length > 0 && (
+          <button onClick={clearAll} disabled={clearing}
+            style={{ background:'#2a1010', border:'1px solid #7f1d1d', borderRadius:8, padding:'7px 16px', color:'#f87171', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity: clearing ? 0.6 : 1 }}>
+            {clearing ? 'กำลังล้าง...' : '🗑 ล้างถังขยะ'}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ color:'#555', padding:48, textAlign:'center' }}>กำลังโหลด...</div>
+      ) : items.length === 0 ? (
+        <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:64, textAlign:'center' }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>🎉</div>
+          <div style={{ color:'#555', fontSize:14 }}>ถังขยะว่างเปล่า</div>
+        </div>
+      ) : (
+        <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, overflow:'hidden' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead>
+              <tr style={{ background:'#12122a', borderBottom:'1px solid #2a2a3e' }}>
+                {['ลบเมื่อ','ชื่อ','กิจกรรม','ระยะ','เวลา','Pace','สถานะ',''].map(h => (
+                  <th key={h} style={{ padding:'10px 12px', textAlign:'left', color:'#666', fontWeight:600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.id} style={{ borderBottom:'1px solid #1a1a2e' }}>
+                  <td style={{ padding:'9px 12px', color:'#555', whiteSpace:'nowrap' }}>
+                    {item.deleted_at?.slice(0,16) ?? '—'}
+                  </td>
+                  <td style={{ padding:'9px 12px', color:'#e2e8f0', fontWeight:600 }}>{item.name}</td>
+                  <td style={{ padding:'9px 12px', color:'#aaa' }}>{item.activity_name || '—'}</td>
+                  <td style={{ padding:'9px 12px', color:'#a78bfa', fontWeight:700 }}>
+                    {item.credited_km != null
+                      ? <>{item.credited_km.toFixed(2)} <span style={{ color:'#555', textDecoration:'line-through', fontSize:10 }}>{item.distance_km.toFixed(2)}</span></>
+                      : item.distance_km?.toFixed(2)
+                    } km
+                  </td>
+                  <td style={{ padding:'9px 12px', color:'#888' }}>{fmtTime(item.elapsed_time)}</td>
+                  <td style={{ padding:'9px 12px', color:'#888' }}>{fmtPace(item.credited_km ?? item.distance_km, item.elapsed_time)}</td>
+                  <td style={{ padding:'9px 12px' }}>
+                    {item.is_baseline
+                      ? <span style={{ color:'#f59e0b', fontSize:10 }}>Baseline</span>
+                      : <span style={{ color:'#34d399', fontSize:10 }}>Season</span>}
+                  </td>
+                  <td style={{ padding:'9px 12px' }}>
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={() => restore(item.id, item.name)} disabled={restoring === item.id}
+                        style={{ background:'#0f2a1a', border:'1px solid #059669', borderRadius:6, padding:'4px 10px', color:'#34d399', fontSize:11, cursor:'pointer', opacity: restoring===item.id ? 0.6 : 1 }}>
+                        {restoring === item.id ? '...' : '↩️ กู้คืน'}
+                      </button>
+                      <button onClick={() => permDelete(item.id)}
+                        style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:11, cursor:'pointer' }}>
+                        ✕
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ marginTop:16, padding:12, background:'#0d1a1a', border:'1px solid #05966944', borderRadius:10, fontSize:12, color:'#05966988' }}>
+        💡 กดปุ่ม <strong style={{color:'#34d399'}}>↩️ กู้คืน</strong> เพื่อนำกลับเข้าระบบและคำนวณ km ใหม่
+        · กดปุ่ม <strong style={{color:'#f87171'}}>✕</strong> เพื่อลบถาวร (ไม่สามารถย้อนกลับได้)
+      </div>
+    </div>
+  );
+}
+
 // ─── Export ───────────────────────────────────────────────
 function ExportPage() {
   const doExport = async () => {
@@ -1599,6 +1728,7 @@ export default function AdminPage() {
     preseason:    <PreSeasonPage />,
     seasons:      <SeasonsPage />,
     gallery:      <GalleryAdmin />,
+    trash:        <TrashPage />,
     export:       <ExportPage />,
   };
 

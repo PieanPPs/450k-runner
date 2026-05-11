@@ -262,14 +262,23 @@ router.patch('/activities/:id', requireAdmin, (req, res) => {
   res.json({ ok: true, credited_km: newKm });
 });
 
-// DELETE /api/adminpp/activities/:id — ลบ 1 activity + คำนวณ km ใหม่
+// DELETE /api/adminpp/activities/:id — บันทึกลงถังขยะก่อน แล้วลบจริง
 router.delete('/activities/:id', requireAdmin, (req, res) => {
-  const act = db.prepare('SELECT strava_key, distance_km, is_baseline FROM strava_activities WHERE id=?').get(Number(req.params.id));
+  const id = Number(req.params.id);
+  const act = db.prepare('SELECT * FROM strava_activities WHERE id=?').get(id);
   if (!act) return res.status(404).json({ ok: false, message: 'ไม่พบ activity นี้' });
 
-  db.prepare('DELETE FROM strava_activities WHERE id=?').run(Number(req.params.id));
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
-  // คำนวณ km ใหม่สำหรับ participant เจ้าของ activity
+  // บันทึกลงถังขยะก่อน
+  db.prepare(`
+    INSERT INTO deleted_activities (original_id, strava_key, activity_hash, distance_km, credited_km, elapsed_time, activity_name, first_seen, is_baseline, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, act.strava_key, act.activity_hash, act.distance_km, act.credited_km, act.elapsed_time, act.activity_name, act.first_seen, act.is_baseline, thaiNow);
+
+  db.prepare('DELETE FROM strava_activities WHERE id=?').run(id);
+
+  // คำนวณ km ใหม่
   const participant = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(act.strava_key);
   if (participant) {
     const row = db.prepare(
@@ -279,7 +288,71 @@ router.delete('/activities/:id', requireAdmin, (req, res) => {
     db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
       .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
   }
-  res.json({ ok: true, message: 'ลบ activity แล้ว' });
+  res.json({ ok: true, message: 'ย้ายไปถังขยะแล้ว — กู้คืนได้ที่เมนู 🗑️ ถังขยะ' });
+});
+
+// ── Recycle Bin ───────────────────────────────────────────
+// GET /api/adminpp/trash
+router.get('/trash', requireAdmin, (_req, res) => {
+  const rows = db.prepare(`
+    SELECT da.id, da.original_id, da.strava_key, da.activity_name,
+           da.distance_km, da.credited_km, da.elapsed_time,
+           da.first_seen, da.is_baseline, da.deleted_at,
+           COALESCE(p.name, da.strava_key) AS name
+    FROM deleted_activities da
+    LEFT JOIN participants p ON p.strava_key = da.strava_key
+    ORDER BY da.deleted_at DESC
+    LIMIT 200
+  `).all();
+  res.json(rows);
+});
+
+// POST /api/adminpp/trash/:id/restore — กู้คืน activity
+router.post('/trash/:id/restore', requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const item = db.prepare('SELECT * FROM deleted_activities WHERE id=?').get(id);
+  if (!item) return res.status(404).json({ ok: false, message: 'ไม่พบใน recycle bin' });
+
+  // ตรวจว่า hash ซ้ำหรือยัง (อาจถูก sync ซ้ำมาแล้ว)
+  const existing = item.activity_hash
+    ? db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(item.activity_hash)
+    : null;
+  if (existing) {
+    db.prepare('DELETE FROM deleted_activities WHERE id=?').run(id);
+    return res.json({ ok: true, message: 'sync ดึงกิจกรรมนี้กลับมาแล้ว (ไม่ต้องกู้)' });
+  }
+
+  // คืน activity กลับ
+  db.prepare(`
+    INSERT INTO strava_activities (strava_key, activity_hash, distance_km, credited_km, elapsed_time, activity_name, first_seen, is_baseline)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(item.strava_key, item.activity_hash, item.distance_km, item.credited_km, item.elapsed_time, item.activity_name, item.first_seen, item.is_baseline);
+
+  db.prepare('DELETE FROM deleted_activities WHERE id=?').run(id);
+
+  // คำนวณ km ใหม่
+  const participant = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(item.strava_key);
+  if (participant && !item.is_baseline) {
+    const row = db.prepare(
+      'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
+    ).get(item.strava_key);
+    const totalKm = Math.round(row.km * 10) / 10;
+    db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
+      .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
+  }
+  res.json({ ok: true, message: 'กู้คืนสำเร็จ' });
+});
+
+// DELETE /api/adminpp/trash/:id — ลบถาวรออกจากถังขยะ
+router.delete('/trash/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM deleted_activities WHERE id=?').run(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// DELETE /api/adminpp/trash — ล้างถังขยะทั้งหมด
+router.delete('/trash', requireAdmin, (_req, res) => {
+  const r = db.prepare('DELETE FROM deleted_activities').run();
+  res.json({ ok: true, deleted: r.changes });
 });
 
 // ── Export CSV ────────────────────────────────────────────
