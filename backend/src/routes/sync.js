@@ -141,10 +141,14 @@ router.post('/', async (_req, res) => {
     const actCount = seasonRow.cnt;
     const steps    = Math.round(totalKm * 1350);
 
-    // weekly km (7 วันล่าสุด เฉพาะกิจกรรมหลัง baseline)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+    // weekly km — จันทร์ถึงอาทิตย์ปัจจุบัน (calendar week ตรงกับ Strava)
+    const nowBkk   = new Date(new Date().toLocaleString('en-US', { timeZone:'Asia/Bangkok' }));
+    const dayOfWeek = nowBkk.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // วันจันทร์ = 0
+    const weekStart = new Date(nowBkk);
+    weekStart.setDate(nowBkk.getDate() - daysFromMon);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekStr = weekStart.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ').slice(0,19);
     const weekRow = db.prepare(
       `SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
     ).get(stravaKey, weekStr);

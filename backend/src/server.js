@@ -193,8 +193,14 @@ async function runAutoSync(label = 'cron') {
     const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
     const totalKm  = Math.round(seasonRow.km * 100) / 100;
     const steps    = Math.round(totalKm * 1350);
-    const weekAgo  = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekStr  = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+    // weekly km — จันทร์ถึงอาทิตย์ปัจจุบัน (calendar week ตรงกับ Strava)
+    const nowBkk2    = new Date(new Date().toLocaleString('en-US', { timeZone:'Asia/Bangkok' }));
+    const dow2       = nowBkk2.getDay();
+    const dFromMon2  = dow2 === 0 ? 6 : dow2 - 1;
+    const wStart2    = new Date(nowBkk2);
+    wStart2.setDate(nowBkk2.getDate() - dFromMon2);
+    wStart2.setHours(0, 0, 0, 0);
+    const weekStr  = wStart2.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ').slice(0,19);
     const weekRow  = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
     const weeklyKm = Math.round(weekRow.km * 100) / 100;
     // คำนวณ streak จาก first_seen (Strava Club API ไม่มีวันจริง)
