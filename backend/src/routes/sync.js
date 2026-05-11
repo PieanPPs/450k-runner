@@ -137,7 +137,7 @@ router.post('/', async (_req, res) => {
        WHERE strava_key=? AND is_baseline=0`
     ).get(stravaKey);
 
-    const totalKm = Math.round(seasonRow.km * 10) / 10;
+    const totalKm = Math.round(seasonRow.km * 100) / 100;
     const actCount = seasonRow.cnt;
     const steps    = Math.round(totalKm * 1350);
 
@@ -148,7 +148,7 @@ router.post('/', async (_req, res) => {
     const weekRow = db.prepare(
       `SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
     ).get(stravaKey, weekStr);
-    const weeklyKm = Math.round(weekRow.km * 10) / 10;
+    const weeklyKm = Math.round(weekRow.km * 100) / 100;
 
     // คำนวณ streak จาก first_seen dates (Strava Club API ไม่ส่งวันจริง)
     const seenDates = db.prepare(
@@ -253,9 +253,9 @@ router.post('/close-preseason', requireAdmin, (_req, res) => {
     GROUP BY a.strava_key ORDER BY km DESC LIMIT 1
   `).get();
 
-  const totalKm        = Math.round((totals.totalKm || 0) * 10) / 10;
+  const totalKm        = Math.round((totals.totalKm || 0) * 100) / 100;
   const participantCount = totals.participantCount || 0;
-  const topKm          = topRunner ? Math.round(topRunner.km * 10) / 10 : 0;
+  const topKm          = topRunner ? Math.round(topRunner.km * 100) / 100 : 0;
   const winner         = topRunner ? topRunner.name : '-';
 
   // 3. สร้าง date range string (ภาษาไทย)
@@ -318,12 +318,12 @@ router.post('/reset-baseline', requireAdmin, (_req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(p.strava_key);
-    const totalKm = Math.round(row.km * 10) / 10;
+    const totalKm = Math.round(row.km * 100) / 100;
     const steps   = Math.round(totalKm * 1350);
     const weekRow = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
     ).get(p.strava_key, weekStr);
-    const weeklyKm = Math.round(weekRow.km * 10) / 10;
+    const weeklyKm = Math.round(weekRow.km * 100) / 100;
     db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
       .run(totalKm, steps, weeklyKm, row.cnt, p.id);
   }
@@ -398,6 +398,6 @@ function rebuildWeeklyData(seasonStart) {
   db.prepare('DELETE FROM weekly_data').run();
   const ins = db.prepare('INSERT INTO weekly_data (week,km,steps) VALUES (?,?,?)');
   for (const [w, data] of Object.entries(weeks).sort(([a],[b])=>Number(a)-Number(b))) {
-    ins.run('\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c ' + w, Math.round(data.km * 10) / 10, data.steps);
+    ins.run('\u0e2a\u0e31\u0e1b\u0e14\u0e32\u0e2b\u0e4c ' + w, Math.round(data.km * 100) / 100, data.steps);
   }
 }

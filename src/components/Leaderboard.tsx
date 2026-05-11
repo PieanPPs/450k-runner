@@ -2,6 +2,7 @@ import { useContext, useMemo, useState } from 'react';
 import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
+import { fmtKm } from '@/utils/fmt';
 
 export default function Leaderboard() {
   const { theme: t } = useContext(ThemeCtx);
@@ -12,11 +13,11 @@ export default function Leaderboard() {
   const seniors = useMemo(() => participants.filter(p => p.ageGroup === 'senior'), [participants]);
 
   const tabs = useMemo(() => [
-    { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>v.toFixed(2), data:[...participants].sort((a,b)=>b.km-a.km),            isSenior: false },
+    { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.km-a.km),            isSenior: false },
     { label:'จำนวนครั้ง',    key:'activityCount' as const,  unit:'ครั้ง', fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.activityCount-a.activityCount), isSenior: false },
-    { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>v.toFixed(2), data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm), isSenior: false },
+    { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm), isSenior: false },
     { label:'Streak (วัน)',  key:'streak' as const,          unit:'วัน',  fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.streak-a.streak),     isSenior: false },
-    ...(seniors.length > 0 ? [{ label:'👑 กลุ่ม 60+', key:'km' as const, unit:'km', fmt:(v:number)=>v.toFixed(2), data:[...seniors].sort((a,b)=>b.km-a.km), isSenior: true }] : []),
+    ...(seniors.length > 0 ? [{ label:'👑 กลุ่ม 60+', key:'km' as const, unit:'km', fmt:(v:number)=>fmtKm(v), data:[...seniors].sort((a,b)=>b.km-a.km), isSenior: true }] : []),
   ], [participants, seniors]);
 
   const cur = tabs[tab];

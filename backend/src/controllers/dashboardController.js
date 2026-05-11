@@ -77,8 +77,8 @@ export function getSummary(_req, res) {
   const goalKm         = participantCount * goalPerPerson;
   const pct            = goalKm > 0 ? Math.min(100, (totalKm / goalKm) * 100) : 0;
   res.json({
-    totalKm: Math.round(totalKm * 10) / 10,
-    totalWeeklyKm: Math.round(totalWeeklyKm * 10) / 10,
+    totalKm: Math.round(totalKm * 100) / 100,
+    totalWeeklyKm: Math.round(totalWeeklyKm * 100) / 100,
     totalActivities,
     participantCount,
     goalKm,

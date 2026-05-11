@@ -3,6 +3,7 @@ import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
 import { api } from '@/api/client';
+import { fmtKm } from '@/utils/fmt';
 import type { WeeklySnapshot } from '@/types';
 
 // ---- medal colors ----
@@ -92,7 +93,7 @@ export default function WeeklyGraph() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                       <span style={{ color: t.text, fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                       <span style={{ color: t.accent1, fontWeight: 700, fontSize: 14, fontFamily: 'Bebas Neue', letterSpacing: 1, flexShrink: 0, marginLeft: 8 }}>
-                        {p.weeklyKm.toFixed(2)} <span style={{ fontSize: 10, color: t.textSub, fontFamily: 'Sarabun', fontWeight: 400 }}>km</span>
+                        {fmtKm(p.weeklyKm)} <span style={{ fontSize: 10, color: t.textSub, fontFamily: 'Sarabun', fontWeight: 400 }}>km</span>
                       </span>
                     </div>
                     <div style={{ background: t.progressBg, borderRadius: 999, height: 7, overflow: 'hidden' }}>
@@ -178,7 +179,7 @@ export default function WeeklyGraph() {
                           <span style={{ color: t.text, fontWeight: 600, fontSize: 14 }}>{p.name}</span>
                         </div>
                         <div style={{ color: t.accent1, fontWeight: 700, fontFamily: 'Bebas Neue', fontSize: 18, letterSpacing: 1 }}>
-                          {p.km.toFixed(2)} <span style={{ fontSize: 10, color: t.textSub, fontFamily: 'Sarabun', fontWeight: 400 }}>km</span>
+                          {fmtKm(p.km)} <span style={{ fontSize: 10, color: t.textSub, fontFamily: 'Sarabun', fontWeight: 400 }}>km</span>
                         </div>
                       </div>
                     ))}

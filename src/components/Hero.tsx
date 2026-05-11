@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { ThemeCtx, useCountdown } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
+import { fmtKm } from '@/utils/fmt';
 
 export default function Hero() {
   const { theme: t } = useContext(ThemeCtx);
@@ -61,7 +62,7 @@ export default function Hero() {
         <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:28, backdropFilter:'blur(12px)', maxWidth:500, margin:'0 auto' }}>
           <div style={{ display:'flex', justifyContent:'space-between', marginBottom:10 }}>
             <span style={{ color:t.text, fontWeight:700, fontSize:16 }}>ความคืบหน้ารวม</span>
-            <span style={{ color:t.accent1, fontWeight:800, fontSize:16, fontFamily:'Bebas Neue', letterSpacing:1 }}>{totalKm.toFixed(1)} / {goalKm} KM</span>
+            <span style={{ color:t.accent1, fontWeight:800, fontSize:16, fontFamily:'Bebas Neue', letterSpacing:1 }}>{fmtKm(totalKm)} / {goalKm} KM</span>
           </div>
           <div style={{ background:t.progressBg, borderRadius:999, height:12, overflow:'hidden', marginBottom:8 }}>
             <div style={{ height:'100%', width:`${pct}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius:999, transition:'width 1.5s ease', boxShadow:`0 0 12px ${t.accent2}80` }} />

@@ -255,7 +255,7 @@ router.patch('/activities/:id', requireAdmin, (req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(act.strava_key);
-    const totalKm = Math.round(row.km * 10) / 10;
+    const totalKm = Math.round(row.km * 100) / 100;
     db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
       .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
   }
@@ -296,7 +296,7 @@ router.post('/activities/manual', requireAdmin, (req, res) => {
   const row = db.prepare(
     'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
   ).get(p.strava_key);
-  const totalKm = Math.round(row.km * 10) / 10;
+  const totalKm = Math.round(row.km * 100) / 100;
   db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
     .run(totalKm, Math.round(totalKm * 1350), row.cnt, Number(participant_id));
 
@@ -325,7 +325,7 @@ router.delete('/activities/:id', requireAdmin, (req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(act.strava_key);
-    const totalKm = Math.round(row.km * 10) / 10;
+    const totalKm = Math.round(row.km * 100) / 100;
     db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
       .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
   }
@@ -377,7 +377,7 @@ router.post('/trash/:id/restore', requireAdmin, (req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(item.strava_key);
-    const totalKm = Math.round(row.km * 10) / 10;
+    const totalKm = Math.round(row.km * 100) / 100;
     db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
       .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
   }
@@ -424,7 +424,7 @@ router.get('/seasons/compute', requireAdmin, (_req, res) => {
   const SEASON_START = settingRow?.value || process.env.SEASON_START || '2026-06-01';
   const now          = new Date().toISOString().slice(0,10);
   res.json({
-    total_km:     Math.round(totalKm * 10) / 10,
+    total_km:     Math.round(totalKm * 100) / 100,
     participants,
     top_km:       top?.km || 0,
     winner:       top?.name || '—',
