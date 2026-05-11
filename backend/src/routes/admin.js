@@ -262,6 +262,47 @@ router.patch('/activities/:id', requireAdmin, (req, res) => {
   res.json({ ok: true, credited_km: newKm });
 });
 
+// POST /api/adminpp/activities/manual — เพิ่มกิจกรรมด้วยตัวเอง (กรณี sync ไม่ดึงมา)
+// body: { participant_id, distance_km, elapsed_sec, activity_name, activity_date }
+router.post('/activities/manual', requireAdmin, (req, res) => {
+  const { participant_id, distance_km, elapsed_sec, activity_name, activity_date } = req.body;
+  if (!participant_id || !distance_km || distance_km <= 0)
+    return res.status(400).json({ ok: false, message: 'ต้องระบุ participant_id และ distance_km' });
+
+  const p = db.prepare('SELECT strava_key FROM participants WHERE id=?').get(Number(participant_id));
+  if (!p?.strava_key) return res.status(404).json({ ok: false, message: 'ไม่พบผู้เข้าร่วม' });
+
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const firstSeen = activity_date
+    ? (activity_date.length === 10 ? activity_date + ' 12:00:00' : activity_date)
+    : thaiNow;
+
+  const distKm  = Math.round(Number(distance_km) * 100) / 100;
+  const elapsed = Number(elapsed_sec) || Math.round(distKm * 10 * 60); // fallback: 10 min/km
+  const name    = activity_name || 'Manual Entry';
+  // hash unique ทุก entry เพื่อไม่ conflict กับ strava hash
+  const hash = `MANUAL|${p.strava_key}|${distKm}|${elapsed}|${firstSeen}`;
+
+  // ตรวจว่าซ้ำกับที่มีใน DB แล้วหรือยัง
+  const dup = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
+  if (dup) return res.status(409).json({ ok: false, message: 'กิจกรรมนี้มีอยู่แล้ว' });
+
+  db.prepare(`
+    INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
+    VALUES (?, ?, ?, ?, ?, ?, 0)
+  `).run(p.strava_key, hash, distKm, elapsed, name, firstSeen);
+
+  // คำนวณ km ใหม่
+  const row = db.prepare(
+    'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
+  ).get(p.strava_key);
+  const totalKm = Math.round(row.km * 10) / 10;
+  db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
+    .run(totalKm, Math.round(totalKm * 1350), row.cnt, Number(participant_id));
+
+  res.json({ ok: true, message: `เพิ่ม ${distKm} km ให้ ${p.strava_key} แล้ว`, km: totalKm });
+});
+
 // DELETE /api/adminpp/activities/:id — บันทึกลงถังขยะก่อน แล้วลบจริง
 router.delete('/activities/:id', requireAdmin, (req, res) => {
   const id = Number(req.params.id);

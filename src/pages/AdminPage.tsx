@@ -613,6 +613,9 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
   const [deleting, setDeleting] = useState<number|null>(null);
   const [editingKm, setEditingKm] = useState<{id:number; val:string}|null>(null);
   const [savingKm, setSavingKm] = useState<number|null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({ distance_km: '', elapsed_min: '', activity_name: 'Manual Entry', activity_date: new Date().toISOString().slice(0,10) });
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     api(`/activities?participant_id=${participant.id}`).then(d => { setActs(d); setLoading(false); });
@@ -647,6 +650,30 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
     onDeleted(); // reload participant km
   };
 
+  const addManual = async () => {
+    const km = parseFloat(addForm.distance_km);
+    if (isNaN(km) || km <= 0) { alert('กรุณากรอกระยะทาง (km) ให้ถูกต้อง'); return; }
+    const elapsed_sec = addForm.elapsed_min ? Math.round(parseFloat(addForm.elapsed_min) * 60) : 0;
+    setAdding(true);
+    const res = await api('/activities/manual', {
+      method: 'POST',
+      body: JSON.stringify({
+        participant_id: participant.id,
+        distance_km: km,
+        elapsed_sec,
+        activity_name: addForm.activity_name || 'Manual Entry',
+        activity_date: addForm.activity_date,
+      }),
+    });
+    setAdding(false);
+    if (res.ok) {
+      setShowAddForm(false);
+      setAddForm({ distance_km: '', elapsed_min: '', activity_name: 'Manual Entry', activity_date: new Date().toISOString().slice(0,10) });
+      api(`/activities?participant_id=${participant.id}`).then(setActs);
+      onDeleted();
+    } else { alert(res.message || 'เพิ่มไม่สำเร็จ'); }
+  };
+
   const seasonActs = acts.filter(a => !a.is_baseline);
   const suspiciousCount = seasonActs.filter(a => (a.pace < 5.5 && a.distance_km > 5) || a.distance_km > 20).length;
 
@@ -661,8 +688,54 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
               {suspiciousCount > 0 && <span style={{ color:'#f87171', marginLeft:8 }}>⚠️ {suspiciousCount} น่าสงสัย</span>}
             </div>
           </div>
-          <button onClick={onClose} style={{ background:'#2a2a3e', border:'none', borderRadius:8, padding:'6px 12px', color:'#888', cursor:'pointer', fontSize:13 }}>✕ ปิด</button>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setShowAddForm(v => !v)}
+              style={{ background: showAddForm ? '#166534' : '#1e3a1e', border:'1px solid #34d39966', borderRadius:8, padding:'6px 12px', color:'#34d399', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              ➕ เพิ่มกิจกรรม
+            </button>
+            <button onClick={onClose} style={{ background:'#2a2a3e', border:'none', borderRadius:8, padding:'6px 12px', color:'#888', cursor:'pointer', fontSize:13 }}>✕ ปิด</button>
+          </div>
         </div>
+
+        {/* ── Manual Add Form ── */}
+        {showAddForm && (
+          <div style={{ padding:'14px 20px', borderBottom:'1px solid #2a2a3e', background:'#0f1f12' }}>
+            <div style={{ color:'#34d399', fontSize:12, fontWeight:600, marginBottom:10 }}>➕ เพิ่มกิจกรรมด้วยตัวเอง (กรณี sync ไม่ดึงมา)</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end' }}>
+              <div>
+                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>วันที่ *</div>
+                <input type="date" value={addForm.activity_date}
+                  onChange={e => setAddForm(f => ({...f, activity_date: e.target.value}))}
+                  style={{ background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
+              </div>
+              <div>
+                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>ระยะ (km) *</div>
+                <input type="number" step="0.01" min="0.1" max="50" placeholder="เช่น 3.51"
+                  value={addForm.distance_km}
+                  onChange={e => setAddForm(f => ({...f, distance_km: e.target.value}))}
+                  style={{ width:90, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
+              </div>
+              <div>
+                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>เวลา (นาที)</div>
+                <input type="number" step="0.5" min="1" placeholder="เช่น 32"
+                  value={addForm.elapsed_min}
+                  onChange={e => setAddForm(f => ({...f, elapsed_min: e.target.value}))}
+                  style={{ width:80, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
+              </div>
+              <div>
+                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>ชื่อกิจกรรม</div>
+                <input type="text" placeholder="วิ่งช่วงเย็น"
+                  value={addForm.activity_name}
+                  onChange={e => setAddForm(f => ({...f, activity_name: e.target.value}))}
+                  style={{ width:130, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
+              </div>
+              <button onClick={addManual} disabled={adding}
+                style={{ background:'#34d399', border:'none', borderRadius:6, padding:'6px 16px', color:'#000', fontSize:12, fontWeight:700, cursor:'pointer', opacity: adding ? 0.5 : 1 }}>
+                {adding ? 'กำลังเพิ่ม...' : 'บันทึก'}
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ overflowY:'auto', flex:1 }}>
           {loading ? (
             <div style={{ padding:32, textAlign:'center', color:'#555' }}>กำลังโหลด...</div>
