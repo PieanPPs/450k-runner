@@ -10,6 +10,8 @@ interface Activity {
   initials: string;
   activity_name: string;
   distance_km: number;
+  credited_km: number | null;
+  effective_km: number;   // COALESCE(credited_km, distance_km) — ใช้แสดงผล
   elapsed_time: number;
   first_seen: string;
 }
@@ -58,7 +60,7 @@ export default function DailyLog() {
 
   useEffect(() => { load(date); }, [date, load]);
 
-  const totalKm = activities.reduce((s, a) => s + a.distance_km, 0);
+  const totalKm = activities.reduce((s, a) => s + (a.effective_km ?? a.distance_km), 0);
 
   // display date in Thai format
   const displayDate = new Date(date + 'T12:00:00').toLocaleDateString('th-TH', {
@@ -165,12 +167,19 @@ export default function DailyLog() {
                   <div style={{ display: 'flex', gap: 20, flexShrink: 0, textAlign: 'right' }}>
                     <div>
                       <div style={{ fontFamily: 'Bebas Neue', fontSize: 20, color: t.accent1, letterSpacing: 1 }}>
-                        {a.distance_km.toFixed(2)}
+                        {(a.effective_km ?? a.distance_km).toFixed(2)}
                       </div>
+                      {a.credited_km != null && (
+                        <div style={{ fontSize: 9, color: t.textMuted, textDecoration: 'line-through' }}>
+                          {a.distance_km.toFixed(2)}
+                        </div>
+                      )}
                       <div style={{ fontSize: 10, color: t.textMuted }}>km</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{fmtPace(a.distance_km, a.elapsed_time)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+                        {fmtPace(a.effective_km ?? a.distance_km, a.elapsed_time)}
+                      </div>
                       <div style={{ fontSize: 10, color: t.textMuted }}>{fmtDuration(a.elapsed_time)}</div>
                     </div>
                   </div>

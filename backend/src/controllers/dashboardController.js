@@ -108,19 +108,23 @@ export function getDailyLog(req, res) {
     SELECT sa.strava_key,
            COALESCE(p.name, sa.strava_key) AS name,
            p.initials,
-           sa.activity_name, sa.distance_km, sa.elapsed_time,
+           sa.activity_name,
+           sa.distance_km,
+           sa.credited_km,
+           COALESCE(sa.credited_km, sa.distance_km) AS effective_km,
+           sa.elapsed_time,
            sa.first_seen, sa.is_baseline
     FROM strava_activities sa
     LEFT JOIN participants p ON p.strava_key = sa.strava_key
     WHERE substr(sa.first_seen,1,10) = ?
-    ORDER BY sa.is_baseline ASC, sa.distance_km DESC
+    ORDER BY sa.is_baseline ASC, COALESCE(sa.credited_km, sa.distance_km) DESC
   `).all(date);
 
-  // รายชื่อวันที่มีข้อมูลทั้งหมด (รวม pre-season)
+  // รายชื่อวันที่มีข้อมูลทั้งหมด (รวม pre-season) — ใช้ effective_km สำหรับ total
   const days = db.prepare(`
     SELECT substr(first_seen,1,10) AS day,
            COUNT(*) AS count,
-           ROUND(SUM(CASE WHEN is_baseline=0 THEN distance_km ELSE 0 END),1) AS total_km,
+           ROUND(SUM(CASE WHEN is_baseline=0 THEN COALESCE(credited_km, distance_km) ELSE 0 END),1) AS total_km,
            COUNT(DISTINCT strava_key) AS runners,
            SUM(CASE WHEN is_baseline=1 THEN 1 ELSE 0 END) AS baseline_count
     FROM strava_activities
