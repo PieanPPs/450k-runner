@@ -50,15 +50,18 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
 
   // ---- เงื่อนไขกรองกิจกรรม ----
   //
-  //  Run  3.5–15 min/km, 0.5–35 km
-  //       3.5 min/km ≈ 17 km/h  → เร็วกว่านี้ = ขับรถ/ปั่น
-  //      15   min/km ≈  4 km/h  → ช้ากว่านี้ = เดินปกติ ไม่ใช่วิ่ง
-  //       (กลุ่ม 60+ shuffle ≈ 8–12 min/km — ยังอยู่ใน range)
-  //       (คนที่ "กด Run แต่เดิน" pace > 15 จะถูก filter ออก)
+  //  เป้าหมายหลัก: กรองการขับรถ/ปั่นจักรยาน ไม่ใช่ตัดคนเดินช้า
   //
-  //  Walk 8–17 min/km, 0.5–20 km
-  //       ต่ำกว่า 8 = วิ่งอยู่จริงๆ (ใช้ Run type แทน)
-  //       สูงกว่า 17 = ยืนนิ่ง/เปิดทิ้งไว้
+  //  Run  3.5–40 min/km, 0.5–35 km
+  //       3.5 min/km ≈ 17 km/h  → เร็วกว่านี้ = ขับรถ/ปั่น
+  //      40   min/km             → ช้ากว่านี้มากๆ = เปิดทิ้งไว้ไม่ได้เคลื่อนที่
+  //       ครูวิ่งช้า/เดินเบาๆ 15-30 min/km ยังนับได้ (ไม่ใช่การโกง)
+  //       กลุ่ม 60+ shuffle ≈ 8–25 min/km — ยังอยู่ใน range
+  //
+  //  Walk 3.5–40 min/km, 0.5–20 km
+  //       ต่ำกว่า 3.5 = ปั่น/ขับรถ
+  //       สูงกว่า 40  = ยืนนิ่ง/เปิดทิ้งไว้
+  //       การเดินช้า 20-30 min/km ของผู้สูงอายุ = ถูกต้อง
   //
   //  ปั่นจักรยานกด Run:
   //       ปั่นเมือง 12-20 km/h = pace 3–5 min/km
@@ -66,11 +69,11 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
   //         ยังอยู่ใน Run range — ใช้ suspicious flag ใน Admin แทน
   //
   const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ปั่น/ขับรถ
-  const RUN_MAX_PACE  = 15;   // ช้ากว่านี้ = เดิน ไม่ใช่วิ่ง (เดิม 30 → ขยับลง 15)
+  const RUN_MAX_PACE  = 40;   // ช้ากว่านี้มากๆ = เปิดทิ้งไว้ (ครูเดินช้าก็ยังนับ)
   const RUN_MIN_DIST  = 0.5;  // วิ่งต้องได้อย่างน้อย 0.5 km
-  const RUN_MAX_DIST  = 35;   // ป้องกันลืมปิดแอปแล้วขับรถกลับ
-  const WALK_MIN_PACE = 8;    // เร็วกว่านี้ = วิ่งอยู่จริงๆ แต่กด Walk
-  const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/ยืนอยู่กับที่
+  const RUN_MAX_DIST  = 35;   // ป้องกันลืมปิดแอปแล้วขับรถกลับบ้าน
+  const WALK_MIN_PACE = 3.5;  // เร็วกว่านี้ = ปั่น/ขับรถ
+  const WALK_MAX_PACE = 40;   // ช้ากว่านี้มากๆ = เปิดทิ้งไว้
   const WALK_MIN_DIST = 0.5;  // เดินต้องได้อย่างน้อย 0.5 km
   const WALK_MAX_DIST = 20;   // เดินทางไกลเกิน 20 km ต่อครั้ง = ผิดปกติ
 
@@ -86,13 +89,13 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
 
     if (isRun) {
       if (pace < RUN_MIN_PACE) continue;    // เร็วเกินไป (ขับรถ/ปั่น)
-      if (pace > RUN_MAX_PACE) continue;    // ช้าเกินไป (> 30 min/km กด Run = น่าสงสัย)
+      if (pace > RUN_MAX_PACE) continue;    // ช้าเกินไปมากๆ = เปิดทิ้งไว้
       if (distKm < RUN_MIN_DIST) continue;  // สั้นเกินไป (< 0.5 km)
       if (distKm > RUN_MAX_DIST) continue;  // ไกลเกินจริง — ลืมปิดแอป/ขับรถกลับบ้าน
     } else {
-      // Walk: กลุ่ม 60+ ใช้เยอะ — pace + ระยะขั้นต่ำ
-      if (pace < WALK_MIN_PACE) continue;   // เร็วเกินไป (วิ่งอยู่)
-      if (pace > WALK_MAX_PACE) continue;   // ช้าเกินไป (เปิดทิ้งไว้)
+      // Walk
+      if (pace < WALK_MIN_PACE) continue;   // เร็วเกินไป (ปั่น/ขับรถ)
+      if (pace > WALK_MAX_PACE) continue;   // ช้าเกินไปมากๆ = เปิดทิ้งไว้
       if (distKm < WALK_MIN_DIST) continue; // สั้นเกินไป (< 0.5 km)
       if (distKm > WALK_MAX_DIST) continue; // ไกลเกินจริง — ผิดปกติ
     }
