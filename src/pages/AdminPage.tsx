@@ -1093,7 +1093,7 @@ function PreSeasonPage() {
                 </td>
                 {allMonths.map(m => (
                   <td key={m} style={{ padding:'8px 8px', textAlign:'right', color: r.monthly[m] ? '#c4b5fd' : '#2a2a3e' }}>
-                    {r.monthly[m] ? r.monthly[m].toFixed(1) : '·'}
+                    {r.monthly[m] ? r.monthly[m].toFixed(2) : '·'}
                   </td>
                 ))}
               </tr>
@@ -1102,12 +1102,12 @@ function PreSeasonPage() {
           <tfoot>
             <tr style={{ borderTop:'2px solid #2a2a3e' }}>
               <td style={{ padding:'8px 12px', color:'#888', fontWeight:700 }}>รวม</td>
-              <td style={{ padding:'8px 12px', color:'#f59e0b', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{Math.round(totalPre*10)/10}</td>
-              <td style={{ padding:'8px 12px', color:'#a78bfa', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{Math.round(totalSea*10)/10}</td>
-              <td style={{ padding:'8px 12px', color:'#34d399', textAlign:'right', fontFamily:'Bebas Neue', fontSize:16, fontWeight:700 }}>{Math.round(totalAll*10)/10}</td>
+              <td style={{ padding:'8px 12px', color:'#f59e0b', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{totalPre.toFixed(2)}</td>
+              <td style={{ padding:'8px 12px', color:'#a78bfa', textAlign:'right', fontFamily:'Bebas Neue', fontSize:15 }}>{totalSea.toFixed(2)}</td>
+              <td style={{ padding:'8px 12px', color:'#34d399', textAlign:'right', fontFamily:'Bebas Neue', fontSize:16, fontWeight:700 }}>{totalAll.toFixed(2)}</td>
               {allMonths.map(m => {
                 const s = rows.reduce((sum,r) => sum + (r.monthly[m]||0), 0);
-                return <td key={m} style={{ padding:'8px 8px', textAlign:'right', color:'#888' }}>{s>0?s.toFixed(1):'·'}</td>;
+                return <td key={m} style={{ padding:'8px 8px', textAlign:'right', color:'#888' }}>{s>0?s.toFixed(2):'·'}</td>;
               })}
             </tr>
           </tfoot>
@@ -1622,8 +1622,8 @@ function DailyReport() {
                             <span style={{ fontWeight:700,
                               color: longDist ? '#f87171' : a.is_baseline ? '#888' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
                               {a.credited_km != null
-                                ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#666', fontSize:10, textDecoration:'line-through' }}>{a.distance_km.toFixed(1)}</span></>
-                                : <>{Math.round(a.distance_km*100)/100}</>
+                                ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#666', fontSize:10, textDecoration:'line-through' }}>{a.distance_km.toFixed(2)}</span></>
+                                : <>{a.distance_km.toFixed(2)}</>
                               } km
                               {longDist && <span title="ระยะผิดปกติ" style={{ marginLeft:4 }}>⚠️</span>}
                             </span>

@@ -31,7 +31,7 @@ export default function Journey() {
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, flexWrap:'wrap', gap:8 }}>
             <span style={{ color:t.text, fontWeight:700 }}>📍 โรงเรียนอนุสรณ์ศุภมาศ</span>
             <span style={{ color:t.accent1, fontWeight:700, fontFamily:'Bebas Neue', fontSize:20 }}>
-              {totalKm.toFixed(1)} / {goalKm.toFixed(0)} KM (ทีมรวม)
+              {totalKm.toFixed(2)} / {goalKm.toFixed(0)} KM (ทีมรวม)
             </span>
             <span style={{ color:t.accent3, fontWeight:700 }}>🏁 เป้าหมาย {goalKm.toFixed(0)} km</span>
           </div>
@@ -83,7 +83,7 @@ export default function Journey() {
                       <div style={{ color:t.text, fontWeight:700, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
                       <div style={{ color:t.textMuted, fontSize:11 }}>{loc.icon} ถึง {loc.label} แล้ว</div>
                     </div>
-                    <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:t.accent1, flexShrink:0 }}>{p.km.toFixed(1)}</div>
+                    <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:t.accent1, flexShrink:0 }}>{p.km.toFixed(2)}</div>
                     <div style={{ color:t.textSub, fontSize:10, flexShrink:0 }}>km</div>
                   </div>
                   <div style={{ background:t.progressBg, borderRadius:999, height:6, overflow:'hidden' }}>
