@@ -173,13 +173,20 @@ async function runAutoSync(label = 'cron') {
         const d = act.start_date_local.replace('T',' ').slice(0,19);
         actDate = d < thaiNow ? d : thaiNow; // ป้องกัน future date
       }
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+
+      // ── ตรวจถังขยะก่อน — ถ้า admin เคยลบไว้ → ข้ามเสมอ (ไม่ insert คืน)
+      const inTrash = db.prepare(
+        'SELECT id FROM deleted_activities WHERE activity_hash=? OR (strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60)'
+      ).get(hash, stravaKey, distKm, elapsed);
+      if (inTrash) continue;
+
       // dedup: ป้องกัน group run ซ้ำ + phone vs smartwatch (threshold 0.1km / 60s)
       const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60').get(stravaKey, distKm, elapsed);
       if (dup) {
         if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
         continue;
       }
-      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
       insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
     }
     // คำนวณ km, weekly_km
