@@ -610,6 +610,8 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
   const [acts, setActs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number|null>(null);
+  const [editingKm, setEditingKm] = useState<{id:number; val:string}|null>(null);
+  const [savingKm, setSavingKm] = useState<number|null>(null);
 
   useEffect(() => {
     api(`/activities?participant_id=${participant.id}`).then(d => { setActs(d); setLoading(false); });
@@ -632,8 +634,20 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
     onDeleted();
   };
 
+  const saveCreditedKm = async (id: number, origKm: number) => {
+    if (!editingKm || editingKm.id !== id) return;
+    const v = parseFloat(editingKm.val);
+    if (isNaN(v) || v < 0 || v > origKm) { alert(`กรอกตัวเลข 0 – ${origKm}`); return; }
+    setSavingKm(id);
+    await api(`/activities/${id}`, { method:'PATCH', body: JSON.stringify({ credited_km: v }) });
+    setActs(prev => prev.map(a => a.id === id ? { ...a, credited_km: v } : a));
+    setSavingKm(null);
+    setEditingKm(null);
+    onDeleted(); // reload participant km
+  };
+
   const seasonActs = acts.filter(a => !a.is_baseline);
-  const suspiciousCount = seasonActs.filter(a => a.pace < 4.5 || a.distance_km > 20).length;
+  const suspiciousCount = seasonActs.filter(a => (a.pace < 5.5 && a.distance_km > 5) || a.distance_km > 20).length;
 
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
@@ -664,21 +678,50 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
               </thead>
               <tbody>
                 {acts.map((a, i) => {
-                  const suspicious = a.pace < 4.5 || a.distance_km > 20;
+                  const likelyCycling = a.pace < 5.5 && a.distance_km > 5;
+                  const longDist = a.distance_km > 20;
+                  const suspicious = likelyCycling || longDist;
                   return (
                     <tr key={a.id} style={{ borderBottom:'1px solid #1a1a2e',
                       background: suspicious ? '#2a1500' : a.is_baseline ? '#141208' : i%2===0 ? 'transparent' : '#141420' }}>
                       <td style={{ padding:'7px 12px', color:'#888', whiteSpace:'nowrap' }}>{fmtDate(a.first_seen)}</td>
                       <td style={{ padding:'7px 12px', color:'#ccc' }}>{a.activity_name || '—'}</td>
-                      <td style={{ padding:'7px 12px', fontWeight:700,
-                        color: a.distance_km > 20 ? '#f87171' : a.is_baseline ? '#888' : '#a78bfa' }}>
-                        {a.distance_km.toFixed(2)} km
-                        {a.distance_km > 20 && ' ⚠️'}
+                      <td style={{ padding:'7px 12px' }}>
+                        {editingKm?.id === a.id ? (
+                          <span style={{ display:'flex', gap:4, alignItems:'center' }}>
+                            <input type="number" step="0.1" min="0" max={a.distance_km}
+                              value={editingKm.val}
+                              onChange={e => setEditingKm({ id:a.id, val:e.target.value })}
+                              onKeyDown={e => { if(e.key==='Enter') saveCreditedKm(a.id, a.distance_km); if(e.key==='Escape') setEditingKm(null); }}
+                              autoFocus
+                              style={{ width:60, background:'#0d0d1a', border:'1px solid #a78bfa', borderRadius:5, padding:'2px 5px', color:'#fff', fontSize:11 }} />
+                            <button onClick={() => saveCreditedKm(a.id, a.distance_km)} disabled={savingKm===a.id}
+                              style={{ background:'#a78bfa', border:'none', borderRadius:4, padding:'2px 6px', color:'#000', fontSize:10, cursor:'pointer' }}>
+                              {savingKm===a.id ? '...' : '✓'}
+                            </button>
+                            <button onClick={() => setEditingKm(null)}
+                              style={{ background:'#333', border:'none', borderRadius:4, padding:'2px 6px', color:'#aaa', fontSize:10, cursor:'pointer' }}>✕</button>
+                          </span>
+                        ) : (
+                          <span style={{ display:'flex', gap:4, alignItems:'center', fontWeight:700,
+                            color: longDist ? '#f87171' : a.is_baseline ? '#888' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
+                            {a.credited_km != null
+                              ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#555', fontSize:10, textDecoration:'line-through', fontWeight:400 }}>{a.distance_km.toFixed(2)}</span></>
+                              : a.distance_km.toFixed(2)
+                            } km
+                            {longDist && ' ⚠️'}
+                            {!a.is_baseline && (
+                              <button onClick={() => setEditingKm({ id:a.id, val: String(a.credited_km ?? a.distance_km) })}
+                                title="ปรับ km ที่นับจริง"
+                                style={{ background:'none', border:'none', color:'#555', fontSize:10, cursor:'pointer', padding:'0 2px' }}>✏️</button>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding:'7px 12px',
-                        color: a.pace < 4.5 ? '#f87171' : a.pace > 20 ? '#555' : '#a3e635' }}>
+                        color: likelyCycling ? '#fb923c' : a.pace > 18 ? '#555' : '#a3e635' }}>
                         {fmtPace(a.distance_km, a.elapsed_time)} /km
-                        {a.pace < 4.5 && ' ⚠️'}
+                        {likelyCycling && <span title="เร็วเกินวิ่ง — อาจปั่น"> 🚲</span>}
                       </td>
                       <td style={{ padding:'7px 12px' }}>
                         {a.is_baseline
@@ -1292,6 +1335,8 @@ function DailyReport() {
   const [data, setData]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<number|null>(null);
+  const [editingKm, setEditingKm] = useState<{id:number; val:string}|null>(null);
+  const [savingKm, setSavingKm] = useState<number|null>(null);
 
   const load = useCallback(async (d: string) => {
     setLoading(true);
@@ -1307,6 +1352,17 @@ function DailyReport() {
     setDeleting(id);
     await api(`/activities/${id}`, { method: 'DELETE' });
     setDeleting(null);
+    load(date);
+  };
+
+  const saveCreditedKm = async (id: number, orig: number) => {
+    if (!editingKm || editingKm.id !== id) return;
+    const v = parseFloat(editingKm.val);
+    if (isNaN(v) || v < 0 || v > orig) { alert(`กรอกตัวเลข 0 – ${orig}`); return; }
+    setSavingKm(id);
+    await api(`/activities/${id}`, { method:'PATCH', body: JSON.stringify({ credited_km: v }) });
+    setSavingKm(null);
+    setEditingKm(null);
     load(date);
   };
 
@@ -1400,31 +1456,72 @@ function DailyReport() {
                 <tbody>
                   {data.activities.map((a:any, i:number) => {
                     const paceNum = a.distance_km > 0 ? (a.elapsed_time/60)/a.distance_km : 999;
-                    const isSuspicious = paceNum < 4.5 || a.distance_km > 20;
+                    // ปั่นจักรยานกด Run: pace 3.5–5.5 min/km (เร็วกว่าคนวิ่งทั่วไป แต่ไม่โดนกรอง min_pace)
+                    const likelyCycling = paceNum < 5.5 && a.distance_km > 5;
+                    // ระยะไกลผิดปกติ
+                    const longDist = a.distance_km > 20;
+                    const isSuspicious = likelyCycling || longDist;
+                    // label แสดงเหตุผล
+                    const suspLabel = likelyCycling ? '🚲 อาจปั่น' : longDist ? '📏 ไกลผิดปกติ' : '';
                     return (
                     <tr key={i} style={{ borderBottom:'1px solid #1e1e2e',
-                      background: isSuspicious ? '#2a1a00' : a.is_baseline ? '#161208' : i%2===0 ? 'transparent' : '#141428' }}>
+                      background: isSuspicious ? '#2a1500' : a.is_baseline ? '#161208' : i%2===0 ? 'transparent' : '#141428' }}>
                       <td style={{ padding:'9px 12px', color:'#666', fontSize:11, whiteSpace:'nowrap' }}>
                         {a.first_seen?.slice(11,16) ?? '—'}
                       </td>
                       <td style={{ padding:'9px 12px', color:'#e2e8f0', fontWeight:600 }}>{a.name}</td>
                       <td style={{ padding:'9px 12px', color:'#aaa' }}>{a.activity_name || '—'}</td>
-                      <td style={{ padding:'9px 12px', fontWeight:700,
-                        color: a.distance_km > 20 ? '#f87171' : a.is_baseline ? '#888' : '#a78bfa' }}>
-                        {Math.round(a.distance_km*100)/100} km
-                        {a.distance_km > 20 && <span title="ระยะผิดปกติ" style={{ marginLeft:4 }}>⚠️</span>}
+                      <td style={{ padding:'9px 12px' }}>
+                        {editingKm?.id === a.id ? (
+                          <span style={{ display:'flex', gap:4, alignItems:'center' }}>
+                            <input
+                              type="number" step="0.1" min="0" max={a.distance_km}
+                              value={editingKm.val}
+                              onChange={e => setEditingKm({ id:a.id, val:e.target.value })}
+                              onKeyDown={e => { if(e.key==='Enter') saveCreditedKm(a.id, a.distance_km); if(e.key==='Escape') setEditingKm(null); }}
+                              autoFocus
+                              style={{ width:64, background:'#0d0d1a', border:'1px solid #a78bfa', borderRadius:5, padding:'2px 6px', color:'#fff', fontSize:12 }} />
+                            <button onClick={() => saveCreditedKm(a.id, a.distance_km)} disabled={savingKm===a.id}
+                              style={{ background:'#a78bfa', border:'none', borderRadius:4, padding:'2px 6px', color:'#000', fontSize:11, cursor:'pointer' }}>
+                              {savingKm===a.id ? '...' : '✓'}
+                            </button>
+                            <button onClick={() => setEditingKm(null)}
+                              style={{ background:'#333', border:'none', borderRadius:4, padding:'2px 6px', color:'#aaa', fontSize:11, cursor:'pointer' }}>✕</button>
+                          </span>
+                        ) : (
+                          <span style={{ display:'flex', gap:4, alignItems:'center' }}>
+                            <span style={{ fontWeight:700,
+                              color: longDist ? '#f87171' : a.is_baseline ? '#888' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
+                              {a.credited_km != null
+                                ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#666', fontSize:10, textDecoration:'line-through' }}>{a.distance_km.toFixed(1)}</span></>
+                                : <>{Math.round(a.distance_km*100)/100}</>
+                              } km
+                              {longDist && <span title="ระยะผิดปกติ" style={{ marginLeft:4 }}>⚠️</span>}
+                            </span>
+                            {!a.is_baseline && a.id && (
+                              <button onClick={() => setEditingKm({ id:a.id, val: String(a.credited_km ?? a.distance_km) })}
+                                title="ปรับ km ที่นับจริง (ตัด commute)"
+                                style={{ background:'#1a1a3e', border:'1px solid #333', borderRadius:4, padding:'1px 5px', color:'#666', fontSize:10, cursor:'pointer' }}>✏️</button>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding:'9px 12px', color:'#888' }}>{fmtTime(a.elapsed_time)}</td>
                       <td style={{ padding:'9px 12px',
-                        color: paceNum < 4.5 ? '#f87171' : paceNum > 20 ? '#666' : '#a3e635' }}>
+                        color: likelyCycling ? '#fb923c' : paceNum > 18 ? '#666' : '#a3e635' }}>
                         {fmtPace(a.distance_km, a.elapsed_time)}
-                        {paceNum < 4.5 && <span title="เร็วผิดปกติ — อาจปั่น/ขับ" style={{ marginLeft:4 }}>⚠️</span>}
+                        {likelyCycling && <span title="เร็วเกินวิ่ง — อาจปั่น (< 5.5 min/km, > 5 km)" style={{ marginLeft:4 }}>⚠️</span>}
                       </td>
                       <td style={{ padding:'9px 12px' }}>
-                        {a.is_baseline
-                          ? <span style={{ background:'#2a1a00', color:'#f59e0b', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Baseline</span>
-                          : <span style={{ background:'#0f2a1a', color:'#34d399', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Season</span>
-                        }
+                        <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                          {a.is_baseline
+                            ? <span style={{ background:'#2a1a00', color:'#f59e0b', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Baseline</span>
+                            : <span style={{ background:'#0f2a1a', color:'#34d399', fontSize:10, padding:'2px 7px', borderRadius:4 }}>Season</span>
+                          }
+                          {isSuspicious && (
+                            <span style={{ background:'#3a1500', color:'#fb923c', fontSize:10, padding:'2px 7px', borderRadius:4 }}>{suspLabel}</span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding:'9px 12px' }}>
                         {a.id && (

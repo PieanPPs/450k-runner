@@ -49,14 +49,28 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
   }
 
   // ---- เงื่อนไขกรองกิจกรรม ----
-  // Run:  pace 3.5–30 min/km + ระยะ 0.5–35 km
-  // Walk: pace 8–17 min/km  + ระยะ 0.5–20 km
-  const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ขับรถ/ปั่นจักรยาน (< 3.5 min/km ≈ > 17 km/h)
-  const RUN_MAX_PACE  = 30;   // ช้ากว่านี้ = เปิดทิ้งไว้
+  //
+  //  Run  3.5–15 min/km, 0.5–35 km
+  //       3.5 min/km ≈ 17 km/h  → เร็วกว่านี้ = ขับรถ/ปั่น
+  //      15   min/km ≈  4 km/h  → ช้ากว่านี้ = เดินปกติ ไม่ใช่วิ่ง
+  //       (กลุ่ม 60+ shuffle ≈ 8–12 min/km — ยังอยู่ใน range)
+  //       (คนที่ "กด Run แต่เดิน" pace > 15 จะถูก filter ออก)
+  //
+  //  Walk 8–17 min/km, 0.5–20 km
+  //       ต่ำกว่า 8 = วิ่งอยู่จริงๆ (ใช้ Run type แทน)
+  //       สูงกว่า 17 = ยืนนิ่ง/เปิดทิ้งไว้
+  //
+  //  ปั่นจักรยานกด Run:
+  //       ปั่นเมือง 12-20 km/h = pace 3–5 min/km
+  //       → ส่วนใหญ่ < 3.5 จะถูก filter; ปั่นช้า 4–5 min/km
+  //         ยังอยู่ใน Run range — ใช้ suspicious flag ใน Admin แทน
+  //
+  const RUN_MIN_PACE  = 3.5;  // เร็วกว่านี้ = ปั่น/ขับรถ
+  const RUN_MAX_PACE  = 15;   // ช้ากว่านี้ = เดิน ไม่ใช่วิ่ง (เดิม 30 → ขยับลง 15)
   const RUN_MIN_DIST  = 0.5;  // วิ่งต้องได้อย่างน้อย 0.5 km
-  const RUN_MAX_DIST  = 35;   // ไม่ควรเกิน ultra threshold — ป้องกันลืมปิดแอปแล้วขับรถนาน
+  const RUN_MAX_DIST  = 35;   // ป้องกันลืมปิดแอปแล้วขับรถกลับ
   const WALK_MIN_PACE = 8;    // เร็วกว่านี้ = วิ่งอยู่จริงๆ แต่กด Walk
-  const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/เดินในห้อง
+  const WALK_MAX_PACE = 17;   // ช้ากว่านี้ = เปิดทิ้งไว้/ยืนอยู่กับที่
   const WALK_MIN_DIST = 0.5;  // เดินต้องได้อย่างน้อย 0.5 km
   const WALK_MAX_DIST = 20;   // เดินทางไกลเกิน 20 km ต่อครั้ง = ผิดปกติ
 

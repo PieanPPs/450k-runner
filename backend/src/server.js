@@ -56,6 +56,13 @@ try {
   console.log('[migration] added age_group column to participants');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: credited_km — km ที่ admin ปรับแล้ว (ตัด commute ออก)
+// NULL = ใช้ distance_km เต็ม | เลข = ใช้ค่านี้แทน
+try {
+  db.prepare('ALTER TABLE strava_activities ADD COLUMN credited_km REAL').run();
+  console.log('[migration] added credited_km column to strava_activities');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Ensure gallery folder exists & serve statically at /gallery/<filename>
 const galleryDir = path.resolve(__dirname, '../data/gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });

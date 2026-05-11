@@ -123,9 +123,9 @@ router.post('/', async (_req, res) => {
       if (!before) newCount++;
     }
 
-    // คำนวณ km จาก activities ที่ไม่ใช่ baseline (is_baseline=0 = กิจกรรมหลังเริ่ม season)
+    // คำนวณ km — ใช้ credited_km ถ้า admin ปรับไว้, ไม่งั้นใช้ distance_km เต็ม
     const seasonRow = db.prepare(
-      `SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt
+      `SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt
        FROM strava_activities
        WHERE strava_key=? AND is_baseline=0`
     ).get(stravaKey);
@@ -139,7 +139,7 @@ router.post('/', async (_req, res) => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     const weekStr = weekAgo.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
     const weekRow = db.prepare(
-      `SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
+      `SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
     ).get(stravaKey, weekStr);
     const weeklyKm = Math.round(weekRow.km * 10) / 10;
 
@@ -309,12 +309,12 @@ router.post('/reset-baseline', requireAdmin, (_req, res) => {
 
   for (const p of participants) {
     const row = db.prepare(
-      'SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
+      'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(p.strava_key);
     const totalKm = Math.round(row.km * 10) / 10;
     const steps   = Math.round(totalKm * 1350);
     const weekRow = db.prepare(
-      'SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
+      'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
     ).get(p.strava_key, weekStr);
     const weeklyKm = Math.round(weekRow.km * 10) / 10;
     db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
