@@ -687,7 +687,7 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
                       <td style={{ padding:'7px 12px', color:'#888', whiteSpace:'nowrap' }}>{fmtDate(a.first_seen)}</td>
                       <td style={{ padding:'7px 12px', color:'#ccc' }}>{a.activity_name || '—'}</td>
                       <td style={{ padding:'7px 12px' }}>
-                        {editingKm?.id === a.id ? (
+                        {editingKm !== null && editingKm.id === a.id ? (
                           <span style={{ display:'flex', gap:4, alignItems:'center' }}>
                             <input type="number" step="0.1" min="0" max={a.distance_km}
                               value={editingKm.val}
@@ -1472,7 +1472,7 @@ function DailyReport() {
                       <td style={{ padding:'9px 12px', color:'#e2e8f0', fontWeight:600 }}>{a.name}</td>
                       <td style={{ padding:'9px 12px', color:'#aaa' }}>{a.activity_name || '—'}</td>
                       <td style={{ padding:'9px 12px' }}>
-                        {editingKm?.id === a.id ? (
+                        {editingKm !== null && editingKm.id === a.id ? (
                           <span style={{ display:'flex', gap:4, alignItems:'center' }}>
                             <input
                               type="number" step="0.1" min="0" max={a.distance_km}
