@@ -108,7 +108,15 @@ router.post('/', async (_req, res) => {
         const d = act.start_date_local.replace('T',' ').slice(0,19);
         actDate = d < thaiNowActivity ? d : thaiNowActivity; // ป้องกัน future date
       }
-      // ถ้ามี activity distance+elapsed เหมือนกันอยู่แล้ว → group run dedup
+      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
+
+      // ── เช็คถังขยะก่อน — ถ้า admin เคยลบไว้ → ข้ามทุกกรณี (ไม่ insert คืน)
+      const inTrash = db.prepare(
+        'SELECT id FROM deleted_activities WHERE activity_hash=? OR (strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60)'
+      ).get(hash, stravaKey, distKm, elapsed);
+      if (inTrash) continue;
+
+      // ── group run dedup — distance+elapsed ใกล้เคียงกัน → เป็นคนวิ่งด้วยกัน
       // threshold 0.1 km (100m) รองรับ phone vs smartwatch GPS ต่างกันเล็กน้อย
       // elapsed_time ±60s รองรับ watch pause/resume ต่างจาก phone
       const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60').get(stravaKey, distKm, elapsed);
@@ -117,7 +125,6 @@ router.post('/', async (_req, res) => {
         if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
         continue;
       }
-      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
       insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
       if (!before) newCount++;
