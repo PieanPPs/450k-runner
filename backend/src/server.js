@@ -63,6 +63,26 @@ try {
   console.log('[migration] added credited_km column to strava_activities');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: ถังขยะ — เก็บ activity ที่ถูกลบไว้ก่อน ป้องกันลบพลาด
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS deleted_activities (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_id  INTEGER,
+      strava_key   TEXT,
+      activity_hash TEXT,
+      distance_km  REAL,
+      credited_km  REAL,
+      elapsed_time INTEGER,
+      activity_name TEXT,
+      first_seen   TEXT,
+      is_baseline  INTEGER DEFAULT 0,
+      deleted_at   TEXT
+    )
+  `).run();
+  console.log('[migration] created deleted_activities table (recycle bin)');
+} catch { /* already exists */ }
+
 // Ensure gallery folder exists & serve statically at /gallery/<filename>
 const galleryDir = path.resolve(__dirname, '../data/gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
