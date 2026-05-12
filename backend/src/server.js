@@ -182,7 +182,9 @@ async function runAutoSync(label = 'cron') {
       if (inTrash) continue;
 
       // dedup: ป้องกัน group run ซ้ำ + phone vs smartwatch (threshold 0.1km / 60s)
-      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60').get(stravaKey, distKm, elapsed);
+      // เพิ่มเช็ค date: คนละวัน = ไม่ใช่ duplicate (วิ่ง route เดิมทุกวัน)
+      const actDay = actDate.slice(0, 10);
+      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60 AND substr(first_seen,1,10)=?').get(stravaKey, distKm, elapsed, actDay);
       if (dup) {
         if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
         continue;

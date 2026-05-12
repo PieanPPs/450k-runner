@@ -653,7 +653,16 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
   const addManual = async () => {
     const km = parseFloat(addForm.distance_km);
     if (isNaN(km) || km <= 0) { alert('กรุณากรอกระยะทาง (km) ให้ถูกต้อง'); return; }
-    const elapsed_sec = addForm.elapsed_min ? Math.round(parseFloat(addForm.elapsed_min) * 60) : 0;
+    // รองรับทั้ง MM:SS (12:59) และทศนิยม (12.98)
+    const parseElapsed = (v: string): number => {
+      if (!v) return 0;
+      if (v.includes(':')) {
+        const [m, s] = v.split(':').map(Number);
+        return Math.round((m * 60) + (s || 0));
+      }
+      return Math.round(parseFloat(v) * 60);
+    };
+    const elapsed_sec = parseElapsed(addForm.elapsed_min);
     setAdding(true);
     const res = await api('/activities/manual', {
       method: 'POST',
@@ -716,11 +725,11 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
                   style={{ width:90, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
               </div>
               <div>
-                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>เวลา (นาที)</div>
-                <input type="number" step="0.5" min="1" placeholder="เช่น 32"
+                <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>เวลา (MM:SS หรือนาที)</div>
+                <input type="text" placeholder="เช่น 12:59 หรือ 32"
                   value={addForm.elapsed_min}
                   onChange={e => setAddForm(f => ({...f, elapsed_min: e.target.value}))}
-                  style={{ width:80, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
+                  style={{ width:90, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'5px 8px', color:'#fff', fontSize:12 }} />
               </div>
               <div>
                 <div style={{ color:'#666', fontSize:10, marginBottom:3 }}>ชื่อกิจกรรม</div>

@@ -84,8 +84,10 @@ export async function getClubActivitiesByAthlete(accessToken, clubId) {
     if (!isRun && !isWalk) continue;
 
     const distKm = (activity.distance || 0) / 1000;
-    const durMin = (activity.elapsed_time || 0) / 60;
-    const pace   = distKm > 0 ? durMin / distKm : 999;
+    // ใช้ moving_time สำหรับคำนวณ pace (ตัดเวลาหยุดพัก/ลืมปิดแอปออก)
+    // elapsed_time ยังถูกเก็บใน DB ตามเดิม — แค่ pace filter ใช้ moving_time
+    const paceTime = (activity.moving_time || activity.elapsed_time || 0) / 60;
+    const pace   = distKm > 0 ? paceTime / distKm : 999;
 
     if (isRun) {
       if (pace < RUN_MIN_PACE) continue;    // เร็วเกินไป (ขับรถ/ปั่น)

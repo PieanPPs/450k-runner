@@ -116,10 +116,12 @@ router.post('/', async (_req, res) => {
       ).get(hash, stravaKey, distKm, elapsed);
       if (inTrash) continue;
 
-      // ── group run dedup — distance+elapsed ใกล้เคียงกัน → เป็นคนวิ่งด้วยกัน
+      // ── group run dedup — distance+elapsed ใกล้เคียงกัน + วันเดียวกัน → ซ้ำ
       // threshold 0.1 km (100m) รองรับ phone vs smartwatch GPS ต่างกันเล็กน้อย
       // elapsed_time ±60s รองรับ watch pause/resume ต่างจาก phone
-      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60').get(stravaKey, distKm, elapsed);
+      // เพิ่มเช็ค date: คนละวัน = ไม่ใช่ duplicate (วิ่ง route เดิมทุกวัน)
+      const actDay = actDate.slice(0, 10);
+      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60 AND substr(first_seen,1,10)=?').get(stravaKey, distKm, elapsed, actDay);
       if (dup) {
         // อัพเดท first_seen ให้ถูกต้องแม้จะ skip การ insert
         if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
