@@ -94,19 +94,18 @@ router.post('/', async (_req, res) => {
     }
 
     // บันทึก activities ลง DB
-    // - ใช้ start_date_local (วันที่วิ่งจริง) แทน sync time
-    // - ON CONFLICT → update first_seen ให้เป็นวันที่เร็วกว่า (fix ข้อมูลเก่า)
-    // - pre-check ป้องกัน group run ซ้ำ
+    // - hash dedup (ON CONFLICT) จับกิจกรรมเดียวกันซ้ำข้าม sync
+    // - in-batch dedup จับ phone vs smartwatch ที่บันทึกรอบเดียวกัน (ปรากฏใน batch เดียวกัน)
+    // - ไม่ dedup ข้าม batch → คนวิ่ง route เดิมคนละวันผ่านได้เสมอ
     let newCount = 0;
+    const batchSeen = []; // เก็บ activities ที่ insert ใน batch นี้ สำหรับ in-batch dedup
     for (const act of activities) {
       const distKm = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
-      // วันที่วิ่งจริงจาก Strava (start_date_local = local time แต่ Z suffix = quirk ของ Strava)
-      // ตรวจสอบ start_date_local ไม่อยู่ในอนาคต
       let actDate = thaiNowActivity;
       if (act.start_date_local) {
         const d = act.start_date_local.replace('T',' ').slice(0,19);
-        actDate = d < thaiNowActivity ? d : thaiNowActivity; // ป้องกัน future date
+        actDate = d < thaiNowActivity ? d : thaiNowActivity;
       }
       const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
 
@@ -116,14 +115,12 @@ router.post('/', async (_req, res) => {
       ).get(hash, stravaKey, distKm, elapsed);
       if (inTrash) continue;
 
-      // ── dedup: ป้องกัน phone vs smartwatch บันทึกซ้ำ (threshold 0.1km / 15s)
-      // ใช้ 15s แทน 60s เพื่อให้คนวิ่ง route เดิมคนละวัน (elapsed ต่างกัน ~17s+) ผ่านได้
-      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=15').get(stravaKey, distKm, elapsed);
-      if (dup) {
-        // อัพเดท first_seen ให้ถูกต้องแม้จะ skip การ insert
-        if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
-        continue;
-      }
+      // ── in-batch dedup: phone vs smartwatch บันทึก run เดียวกัน → ปรากฏใน batch เดียวกัน
+      // ตรวจเฉพาะ activities ที่เพิ่งเห็นใน sync นี้ ไม่ query DB → ไม่บล็อกคนวิ่ง route เดิมคนละวัน
+      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 60);
+      if (inBatch) continue;
+      batchSeen.push({ distKm, elapsed });
+
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
       insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
       if (!before) newCount++;

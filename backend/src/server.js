@@ -165,6 +165,7 @@ async function runAutoSync(label = 'cron') {
       const info = db.prepare('INSERT INTO participants (name,initials,km,steps,streak,weekly_km,strava_key) VALUES (?,?,0,0,0,0,?)').run(stravaName, initials, stravaKey);
       p = { id: info.lastInsertRowid };
     }
+    const batchSeen = []; // in-batch dedup: phone vs smartwatch ใน sync เดียวกัน
     for (const act of activities) {
       const distKm = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
@@ -181,13 +182,12 @@ async function runAutoSync(label = 'cron') {
       ).get(hash, stravaKey, distKm, elapsed);
       if (inTrash) continue;
 
-      // dedup: ป้องกัน phone vs smartwatch บันทึกซ้ำ (threshold 0.1km / 15s)
-      // ใช้ 15s แทน 60s เพื่อให้คนวิ่ง route เดิมคนละวัน (elapsed ต่างกัน ~17s+) ผ่านได้
-      const dup = db.prepare('SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=15').get(stravaKey, distKm, elapsed);
-      if (dup) {
-        if (act.start_date_local) db.prepare('UPDATE strava_activities SET first_seen=MIN(first_seen,?) WHERE id=?').run(actDate, dup.id);
-        continue;
-      }
+      // in-batch dedup: phone vs smartwatch บันทึก run เดียวกัน → ปรากฏใน batch เดียวกัน
+      // ไม่ query DB → ไม่บล็อกคนวิ่ง route เดิมคนละวัน
+      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 60);
+      if (inBatch) continue;
+      batchSeen.push({ distKm, elapsed });
+
       insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
     }
     // คำนวณ km, weekly_km
