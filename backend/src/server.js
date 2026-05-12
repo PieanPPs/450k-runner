@@ -63,6 +63,13 @@ try {
   console.log('[migration] added credited_km column to strava_activities');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: moving_time — เวลาเคลื่อนที่จริง (ตัดเวลาหยุดออก) ใช้คำนวณ pace
+// DEFAULT 0 → ถ้า 0 ให้ fallback ใช้ elapsed_time แทน (ข้อมูลเก่า)
+try {
+  db.prepare('ALTER TABLE strava_activities ADD COLUMN moving_time INTEGER NOT NULL DEFAULT 0').run();
+  console.log('[migration] added moving_time column to strava_activities');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Migration: ถังขยะ — เก็บ activity ที่ถูกลบไว้ก่อน ป้องกันลบพลาด
 try {
   db.prepare(`
@@ -151,8 +158,8 @@ async function runAutoSync(label = 'cron') {
 
   const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
   const insActivity = db.prepare(`
-    INSERT INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,activity_name,first_seen,is_baseline)
-    VALUES (?,?,?,?,?,?,0)
+    INSERT INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,moving_time,activity_name,first_seen,is_baseline)
+    VALUES (?,?,?,?,?,?,?,0)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
   const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
@@ -167,8 +174,9 @@ async function runAutoSync(label = 'cron') {
     }
     const batchSeen = []; // in-batch dedup: phone vs smartwatch ใน sync เดียวกัน
     for (const act of activities) {
-      const distKm = (act.distance||0)/1000;
+      const distKm  = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
+      const moving  = act.moving_time||0;
       let actDate = thaiNow;
       if (act.start_date_local) {
         const d = act.start_date_local.replace('T',' ').slice(0,19);
@@ -188,7 +196,7 @@ async function runAutoSync(label = 'cron') {
       if (inBatch) continue;
       batchSeen.push({ distKm, elapsed });
 
-      insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
+      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
     }
     // คำนวณ km, weekly_km
     const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);

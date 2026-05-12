@@ -225,8 +225,10 @@ router.get('/activities', requireAdmin, (req, res) => {
   const p = db.prepare('SELECT strava_key, name FROM participants WHERE id=?').get(Number(participant_id));
   if (!p?.strava_key) return res.json([]);
   const rows = db.prepare(`
-    SELECT id, activity_name, distance_km, credited_km, elapsed_time, first_seen, is_baseline,
-           ROUND(CASE WHEN distance_km > 0 THEN (elapsed_time / 60.0) / distance_km ELSE 999 END, 2) AS pace
+    SELECT id, activity_name, distance_km, credited_km, elapsed_time, moving_time, first_seen, is_baseline,
+           ROUND(CASE WHEN distance_km > 0
+             THEN (CASE WHEN moving_time > 0 THEN moving_time ELSE elapsed_time END / 60.0) / distance_km
+             ELSE 999 END, 2) AS pace
     FROM strava_activities
     WHERE strava_key = ?
     ORDER BY first_seen DESC

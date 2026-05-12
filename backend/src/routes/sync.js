@@ -72,8 +72,8 @@ router.post('/', async (_req, res) => {
 
   // upsert: ถ้า hash ซ้ำ → update first_seen ให้เป็นวันที่วิ่งจริง (ถ้าเร็วกว่า)
   const insActivity = db.prepare(`
-    INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
-    VALUES (?, ?, ?, ?, ?, ?, 0)
+    INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, moving_time, activity_name, first_seen, is_baseline)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
   const thaiNowActivity = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
@@ -100,8 +100,9 @@ router.post('/', async (_req, res) => {
     let newCount = 0;
     const batchSeen = []; // เก็บ activities ที่ insert ใน batch นี้ สำหรับ in-batch dedup
     for (const act of activities) {
-      const distKm = (act.distance||0)/1000;
+      const distKm  = (act.distance||0)/1000;
       const elapsed = act.elapsed_time||0;
+      const moving  = act.moving_time||0;
       let actDate = thaiNowActivity;
       if (act.start_date_local) {
         const d = act.start_date_local.replace('T',' ').slice(0,19);
@@ -122,7 +123,7 @@ router.post('/', async (_req, res) => {
       batchSeen.push({ distKm, elapsed });
 
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
-      insActivity.run(stravaKey, hash, distKm, elapsed, act.name||'', actDate);
+      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
       if (!before) newCount++;
     }
 
