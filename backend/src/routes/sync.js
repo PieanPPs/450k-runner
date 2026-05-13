@@ -122,6 +122,13 @@ router.post('/', async (_req, res) => {
       if (inBatch) continue;
       batchSeen.push({ distKm, elapsed });
 
+      // ── cross-batch dedup: ป้องกัน activity ถูก rename บน Strava แล้ว re-insert (hash ต่าง ชื่อต่าง)
+      // threshold 10s → rename = 0s ✓ | phone/watch คนละ sync ~5s ✓ | วิ่งคนละวัน >60s ผ่าน ✓
+      const crossDup = db.prepare(
+        'SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=10'
+      ).get(stravaKey, distKm, elapsed);
+      if (crossDup) continue;
+
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
       insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
       if (!before) newCount++;
