@@ -191,8 +191,8 @@ async function runAutoSync(label = 'cron') {
       if (inTrash) continue;
 
       // in-batch dedup: phone vs smartwatch บันทึก run เดียวกัน → ปรากฏใน batch เดียวกัน
-      // ไม่ query DB → ไม่บล็อกคนวิ่ง route เดิมคนละวัน
-      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 60);
+      // threshold 15s: phone/watch ต่างกัน ~1-5s ✓ | วิ่งคนละรอบวันเดียวกัน >15s ผ่าน ✓
+      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 15);
       if (inBatch) continue;
       batchSeen.push({ distKm, elapsed });
 
