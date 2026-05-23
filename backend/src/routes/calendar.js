@@ -38,15 +38,24 @@ function getRefDate() {
   refD.setDate(refD.getDate() - daysBack);
   refDate = refD.toISOString().slice(0, 10);
 
-  /* totalWeeks = จำนวนสัปดาห์ที่ครอบคลุมตั้งแต่ refDate ถึง seasonEnd
-   * ใช้ ceiling เพื่อให้วันที่เกินสัปดาห์สุดท้ายยังนับรวมอยู่
-   * ตัวอย่าง: 1 มิ.ย. – 31 ส.ค. = 92 วัน → ceil(92/7) = 14 แต่เราแสดงแค่ 13+1
-   * → ใช้ HAVING week_no <= totalWeeks เพื่อไม่ตัดวันสุดท้ายทิ้ง
+  /* totalWeeks:
+   * - Pre-season : แสดงแค่สัปดาห์ที่ผ่านไปแล้วจนถึงวันนี้ (ไม่ show อนาคต)
+   * - Season จริง: คำนวณจาก seasonStart → seasonEnd เพื่อรวม day 92 (31 ส.ค.)
+   *                1 มิ.ย. – 31 ส.ค. = 92 วัน → ceil(92/7) = 14 สัปดาห์
    */
-  const diffDays = Math.ceil(
-    (new Date(seasonEnd).getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24)
-  ) + 1; // +1 รวม seasonEnd ด้วย
-  const totalWeeks = Math.ceil(diffDays / 7);
+  let totalWeeks;
+  if (isPreSeason) {
+    const today = new Date(now.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' })).toISOString().slice(0, 10);
+    const daysElapsed = Math.ceil(
+      (new Date(today).getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    totalWeeks = Math.max(1, Math.ceil(daysElapsed / 7));
+  } else {
+    const diffDays = Math.ceil(
+      (new Date(seasonEnd).getTime() - new Date(seasonStart).getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    totalWeeks = Math.ceil(diffDays / 7);
+  }
 
   return { refDate, seasonStart, seasonEnd, isPreSeason, totalWeeks };
 }
