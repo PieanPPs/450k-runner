@@ -8,6 +8,8 @@ import { ThemeCtx } from '@/themes/context';
 import { api } from '@/api/client';
 import html2canvas from 'html2canvas';
 
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+
 /* ────────── types ────────── */
 interface Person {
   strava_key: string;
@@ -99,13 +101,14 @@ function HeatCell({ km, onClick }: { km: number; onClick?: () => void }) {
 
 /** Individual card — ถูก capture เป็น PNG */
 function IndividualCard({
-  person, seasonStart, goalKm, cardRef, dailyData,
+  person, seasonStart, goalKm, cardRef, dailyData, isPreSeason,
 }: {
   person: Person;
   seasonStart: string;
   goalKm: number;
   cardRef: React.RefObject<HTMLDivElement>;
   dailyData: DailyData | null;
+  isPreSeason: boolean;
 }) {
   const pct   = Math.min(100, Math.round((person.total / goalKm) * 100));
   const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -150,7 +153,10 @@ function IndividualCard({
             {person.name}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
-            สถิติการวิ่ง 92 วัน · เริ่ม {new Date(seasonStart).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+            {isPreSeason
+              ? `📅 Pre-Season · ก่อนเริ่มแข่ง 1 มิ.ย. 2569`
+              : `🏆 Season 2026 · 92 วัน (1 มิ.ย.–31 ส.ค. 2569)`
+            }
           </div>
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
@@ -176,10 +182,20 @@ function IndividualCard({
         </div>
       </div>
 
-      {/* 13×7 Daily heatmap */}
+      {/* Daily heatmap */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, marginBottom: 6, letterSpacing: 1 }}>
-          กิโลเมตรรายวัน — แต่ละแถว = 1 สัปดาห์ (W1–W13) · แต่ละช่อง = 1 วัน
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
+            กิโลเมตรรายวัน — แต่ละแถว = 1 สัปดาห์ · แต่ละช่อง = 1 วัน
+          </span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: 1, borderRadius: 999,
+            padding: '2px 8px',
+            background: isPreSeason ? 'rgba(251,146,60,0.2)' : 'rgba(99,102,241,0.2)',
+            color: isPreSeason ? '#fb923c' : '#818cf8',
+          }}>
+            {isPreSeason ? `PRE-SEASON W1–W${numWeeks}` : `SEASON W1–W${numWeeks}`}
+          </span>
         </div>
         {/* Column headers: day 1-7 */}
         <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
@@ -231,7 +247,7 @@ function IndividualCard({
           { label: 'รวมทั้งหมด',     value: `${person.total.toFixed(1)} กม.`,  color: '#a855f7' },
           { label: 'สัปดาห์ดีที่สุด', value: `${person.best_week.toFixed(1)} กม.`, color: '#ec4899' },
           { label: 'เฉลี่ย/สัปดาห์',  value: `${person.active_weeks > 0 ? (person.total / person.active_weeks).toFixed(1) : '0'} กม.`, color: '#818cf8' },
-          { label: 'สัปดาห์ที่วิ่ง',   value: `${person.active_weeks}/13`,     color: '#34d399' },
+          { label: 'สัปดาห์ที่วิ่ง',   value: `${person.active_weeks}/${numWeeks}`,  color: '#34d399' },
         ].map(s => (
           <div key={s.label} style={{
             background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
@@ -288,7 +304,7 @@ export default function RunCalendar() {
       .then(r => r.json())
       .then(setDailyData)
       .catch(err => console.error('[daily-stats]', err));
-  }, [selected, BASE]);
+  }, [selected]);
 
   const filtered = (data?.participants ?? []).filter(p =>
     search === '' || p.name.toLowerCase().includes(search.toLowerCase())
@@ -370,9 +386,50 @@ export default function RunCalendar() {
           }}>
             <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 680 }}>
               <thead>
+                {/* ── Phase group header ── */}
                 <tr>
                   <th style={{
-                    padding: '12px 16px', textAlign: 'left',
+                    background: t.altBg, position: 'sticky', left: 0, zIndex: 2,
+                    borderBottom: 'none', padding: '6px 16px', minWidth: 120,
+                  }} />
+                  <th
+                    colSpan={totalWeeks}
+                    style={{
+                      textAlign: 'center', padding: '7px 4px',
+                      background: data?.isPreSeason
+                        ? 'rgba(251,146,60,0.07)'
+                        : 'rgba(99,102,241,0.07)',
+                      borderBottom: `1px dashed ${data?.isPreSeason ? 'rgba(251,146,60,0.25)' : 'rgba(99,102,241,0.25)'}`,
+                    }}
+                  >
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 7,
+                      fontSize: 10, fontWeight: 700, letterSpacing: 2,
+                      color: data?.isPreSeason ? '#fb923c' : '#818cf8',
+                    }}>
+                      {data?.isPreSeason ? '⏳ PRE-SEASON' : '🏆 SEASON 2026'}
+                      <span style={{
+                        background: data?.isPreSeason ? 'rgba(251,146,60,0.2)' : 'rgba(99,102,241,0.2)',
+                        borderRadius: 999, padding: '1px 8px', fontSize: 9,
+                      }}>
+                        W1 – W{totalWeeks}
+                      </span>
+                      <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, fontWeight: 400 }}>
+                        {data?.isPreSeason
+                          ? '· เริ่มนับ Season ใหม่ W1 วันที่ 1 มิ.ย. 2569'
+                          : '· 1 มิ.ย. – 31 ส.ค. 2569 (92 วัน)'}
+                      </span>
+                    </span>
+                  </th>
+                  <th style={{
+                    background: t.altBg,
+                    borderBottom: 'none', padding: 0, minWidth: 64,
+                  }} />
+                </tr>
+                {/* ── Column labels ── */}
+                <tr>
+                  <th style={{
+                    padding: '8px 16px', textAlign: 'left',
                     color: t.textSub, fontSize: 11, fontWeight: 600,
                     borderBottom: `1px solid ${t.cardBorder}`,
                     background: t.altBg, position: 'sticky', left: 0, zIndex: 2,
@@ -382,8 +439,9 @@ export default function RunCalendar() {
                   </th>
                   {weeks.map(w => (
                     <th key={w} style={{
-                      padding: '12px 4px', textAlign: 'center',
-                      color: t.textSub, fontSize: 10, fontWeight: 600,
+                      padding: '8px 4px', textAlign: 'center',
+                      color: data?.isPreSeason ? '#fb923c' : t.textSub,
+                      fontSize: 10, fontWeight: 600,
                       borderBottom: `1px solid ${t.cardBorder}`,
                       background: t.altBg, minWidth: 36,
                     }}>
@@ -391,7 +449,7 @@ export default function RunCalendar() {
                     </th>
                   ))}
                   <th style={{
-                    padding: '12px 12px', textAlign: 'center',
+                    padding: '8px 12px', textAlign: 'center',
                     color: t.accent1, fontSize: 10, fontWeight: 700,
                     borderBottom: `1px solid ${t.cardBorder}`,
                     background: t.altBg, minWidth: 64,
@@ -476,6 +534,7 @@ export default function RunCalendar() {
               goalKm={data?.goalKm ?? 450}
               cardRef={cardRef}
               dailyData={dailyData}
+              isPreSeason={data?.isPreSeason ?? false}
             />
 
             {/* Save button */}
