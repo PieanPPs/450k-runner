@@ -39,17 +39,21 @@ function getRefDate() {
   refDate = refD.toISOString().slice(0, 10);
 
   /* totalWeeks:
-   * - Pre-season : แสดงแค่สัปดาห์ที่ผ่านไปแล้วจนถึงวันนี้ (ไม่ show อนาคต)
+   * - Pre-season : แสดงทุกสัปดาห์ตั้งแต่ refDate จนถึงวันก่อน season_start
+   *                เช่น Apr 27 → May 31 = 35 วัน = 5 สัปดาห์
+   *                (ครบทุกสัปดาห์ preseason แม้บางสัปดาห์ยังไม่มีข้อมูล)
    * - Season จริง: คำนวณจาก seasonStart → seasonEnd เพื่อรวม day 92 (31 ส.ค.)
    *                1 มิ.ย. – 31 ส.ค. = 92 วัน → ceil(92/7) = 14 สัปดาห์
    */
   let totalWeeks;
   if (isPreSeason) {
-    const today = new Date(now.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' })).toISOString().slice(0, 10);
-    const daysElapsed = Math.ceil(
-      (new Date(today).getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24)
+    const dayBeforeSeason = new Date(seasonStart + 'T00:00:00+07:00');
+    dayBeforeSeason.setDate(dayBeforeSeason.getDate() - 1);
+    const preSeasonEndStr = dayBeforeSeason.toISOString().slice(0, 10);
+    const diffDays = Math.ceil(
+      (new Date(preSeasonEndStr).getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24)
     ) + 1;
-    totalWeeks = Math.max(1, Math.ceil(daysElapsed / 7));
+    totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
   } else {
     const diffDays = Math.ceil(
       (new Date(seasonEnd).getTime() - new Date(seasonStart).getTime()) / (1000 * 60 * 60 * 24)
