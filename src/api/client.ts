@@ -32,6 +32,7 @@ export const api = {
     seasonStart: string;
     refDate: string;
     isPreSeason: boolean;
+    totalWeeks: number;
     goalKm: number;
     participants: {
       strava_key: string; name: string; initials: string;

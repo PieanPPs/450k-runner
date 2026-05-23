@@ -3,29 +3,42 @@ import { db } from '../db/connection.js';
 
 const router = Router();
 
-/** helper — หา refDate สำหรับนับสัปดาห์
- *  ใช้ค่าที่เร็วที่สุดระหว่าง preseason_start กับ earliest activity
- *  เพื่อป้องกัน activity ก่อน preseason_start หายจาก heatmap
+/** helper — หา refDate และ totalWeeks สำหรับนับสัปดาห์
+ *  - refDate   : วันเริ่มนับ (เร็วสุดใน preseason_start / earliest activity)
+ *  - totalWeeks: คำนวณจาก season_end จริง ไม่ใช่ตายตัว 13
+ *                ป้องกัน day 92 (31 ส.ค.) หายเพราะ week_no = 14 ถูก filter
  */
 function getRefDate() {
-  const seasonStart    = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get()?.value    || '2026-06-01';
+  const seasonStart = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get()?.value || '2026-06-01';
+  const seasonEnd   = db.prepare("SELECT value FROM project_settings WHERE key='season_end'").get()?.value   || '2026-08-31';
   const preseasonStart = db.prepare("SELECT value FROM project_settings WHERE key='preseason_start'").get()?.value || null;
   const now = new Date();
 
+  let refDate;
+  let isPreSeason = false;
+
   if (now < new Date(seasonStart)) {
-    /* หา earliest activity จริงๆ */
+    isPreSeason = true;
     const earliest = db.prepare(
       "SELECT MIN(date(first_seen)) AS d FROM strava_activities WHERE is_baseline = 0"
     ).get()?.d || null;
-
-    /* ใช้ค่าที่เร็วที่สุดในสามค่า: preseasonStart, earliest activity, seasonStart */
     const candidates = [preseasonStart, earliest, seasonStart].filter(Boolean);
-    const refDate = candidates.sort()[0]; // sort ascending → ค่าแรก = เร็วที่สุด
-
-    return { refDate, seasonStart, isPreSeason: true };
+    refDate = candidates.sort()[0];
+  } else {
+    refDate = seasonStart;
   }
 
-  return { refDate: seasonStart, seasonStart, isPreSeason: false };
+  /* totalWeeks = จำนวนสัปดาห์ที่ครอบคลุมตั้งแต่ refDate ถึง seasonEnd
+   * ใช้ ceiling เพื่อให้วันที่เกินสัปดาห์สุดท้ายยังนับรวมอยู่
+   * ตัวอย่าง: 1 มิ.ย. – 31 ส.ค. = 92 วัน → ceil(92/7) = 14 แต่เราแสดงแค่ 13+1
+   * → ใช้ HAVING week_no <= totalWeeks เพื่อไม่ตัดวันสุดท้ายทิ้ง
+   */
+  const diffDays = Math.ceil(
+    (new Date(seasonEnd).getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1; // +1 รวม seasonEnd ด้วย
+  const totalWeeks = Math.ceil(diffDays / 7);
+
+  return { refDate, seasonStart, seasonEnd, isPreSeason, totalWeeks };
 }
 
 /**
@@ -34,7 +47,7 @@ function getRefDate() {
  */
 router.get('/weekly-stats', (req, res) => {
   try {
-    const { refDate, seasonStart, isPreSeason } = getRefDate();
+    const { refDate, seasonStart, isPreSeason, totalWeeks } = getRefDate();
 
     const goalKm = parseFloat(
       db.prepare("SELECT value FROM project_settings WHERE key='goal_km_per_person'").get()?.value || '450'
@@ -51,10 +64,9 @@ router.get('/weekly-stats', (req, res) => {
       JOIN participants m ON m.strava_key = sa.strava_key
       WHERE sa.is_baseline = 0
       GROUP BY sa.strava_key, week_no
-      HAVING week_no >= 1 AND week_no <= 13
+      HAVING week_no >= 1 AND week_no <= ?
       ORDER BY m.name, week_no
-    `).all(refDate);
-
+    `).all(refDate, totalWeeks);
 
     /* group by person */
     const map = new Map();
@@ -64,11 +76,11 @@ router.get('/weekly-stats', (req, res) => {
           strava_key: row.strava_key,
           name: row.name,
           initials: row.initials || row.name.slice(0, 2),
-          weeks: new Array(13).fill(0),
+          weeks: new Array(totalWeeks).fill(0),
         });
       }
       const p = map.get(row.strava_key);
-      if (row.week_no >= 1 && row.week_no <= 13) {
+      if (row.week_no >= 1 && row.week_no <= totalWeeks) {
         p.weeks[row.week_no - 1] = row.km;
       }
     }
@@ -82,7 +94,7 @@ router.get('/weekly-stats', (req, res) => {
 
     participants.sort((a, b) => b.total - a.total);
 
-    res.json({ seasonStart, refDate, isPreSeason, goalKm, participants });
+    res.json({ seasonStart, refDate, isPreSeason, totalWeeks, goalKm, participants });
   } catch (err) {
     console.error('[calendar] weekly-stats error:', err);
     res.status(500).json({ error: err.message });
@@ -98,7 +110,7 @@ router.get('/daily-stats', (req, res) => {
     const { strava_key } = req.query;
     if (!strava_key) return res.status(400).json({ error: 'strava_key required' });
 
-    const { refDate, isPreSeason } = getRefDate();
+    const { refDate, isPreSeason, totalWeeks } = getRefDate();
 
     const rows = db.prepare(`
       SELECT
@@ -110,11 +122,11 @@ router.get('/daily-stats', (req, res) => {
       FROM strava_activities
       WHERE strava_key = ? AND is_baseline = 0
       GROUP BY run_date
-      HAVING week_no >= 1 AND week_no <= 13
+      HAVING week_no >= 1 AND week_no <= ?
       ORDER BY run_date
-    `).all(refDate, refDate, refDate, strava_key);
+    `).all(refDate, refDate, refDate, strava_key, totalWeeks);
 
-    res.json({ refDate, isPreSeason, days: rows });
+    res.json({ refDate, isPreSeason, totalWeeks, days: rows });
   } catch (err) {
     console.error('[calendar] daily-stats error:', err);
     res.status(500).json({ error: err.message });

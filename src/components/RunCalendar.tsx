@@ -22,6 +22,7 @@ interface StatsData {
   seasonStart: string;
   refDate: string;
   isPreSeason: boolean;
+  totalWeeks: number;
   goalKm: number;
   participants: Person[];
 }
@@ -64,6 +65,10 @@ async function saveCard(el: HTMLElement, name: string, setSaving: (v: boolean) =
   }
 }
 
+/* ────────── daily stats type ────────── */
+interface DayEntry { run_date: string; week_no: number; day_in_week: number; km: number; }
+interface DailyData { refDate: string; isPreSeason: boolean; totalWeeks: number; days: DayEntry[]; }
+
 /* ────────── sub-components ────────── */
 
 /** กล่อง km เล็กๆ ใน overview */
@@ -94,131 +99,145 @@ function HeatCell({ km, onClick }: { km: number; onClick?: () => void }) {
 
 /** Individual card — ถูก capture เป็น PNG */
 function IndividualCard({
-  person, seasonStart, goalKm, cardRef,
+  person, seasonStart, goalKm, cardRef, dailyData,
 }: {
   person: Person;
   seasonStart: string;
   goalKm: number;
   cardRef: React.RefObject<HTMLDivElement>;
+  dailyData: DailyData | null;
 }) {
-  const pct    = Math.min(100, Math.round((person.total / goalKm) * 100));
-  const today  = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-  const weeks  = Array.from({ length: 13 }, (_, i) => i + 1);
+  const pct   = Math.min(100, Math.round((person.total / goalKm) * 100));
+  const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  /* สร้าง grid totalWeeks × 7 จาก dailyData */
+  const DAY_LABELS = ['1','2','3','4','5','6','7'];
+  const numWeeks = dailyData?.totalWeeks ?? person.weeks.length;
+  const grid: { km: number; date: string }[][] = Array.from({ length: numWeeks }, () =>
+    Array.from({ length: 7 }, () => ({ km: 0, date: '' }))
+  );
+  if (dailyData) {
+    for (const d of dailyData.days) {
+      const wi = d.week_no - 1;
+      const di = d.day_in_week; // 0-6
+      if (wi >= 0 && wi < numWeeks && di >= 0 && di < 7) {
+        grid[wi][di] = { km: d.km, date: d.run_date };
+      }
+    }
+  }
 
   return (
     <div
       ref={cardRef}
       style={{
         background: 'linear-gradient(135deg,#0a0a1a 0%,#12082a 60%,#0a1220 100%)',
-        borderRadius: 16, padding: 28, width: 540, maxWidth: '100%',
+        borderRadius: 16, padding: 24, width: 620, maxWidth: '100%',
         fontFamily: "'Sarabun', sans-serif",
         boxShadow: '0 0 60px rgba(168,85,247,0.2)',
         border: '1px solid rgba(168,85,247,0.2)',
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
         <div style={{
-          width: 56, height: 56, borderRadius: '50%',
+          width: 52, height: 52, borderRadius: '50%',
           background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, fontWeight: 700, color: '#fff', flexShrink: 0,
-        }}>
-          {person.initials}
-        </div>
+          fontSize: 18, fontWeight: 700, color: '#fff', flexShrink: 0,
+        }}>{person.initials}</div>
         <div>
-          <div style={{ fontFamily: 'Bebas Neue', fontSize: 26, letterSpacing: 2, color: '#fff', lineHeight: 1 }}>
+          <div style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#fff', lineHeight: 1 }}>
             {person.name}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 2 }}>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
             สถิติการวิ่ง 92 วัน · เริ่ม {new Date(seasonStart).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{
-            fontFamily: 'Bebas Neue', fontSize: 32, lineHeight: 1,
-            background: 'linear-gradient(90deg,#a855f7,#ec4899)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>
+          <div style={{ fontFamily: 'Bebas Neue', fontSize: 30, lineHeight: 1, color: '#a855f7' }}>
             {person.total.toFixed(1)}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, letterSpacing: 1 }}>กม. รวม</div>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>กม. รวม</div>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>ความคืบหน้า</span>
           <span style={{ color: '#a855f7', fontSize: 11, fontWeight: 700 }}>{pct}% จาก {goalKm} กม.</span>
         </div>
-        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 8, overflow: 'hidden' }}>
+        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 7, overflow: 'hidden' }}>
           <div style={{
             height: '100%', width: `${pct}%`,
             background: 'linear-gradient(90deg,#7c3aed,#ec4899)',
-            borderRadius: 999, transition: 'width 1s ease',
-            boxShadow: '0 0 10px rgba(168,85,247,0.6)',
+            borderRadius: 999, boxShadow: '0 0 10px rgba(168,85,247,0.5)',
           }} />
         </div>
       </div>
 
-      {/* Heatmap grid */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(13, 1fr)',
-          gap: 4, marginBottom: 4,
-        }}>
-          {weeks.map(w => (
-            <div key={w} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>
-              W{w}
+      {/* 13×7 Daily heatmap */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, marginBottom: 6, letterSpacing: 1 }}>
+          กิโลเมตรรายวัน — แต่ละแถว = 1 สัปดาห์ (W1–W13) · แต่ละช่อง = 1 วัน
+        </div>
+        {/* Column headers: day 1-7 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
+          <div />
+          {DAY_LABELS.map(d => (
+            <div key={d} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>
+              วัน{d}
             </div>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(13, 1fr)', gap: 4 }}>
-          {person.weeks.map((km, i) => {
-            const lv = heatLevel(km);
-            return (
-              <div key={i} title={`สัปดาห์ ${i+1}: ${km.toFixed(1)} กม.`} style={{
-                height: 32, borderRadius: 5,
-                background: HEAT[lv],
-                border: '1px solid rgba(255,255,255,0.06)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, color: lv >= 3 ? '#fff' : '#666',
-                fontWeight: 600,
-              }}>
-                {km > 0 ? km.toFixed(0) : ''}
-              </div>
-            );
-          })}
-        </div>
-        {/* color legend */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, justifyContent: 'flex-end' }}>
+        {/* Rows: one per week (totalWeeks rows รวม partial week สุดท้าย) */}
+        {grid.map((weekDays, wi) => (
+          <div key={wi} style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
+            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4 }}>
+              W{wi + 1}
+            </div>
+            {weekDays.map((cell, di) => {
+              const lv = heatLevel(cell.km);
+              return (
+                <div key={di}
+                  title={cell.date ? `${cell.date}: ${cell.km.toFixed(1)} กม.` : 'ไม่มีข้อมูล'}
+                  style={{
+                    height: 26, borderRadius: 4,
+                    background: HEAT[lv],
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 8, color: lv >= 3 ? '#fff' : '#555', fontWeight: 600,
+                  }}
+                >
+                  {cell.km > 0 ? cell.km.toFixed(1) : ''}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {/* Legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 6, justifyContent: 'flex-end' }}>
           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginRight: 2 }}>น้อย</span>
           {HEAT.map((c, i) => (
-            <div key={i} style={{ width: 12, height: 12, borderRadius: 2, background: c, border: '1px solid rgba(255,255,255,0.1)' }} />
+            <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: c, border: '1px solid rgba(255,255,255,0.1)' }} />
           ))}
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 2 }}>มาก</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 2 }}>40+ กม.</span>
         </div>
       </div>
 
       {/* Stats row */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
-        marginBottom: 20,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6, marginBottom: 16 }}>
         {[
-          { label: 'รวมทั้งหมด', value: `${person.total.toFixed(1)} กม.`, color: '#a855f7' },
+          { label: 'รวมทั้งหมด',     value: `${person.total.toFixed(1)} กม.`,  color: '#a855f7' },
           { label: 'สัปดาห์ดีที่สุด', value: `${person.best_week.toFixed(1)} กม.`, color: '#ec4899' },
-          { label: 'เฉลี่ย/สัปดาห์', value: `${person.active_weeks > 0 ? (person.total / person.active_weeks).toFixed(1) : '0'} กม.`, color: '#818cf8' },
-          { label: 'สัปดาห์ที่วิ่ง', value: `${person.active_weeks}/13`, color: '#34d399' },
+          { label: 'เฉลี่ย/สัปดาห์',  value: `${person.active_weeks > 0 ? (person.total / person.active_weeks).toFixed(1) : '0'} กม.`, color: '#818cf8' },
+          { label: 'สัปดาห์ที่วิ่ง',   value: `${person.active_weeks}/13`,     color: '#34d399' },
         ].map(s => (
           <div key={s.label} style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8, padding: '10px 8px', textAlign: 'center',
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8, padding: '8px 6px', textAlign: 'center',
           }}>
-            <div style={{ color: s.color, fontWeight: 700, fontSize: 15, lineHeight: 1, marginBottom: 4 }}>{s.value}</div>
+            <div style={{ color: s.color, fontWeight: 700, fontSize: 14, lineHeight: 1, marginBottom: 3 }}>{s.value}</div>
             <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9 }}>{s.label}</div>
           </div>
         ))}
@@ -226,15 +245,15 @@ function IndividualCard({
 
       {/* Footer */}
       <div style={{
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-        paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <img src="/logo.png" alt="logo"
-            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(168,85,247,0.4)' }}
+            style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(168,85,247,0.4)' }}
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
-          <span style={{ fontFamily: 'Bebas Neue', fontSize: 13, color: '#a855f7', letterSpacing: 2 }}>
+          <span style={{ fontFamily: 'Bebas Neue', fontSize: 12, color: '#a855f7', letterSpacing: 2 }}>
             450K TEACHER'S SPIRIT
           </span>
         </div>
@@ -247,11 +266,12 @@ function IndividualCard({
 /* ────────── main component ────────── */
 export default function RunCalendar() {
   const { theme: t } = useContext(ThemeCtx);
-  const [data,     setData]     = useState<StatsData | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [selected, setSelected] = useState<Person | null>(null);
-  const [search,   setSearch]   = useState('');
-  const [saving,   setSaving]   = useState(false);
+  const [data,      setData]      = useState<StatsData | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [selected,  setSelected]  = useState<Person | null>(null);
+  const [dailyData, setDailyData] = useState<DailyData | null>(null);
+  const [search,    setSearch]    = useState('');
+  const [saving,    setSaving]    = useState(false);
   const cardRef = useRef<HTMLDivElement>(null!);
 
   useEffect(() => {
@@ -261,11 +281,21 @@ export default function RunCalendar() {
       .finally(() => setLoading(false));
   }, []);
 
+  /* โหลด daily breakdown เมื่อ modal เปิด */
+  useEffect(() => {
+    if (!selected) { setDailyData(null); return; }
+    fetch(`${BASE}/api/daily-stats?strava_key=${selected.strava_key}`)
+      .then(r => r.json())
+      .then(setDailyData)
+      .catch(err => console.error('[daily-stats]', err));
+  }, [selected, BASE]);
+
   const filtered = (data?.participants ?? []).filter(p =>
     search === '' || p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const weeks = Array.from({ length: 13 }, (_, i) => i + 1);
+  const totalWeeks = data?.totalWeeks ?? 13;
+  const weeks = Array.from({ length: totalWeeks }, (_, i) => i + 1);
 
   /* ─── section wrapper ─── */
   return (
@@ -445,6 +475,7 @@ export default function RunCalendar() {
               seasonStart={data?.seasonStart ?? '2026-06-01'}
               goalKm={data?.goalKm ?? 450}
               cardRef={cardRef}
+              dailyData={dailyData}
             />
 
             {/* Save button */}
