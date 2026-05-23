@@ -36,7 +36,7 @@ router.get('/weekly-stats', (req, res) => {
         CAST((julianday(date(sa.first_seen)) - julianday(?)) / 7 AS INTEGER) + 1 AS week_no,
         ROUND(SUM(sa.distance_km), 2) AS km
       FROM strava_activities sa
-      JOIN members m ON m.strava_key = sa.strava_key
+      JOIN participants m ON m.strava_key = sa.strava_key
       WHERE sa.is_baseline = 0
       GROUP BY sa.strava_key, week_no
       HAVING week_no >= 1 AND week_no <= 13
