@@ -38,11 +38,11 @@ export default function Hero() {
 
       <div style={{ textAlign:'center', maxWidth:720 }}>
         <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:8 }}>{projectName}</div>
-        <div style={{ color:t.text, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>{subtitle}</div>
-        <div style={{ color:t.textMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
+        <div style={{ color:t.heroText, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>{subtitle}</div>
+        <div style={{ color:t.heroTextMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
 
         <div style={{ marginBottom:36 }}>
-          <div style={{ color:t.textSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>
+          <div style={{ color:t.heroTextSub, fontSize:12, fontWeight:600, letterSpacing:3, marginBottom:12 }}>
             {seasonStatus === 'pre'  && `เริ่มกิจกรรม ${startDate.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}`}
             {seasonStatus === 'active' && `🏃 กำลังดำเนินอยู่ · สิ้นสุด ${endDate.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}`}
             {seasonStatus === 'done' && '🏁 สิ้นสุดโครงการแล้ว'}
@@ -52,7 +52,7 @@ export default function Hero() {
             {[{v:cd.d,l:'วัน'},{v:cd.h,l:'ชั่วโมง'},{v:cd.m,l:'นาที'},{v:cd.s,l:'วินาที'}].map(({v,l})=>(
               <div key={l} style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:12, padding:'12px 16px', minWidth:68, textAlign:'center', backdropFilter:'blur(8px)' }}>
                 <div style={{ fontFamily:'Bebas Neue', fontSize:40, color: seasonStatus==='active' ? t.accent2 : t.accent1, lineHeight:1 }}>{String(v ?? 0).padStart(2,'0')}</div>
-                <div style={{ color:t.textSub, fontSize:10, fontWeight:600, letterSpacing:1 }}>{l}</div>
+                <div style={{ color:t.heroTextSub, fontSize:10, fontWeight:600, letterSpacing:1 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -75,7 +75,7 @@ export default function Hero() {
       </div>
 
       <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:6, opacity:0.5 }}>
-        <div style={{ color:t.textSub, fontSize:11, letterSpacing:2 }}>SCROLL</div>
+        <div style={{ color:t.heroTextSub, fontSize:11, letterSpacing:2 }}>SCROLL</div>
         <div style={{ width:1, height:30, background:`linear-gradient(${t.accent1},transparent)` }} />
       </div>
     </section>

@@ -2,6 +2,7 @@
 export interface ThemeColors {
   bg: string; bg2: string; card: string; cardBorder: string;
   text: string; textMuted: string; textSub: string;
+  heroText: string; heroTextMuted: string; heroTextSub: string;
   accent1: string; accent2: string; accent3: string;
   navBg: string; heroGrad: string; progressBg: string;
   tabActive: string; tabBg: string; inputBg: string; altBg: string;
