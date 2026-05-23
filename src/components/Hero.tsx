@@ -37,7 +37,9 @@ export default function Hero() {
       <img src="/logo.png" alt="AS-Run Logo" style={{ width:160, height:160, borderRadius:'50%', objectFit:'cover', border:`3px solid ${t.accent1}`, boxShadow:`0 0 40px ${t.accent1}66`, marginBottom:24 }} />
 
       <div style={{ textAlign:'center', maxWidth:720 }}>
-        <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', marginBottom:8 }}>{projectName}</div>
+        <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, marginBottom:8 }}>
+          <span style={{ background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, WebkitBackgroundClip:'text', backgroundClip:'text', WebkitTextFillColor:'transparent', color:'transparent', display:'inline-block' }}>{projectName}</span>
+        </div>
         <div style={{ color:t.heroText, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>{subtitle}</div>
         <div style={{ color:t.heroTextMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
 
