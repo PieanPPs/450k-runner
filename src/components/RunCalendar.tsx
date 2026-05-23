@@ -20,6 +20,8 @@ interface Person {
 }
 interface StatsData {
   seasonStart: string;
+  refDate: string;
+  isPreSeason: boolean;
   goalKm: number;
   participants: Person[];
 }
@@ -281,9 +283,18 @@ export default function RunCalendar() {
           }}>
             ปฏิทินสถิติการวิ่ง
           </div>
-          <div style={{ color: t.textMuted, fontSize: 14 }}>
+          <div style={{ color: t.textMuted, fontSize: 14, marginBottom: data?.isPreSeason ? 10 : 0 }}>
             คลิกชื่อครูเพื่อดูรายละเอียด และบันทึกเป็นภาพ
           </div>
+          {data?.isPreSeason && (
+            <div style={{
+              display: 'inline-block', marginTop: 8,
+              background: `${t.accent3}22`, border: `1px solid ${t.accent3}55`,
+              borderRadius: 999, padding: '4px 14px', fontSize: 12, color: t.accent3,
+            }}>
+              ⏳ Pre-Season — นับจากวันที่ {new Date(data.refDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })} · กิจกรรมเริ่ม 1 มิ.ย. 2569
+            </div>
+          )}
         </div>
 
         {/* Search */}
@@ -318,7 +329,7 @@ export default function RunCalendar() {
         ) : !data || data.participants.length === 0 ? (
           <div style={{ textAlign: 'center', color: t.textMuted, padding: 60 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
-            <div>ยังไม่มีข้อมูล — เริ่มกิจกรรม {data?.seasonStart ?? ''}</div>
+            <div>ยังไม่มีข้อมูล — กรุณา Sync Strava ก่อน หรือเริ่มกิจกรรม {data?.seasonStart ?? ''}</div>
           </div>
         ) : (
           /* ─── Overview heatmap ─── */

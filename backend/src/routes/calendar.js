@@ -18,12 +18,22 @@ router.get('/weekly-stats', (req, res) => {
       db.prepare("SELECT value FROM project_settings WHERE key='goal_km_per_person'").get()?.value || '450'
     );
 
+    /* ถ้ายังไม่ถึง season_start ให้นับจากวันที่ activity แรกสุดแทน */
+    const now = new Date();
+    let refDate = seasonStart;
+    if (now < new Date(seasonStart)) {
+      const earliest = db.prepare(
+        "SELECT MIN(date(first_seen)) AS d FROM strava_activities WHERE is_baseline = 0"
+      ).get();
+      if (earliest?.d) refDate = earliest.d;
+    }
+
     const rows = db.prepare(`
       SELECT
         sa.strava_key,
         m.name,
         m.initials,
-        CAST((julianday(sa.first_seen) - julianday(?)) / 7 AS INTEGER) + 1 AS week_no,
+        CAST((julianday(date(sa.first_seen)) - julianday(?)) / 7 AS INTEGER) + 1 AS week_no,
         ROUND(SUM(sa.distance_km), 2) AS km
       FROM strava_activities sa
       JOIN members m ON m.strava_key = sa.strava_key
@@ -31,7 +41,10 @@ router.get('/weekly-stats', (req, res) => {
       GROUP BY sa.strava_key, week_no
       HAVING week_no >= 1 AND week_no <= 13
       ORDER BY m.name, week_no
-    `).all(seasonStart);
+    `).all(refDate);
+
+    /* ส่ง refDate ไปด้วยให้ frontend แสดงหมายเหตุ */
+    const isPreSeason = now < new Date(seasonStart);
 
     /* group by person */
     const map = new Map();
@@ -59,7 +72,7 @@ router.get('/weekly-stats', (req, res) => {
 
     participants.sort((a, b) => b.total - a.total);
 
-    res.json({ seasonStart, goalKm, participants });
+    res.json({ seasonStart, refDate, isPreSeason, goalKm, participants });
   } catch (err) {
     console.error('[calendar] weekly-stats error:', err);
     res.status(500).json({ error: err.message });

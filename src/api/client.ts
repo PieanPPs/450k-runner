@@ -30,6 +30,8 @@ export const api = {
 
   weeklyStats: () => get<{
     seasonStart: string;
+    refDate: string;
+    isPreSeason: boolean;
     goalKm: number;
     participants: {
       strava_key: string; name: string; initials: string;
