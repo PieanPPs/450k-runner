@@ -71,6 +71,13 @@ try {
   console.log('[migration] added moving_time column to strava_activities');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: activity_date — วันวิ่งจริงจาก start_date_local ของ Strava (YYYY-MM-DD)
+// ข้อมูลเก่าที่ไม่มีค่านี้ใช้ date(first_seen) แทน
+try {
+  db.prepare('ALTER TABLE strava_activities ADD COLUMN activity_date TEXT').run();
+  console.log('[migration] added activity_date column to strava_activities');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Migration: ถังขยะ — เก็บ activity ที่ถูกลบไว้ก่อน ป้องกันลบพลาด
 try {
   db.prepare(`
