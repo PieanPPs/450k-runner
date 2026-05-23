@@ -28,6 +28,16 @@ function getRefDate() {
     refDate = seasonStart;
   }
 
+  /* ปรับ refDate ให้ตรงกับ วันจันทร์ของสัปดาห์นั้น
+   * เพื่อให้ขอบเขตสัปดาห์ใน heatmap ตรงกับ Weekly Results (จันทร์–อาทิตย์)
+   * ตัวอย่าง: refDate = 2026-05-02 (เสาร์) → ปรับเป็น 2026-04-27 (จันทร์)
+   */
+  const refD = new Date(refDate + 'T00:00:00+07:00');
+  const dow  = refD.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysBack = dow === 0 ? 6 : dow - 1; // ถอยกลับไปวันจันทร์
+  refD.setDate(refD.getDate() - daysBack);
+  refDate = refD.toISOString().slice(0, 10);
+
   /* totalWeeks = จำนวนสัปดาห์ที่ครอบคลุมตั้งแต่ refDate ถึง seasonEnd
    * ใช้ ceiling เพื่อให้วันที่เกินสัปดาห์สุดท้ายยังนับรวมอยู่
    * ตัวอย่าง: 1 มิ.ย. – 31 ส.ค. = 92 วัน → ceil(92/7) = 14 แต่เราแสดงแค่ 13+1
