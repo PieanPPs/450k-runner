@@ -31,6 +31,7 @@ export default function Nav() {
     { href: '#leaderboard', label: 'อันดับ' },
     { href: '#milestones',  label: 'รางวัล' },
     { href: '#journey',     label: 'การเดินทาง' },
+    { href: '#calendar',    label: 'ปฏิทินวิ่ง' },
     { href: '#seasons',     label: 'Season' },
     { href: '#gallery',     label: 'ภาพกิจกรรม' },
   ];

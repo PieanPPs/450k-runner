@@ -3,10 +3,11 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import dashboardRoutes from './routes/dashboard.js';
-import authRoutes      from './routes/auth.js';
-import syncRoutes      from './routes/sync.js';
-import adminRoutes     from './routes/admin.js';
+import dashboardRoutes  from './routes/dashboard.js';
+import authRoutes       from './routes/auth.js';
+import syncRoutes       from './routes/sync.js';
+import adminRoutes      from './routes/admin.js';
+import calendarRoutes   from './routes/calendar.js';
 import { db } from './db/connection.js';
 
 // node-cron (optional — skip gracefully if not installed)
@@ -110,6 +111,7 @@ app.use('/api', dashboardRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/adminpp', adminRoutes);
+app.use('/api',         calendarRoutes);
 
 // ---- helpers ----
 function getSeasonStart() {

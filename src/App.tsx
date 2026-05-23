@@ -11,6 +11,7 @@ import WeeklyGraph from '@/components/WeeklyGraph';
 import Seasons from '@/components/Seasons';
 import Gallery from '@/components/Gallery';
 import Certificate from '@/components/Certificate';
+import RunCalendar from '@/components/RunCalendar';
 import Footer from '@/components/Footer';
 import AdminPage from '@/pages/AdminPage';
 import HealthTips from '@/components/HealthTips';
@@ -36,6 +37,7 @@ function AppBody() {
       <Milestones />
       <Journey />
       <WeeklyGraph />
+      <RunCalendar />
       <Seasons />
       <HealthTips />
       <Certificate />

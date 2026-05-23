@@ -28,6 +28,15 @@ export const api = {
 
   weeklySnapshots: () => get<WeeklySnapshot[]>('/api/weekly-snapshots'),
 
+  weeklyStats: () => get<{
+    seasonStart: string;
+    goalKm: number;
+    participants: {
+      strava_key: string; name: string; initials: string;
+      weeks: number[]; total: number; best_week: number; active_weeks: number;
+    }[];
+  }>('/api/weekly-stats'),
+
   /** Trigger full Strava sync */
   triggerSync : async () => {
     const res = await fetch(`${BASE}/api/sync`, { method: 'POST' });
