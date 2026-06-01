@@ -32,10 +32,14 @@ function getRefDate() {
    * เพื่อให้ขอบเขตสัปดาห์ใน heatmap ตรงกับ Weekly Results (จันทร์–อาทิตย์)
    * ตัวอย่าง: refDate = 2026-05-02 (เสาร์) → ปรับเป็น 2026-04-27 (จันทร์)
    */
-  const refD = new Date(refDate + 'T00:00:00+07:00');
-  const dow  = refD.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  /* ใช้ UTC midnight เพื่อให้ getUTCDay() ตรงกับวันตาม date string
+   * ถ้าใช้ 'T00:00:00+07:00' แล้ว server รัน UTC → getDay() คืนวันก่อนหน้า (off by 1)
+   * เช่น '2026-06-01+07:00' = May 31 UTC → getDay()=0 (Sun) → snap ไป May 25 ผิด!
+   */
+  const refD = new Date(refDate + 'T00:00:00Z');
+  const dow  = refD.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   const daysBack = dow === 0 ? 6 : dow - 1; // ถอยกลับไปวันจันทร์
-  refD.setDate(refD.getDate() - daysBack);
+  refD.setUTCDate(refD.getUTCDate() - daysBack);
   refDate = refD.toISOString().slice(0, 10);
 
   /* totalWeeks:
