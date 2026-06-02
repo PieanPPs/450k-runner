@@ -1,6 +1,15 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 
+/** maskName — ซ่อนนามสกุลเพื่อ PDPA ("กิตติพร กลสรร" → "กิตติพร ก.") */
+function maskName(fullName) {
+  if (!fullName) return fullName;
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 2) return fullName;
+  const firstLetter = [...parts[parts.length - 1]][0];
+  return parts.slice(0, -1).join(' ') + ' ' + firstLetter + '.';
+}
+
 const router = Router();
 
 /** helper — หา refDate และ totalWeeks สำหรับนับสัปดาห์
@@ -101,7 +110,7 @@ router.get('/weekly-stats', (req, res) => {
       if (!map.has(row.strava_key)) {
         map.set(row.strava_key, {
           strava_key: row.strava_key,
-          name: row.name,
+          name: maskName(row.name),
           initials: row.initials || row.name.slice(0, 2),
           weeks: new Array(totalWeeks).fill(0),
         });

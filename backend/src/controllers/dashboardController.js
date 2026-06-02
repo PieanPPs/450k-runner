@@ -1,8 +1,23 @@
 import { db } from '../db/connection.js';
 
+/**
+ * maskName — ซ่อนนามสกุลเพื่อ PDPA
+ * "กิตติพร กลสรร"  → "กิตติพร ก."
+ * "Kittiporn Klasorn" → "Kittiporn K."
+ * ชื่อเดียว (ไม่มีสกุล) → คืนเดิม
+ */
+function maskName(fullName) {
+  if (!fullName) return fullName;
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length < 2) return fullName;
+  const lastPart = parts[parts.length - 1];
+  const firstLetter = [...lastPart][0]; // รองรับ Unicode / ภาษาไทย
+  return parts.slice(0, -1).join(' ') + ' ' + firstLetter + '.';
+}
+
 export function getParticipants(_req, res) {
   const rows = db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,age_group as ageGroup FROM participants ORDER BY id').all();
-  res.json(rows);
+  res.json(rows.map(r => ({ ...r, name: maskName(r.name) })));
 }
 
 export function getLeaderboard(req, res) {
@@ -15,7 +30,7 @@ export function getLeaderboard(req, res) {
   };
   const column = keyMap[metric] || 'km';
   const rows = db.prepare(`SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,age_group as ageGroup FROM participants ORDER BY ${column} DESC, id ASC`).all();
-  res.json({ metric, rows });
+  res.json({ metric, rows: rows.map(r => ({ ...r, name: maskName(r.name) })) });
 }
 
 export function getWeekly(_req, res) {
@@ -61,7 +76,7 @@ export function getWeeklySnapshots(_req, res) {
       weeks.push(map.get(r.week_no));
     }
     map.get(r.week_no).participants.push({
-      id: r.participant_id, name: r.name, initials: r.initials, km: r.km, rank: r.rank
+      id: r.participant_id, name: maskName(r.name), initials: r.initials, km: r.km, rank: r.rank
     });
   }
   res.json(weeks);
@@ -84,7 +99,7 @@ export function getSummary(_req, res) {
     goalKm,
     goalPerPerson,
     pct: Math.round(pct * 10) / 10,
-    topName: top?.name || '—',
+    topName: maskName(top?.name) || '—',
     topKm: top?.km || 0,
   });
 }
@@ -106,7 +121,7 @@ export function getDailyLog(req, res) {
 
   const activities = db.prepare(`
     SELECT sa.strava_key,
-           COALESCE(p.name, sa.strava_key) AS name,
+           COALESCE(p.name, sa.strava_key) AS name_full,
            p.initials,
            sa.activity_name,
            sa.distance_km,
@@ -133,5 +148,5 @@ export function getDailyLog(req, res) {
     LIMIT 90
   `).all();
 
-  res.json({ date, activities, days });
+  res.json({ date, activities: activities.map(a => ({ ...a, name: maskName(a.name_full), name_full: undefined })), days });
 }
