@@ -27,21 +27,39 @@ export default function Journey() {
           จุดเริ่มต้น: โรงเรียนอนุสรณ์ศุภมาศ จ.สมุทรสาคร
         </div>
 
-        {/* Team overall progress bar */}
+        {/* Team overall progress bar
+            ใช้ค่าเฉลี่ยต่อคน (avgKm) เทียบกับ perPersonGoal (450 km)
+            เพื่อให้ progress bar แมปกับเส้นทางภูมิศาสตร์ สมุทรสาคร→ชุมพร ได้ถูกต้อง
+            ไม่ใช้ totalKm/goalKm เพราะ goalKm = 450×n คน = หลายพันกม. ออกนอกประเทศ
+        */}
         <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:24, padding:28, marginBottom:32, position:'relative', overflow:'hidden' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10, flexWrap:'wrap', gap:8 }}>
-            <span style={{ color:t.text, fontWeight:700 }}>📍 โรงเรียนอนุสรณ์ศุภมาศ</span>
-            <span style={{ color:t.accent1, fontWeight:700, fontFamily:'Bebas Neue', fontSize:20 }}>
-              {fmtKm(totalKm)} / {goalKm.toFixed(0)} KM (ทีมรวม)
-            </span>
-            <span style={{ color:t.accent3, fontWeight:700 }}>🏁 เป้าหมาย {goalKm.toFixed(0)} km</span>
-          </div>
-          <div style={{ position:'relative', background:t.progressBg, height:20, borderRadius:999, overflow:'hidden', marginBottom:20 }}>
-            <div style={{ position:'absolute', inset:0, width:`${Math.min(100,(totalKm/Math.max(goalKm,1))*100)}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, borderRadius:999, transition:'width 1.5s ease' }} />
-            {distances.map((d,i) => (
-              <div key={i} style={{ position:'absolute', left:`${(d.km/perPersonGoal)*100}%`, top:'50%', transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background:totalKm/Math.max(participants.length,1)>=d.km?'#fff':'rgba(255,255,255,0.3)', border:`2px solid ${totalKm/Math.max(participants.length,1)>=d.km?t.accent1:'rgba(255,255,255,0.2)'}`, zIndex:1 }} />
-            ))}
-          </div>
+          {(() => {
+            const avgKm = totalKm / Math.max(participants.length, 1);
+            const avgPct = Math.min(100, (avgKm / perPersonGoal) * 100);
+            const teamLoc = getCurrentLocation(avgKm, distances);
+            return (
+              <>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4, flexWrap:'wrap', gap:8 }}>
+                  <span style={{ color:t.text, fontWeight:700 }}>📍 โรงเรียนอนุสรณ์ศุภมาศ</span>
+                  <div style={{ textAlign:'center' }}>
+                    <div style={{ color:t.accent1, fontWeight:700, fontFamily:'Bebas Neue', fontSize:20 }}>
+                      เฉลี่ยทีม {fmtKm(avgKm)} km — ถึง {teamLoc.icon} {teamLoc.label} แล้ว!
+                    </div>
+                    <div style={{ color:t.textMuted, fontSize:11 }}>
+                      ทีมรวม {fmtKm(totalKm)} km จาก {participants.length} คน
+                    </div>
+                  </div>
+                  <span style={{ color:t.accent3, fontWeight:700 }}>🏁 เป้าหมาย {perPersonGoal} km/คน</span>
+                </div>
+                <div style={{ position:'relative', background:t.progressBg, height:20, borderRadius:999, overflow:'hidden', marginBottom:20 }}>
+                  <div style={{ position:'absolute', inset:0, width:`${avgPct}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`, borderRadius:999, transition:'width 1.5s ease' }} />
+                  {distances.map((d,i) => (
+                    <div key={i} style={{ position:'absolute', left:`${(d.km/perPersonGoal)*100}%`, top:'50%', transform:'translate(-50%,-50%)', width:12, height:12, borderRadius:'50%', background:avgKm>=d.km?'#fff':'rgba(255,255,255,0.3)', border:`2px solid ${avgKm>=d.km?t.accent1:'rgba(255,255,255,0.2)'}`, zIndex:1 }} />
+                  ))}
+                </div>
+              </>
+            );
+          })()}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))', gap:10 }}>
             {distances.map((d,i) => {
               const avgKm = totalKm / Math.max(participants.length, 1);
