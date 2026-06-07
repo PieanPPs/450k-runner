@@ -47,7 +47,19 @@ function heatLevel(km: number) {
   return 5;
 }
 
-/* ────────── save as image ────────── */
+/* ────────── save as image ──────────
+ * iOS Safari ไม่รองรับ <a download> อย่างเสถียร (ลิงก์ data: URL ขนาดใหญ่
+ * มักจะค้างหรือเปิดแท็บเปล่าแทนที่จะดาวน์โหลด) — ใช้ Web Share API
+ * (navigator.share + File) เป็นทางเลือกหลักบน iOS แทน ส่วน PC/Android
+ * ยังใช้วิธี <a download> เดิมซึ่งทำงานได้ดีอยู่แล้ว
+ */
+function isIOS() {
+  const ua = navigator.userAgent || '';
+  // iPad บน iOS 13+ รายงานตัวเป็น Mac แต่รองรับ touch — เช็คเพิ่มจาก maxTouchPoints
+  const iPadOS = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
+  return /iPhone|iPad|iPod/.test(ua) || iPadOS;
+}
+
 async function saveCard(el: HTMLElement, name: string, setSaving: (v: boolean) => void) {
   setSaving(true);
   try {
@@ -57,11 +69,38 @@ async function saveCard(el: HTMLElement, name: string, setSaving: (v: boolean) =
       useCORS: true,
       logging: false,
     });
-    const url = canvas.toDataURL('image/png');
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = `run-stats-${name.replace(/\s+/g, '-')}.png`;
+    const filename = `run-stats-${name.replace(/\s+/g, '-')}.png`;
+
+    const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('toBlob failed');
+
+    if (isIOS()) {
+      // ทางเลือกหลักบน iOS: Web Share API — เปิด sheet "บันทึกรูปภาพ" ของ iOS โดยตรง
+      const file = new File([blob], filename, { type: 'image/png' });
+      const canShareFiles = (navigator as any).canShare?.({ files: [file] });
+      if (navigator.share && canShareFiles) {
+        try {
+          await navigator.share({ files: [file], title: filename });
+          return;
+        } catch (err: any) {
+          // ผู้ใช้กดยกเลิกการแชร์ — ไม่ถือเป็น error
+          if (err?.name === 'AbortError') return;
+        }
+      }
+      // Fallback สุดท้ายบน iOS: เปิดรูปในแท็บใหม่ให้ผู้ใช้กดค้างเพื่อบันทึกเอง
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      return;
+    }
+
+    // PC / Android: วิธีเดิม ใช้ <a download> ซึ่งทำงานได้ดี
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
   } finally {
     setSaving(false);
   }
@@ -197,18 +236,23 @@ function IndividualCard({
             {isPreSeason ? `PRE-SEASON W1–W${numWeeks}` : `SEASON W1–W${numWeeks}`}
           </span>
         </div>
-        {/* Column headers: day 1-7 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
+        {/* Column headers: day 1-7 + รวม (weekly total) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr) 34px', gap: 3, marginBottom: 3 }}>
           <div />
           {DAY_LABELS.map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>
               วัน{d}
             </div>
           ))}
+          <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(168,85,247,0.6)', fontWeight: 700 }}>
+            รวม
+          </div>
         </div>
         {/* Rows: one per week (totalWeeks rows รวม partial week สุดท้าย) */}
-        {grid.map((weekDays, wi) => (
-          <div key={wi} style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
+        {grid.map((weekDays, wi) => {
+          const weekTotal = weekDays.reduce((s, c) => s + (c.km || 0), 0);
+          return (
+          <div key={wi} style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr) 34px', gap: 3, marginBottom: 3 }}>
             <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4 }}>
               W{wi + 1}
             </div>
@@ -229,8 +273,22 @@ function IndividualCard({
                 </div>
               );
             })}
+            {/* ช่องสรุปผลรวมประจำสัปดาห์ */}
+            <div
+              title={`รวมสัปดาห์ที่ ${wi + 1}: ${weekTotal.toFixed(1)} กม.`}
+              style={{
+                height: 26, borderRadius: 4,
+                background: 'rgba(168,85,247,0.12)',
+                border: '1px solid rgba(168,85,247,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 8, color: '#d8b4fe', fontWeight: 700,
+              }}
+            >
+              {weekTotal > 0 ? weekTotal.toFixed(1) : ''}
+            </div>
           </div>
-        ))}
+          );
+        })}
         {/* Legend */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 6, justifyContent: 'flex-end' }}>
           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginRight: 2 }}>น้อย</span>
