@@ -60,9 +60,31 @@ function isIOS() {
   return /iPhone|iPad|iPod/.test(ua) || iPadOS;
 }
 
+/* in-app browser ของ LINE / Facebook / Instagram (WKWebView ของแอปเอง)
+ * — navigator.share มักไม่ implement จริงและทำให้ promise ค้างไม่ resolve
+ * บน iOS ต้องเลี่ยงไปแนะนำให้เปิดใน Safari แทน ไม่งั้นจะเจออาการ "ค้าง" ซ้ำเดิม */
+function isInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  return /Line\//i.test(ua) || /FBAN|FBAV|FB_IAB/i.test(ua) || /Instagram/i.test(ua);
+}
+
 async function saveCard(el: HTMLElement, name: string, setSaving: (v: boolean) => void) {
   setSaving(true);
   try {
+    // เคสที่พบบ่อย: ผู้ใช้เปิดเว็บผ่าน LINE/FB/IG in-app browser บน iOS
+    // — navigator.share ใน webview พวกนี้มักไม่ implement จริง ทำให้ promise ค้าง
+    // ไม่ resolve/reject เลย (ตรงกับอาการ "ค้าง" ที่ผู้ใช้แจ้ง) จึงต้องดักไว้ก่อน
+    // แล้วแนะนำให้เปิดในเบราว์เซอร์จริง (Safari) แทน
+    if (isIOS() && isInAppBrowser()) {
+      alert(
+        'ตรวจพบว่าเปิดผ่านแอป LINE/Facebook/Instagram บน iOS ครับ\n\n' +
+        'การบันทึกภาพอาจค้างหรือไม่ทำงานในเบราว์เซอร์ของแอปเหล่านี้\n\n' +
+        'วิธีแก้: แตะปุ่ม "···" หรือ "เปิดในเบราว์เซอร์" ที่มุมขวาบน แล้วเลือก "เปิดด้วย Safari" ' +
+        'จากนั้นกลับมากดบันทึกภาพอีกครั้งครับ'
+      );
+      return;
+    }
+
     const canvas = await html2canvas(el, {
       backgroundColor: '#0a0a1a',
       scale: 2,
@@ -75,7 +97,7 @@ async function saveCard(el: HTMLElement, name: string, setSaving: (v: boolean) =
     if (!blob) throw new Error('toBlob failed');
 
     if (isIOS()) {
-      // ทางเลือกหลักบน iOS: Web Share API — เปิด sheet "บันทึกรูปภาพ" ของ iOS โดยตรง
+      // ทางเลือกหลักบน iOS (Safari จริง): Web Share API — เปิด sheet "บันทึกรูปภาพ" ของ iOS โดยตรง
       const file = new File([blob], filename, { type: 'image/png' });
       const canShareFiles = (navigator as any).canShare?.({ files: [file] });
       if (navigator.share && canShareFiles) {
