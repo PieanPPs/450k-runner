@@ -191,19 +191,33 @@ function IndividualCard({
     }
   }
 
-  /* สีและ text ของ cell ตาม km รายวัน — ปรับให้ contrast ชัดขึ้น */
+  /* ─── Color scale รายวัน (threshold ใหม่: 1/3/5/8/10 กม.) ───
+   * Level 0  = ไม่มีกิจกรรม
+   * Level 1  = 1–3 กม.  → indigo เข้ม
+   * Level 2  = 3–5 กม.  → น้ำเงิน-ม่วง
+   * Level 3  = 5–8 กม.  → ม่วงสด (accent หลักของแอป)
+   * Level 4  = 8–10 กม. → ชมพู-ม่วง
+   * Level 5  = 10+ กม.  → ทอง/amber (สีโดดเด่นสุด = ผลงานดีที่สุด)
+   */
+  const DAILY_COLORS = [
+    'rgba(255,255,255,0.04)', // 0 ไม่มีกิจกรรม
+    '#312e81',                 // 1  1–3 km   deep indigo
+    '#4f46e5',                 // 2  3–5 km   bright indigo
+    '#7c3aed',                 // 3  5–8 km   violet (app accent)
+    '#db2777',                 // 4  8–10 km  hot pink
+    '#f59e0b',                 // 5  10+ km   amber gold
+  ];
   function cellBg(km: number) {
-    if (!km || km <= 0) return 'rgba(255,255,255,0.04)';
-    if (km < 5)  return '#2e1065';
-    if (km < 10) return '#4c1d95';
-    if (km < 20) return '#6d28d9';
-    if (km < 30) return '#8b5cf6';
-    if (km < 40) return '#a855f7';
-    return '#e879f9';
+    if (!km || km < 1)  return DAILY_COLORS[0];
+    if (km < 3)         return DAILY_COLORS[1];
+    if (km < 5)         return DAILY_COLORS[2];
+    if (km < 8)         return DAILY_COLORS[3];
+    if (km < 10)        return DAILY_COLORS[4];
+    return DAILY_COLORS[5];
   }
   function cellTextColor(km: number) {
-    if (!km || km <= 0) return 'transparent';
-    if (km < 5)  return 'rgba(255,255,255,0.55)';
+    if (!km || km < 1) return 'transparent';
+    if (km < 3)        return 'rgba(255,255,255,0.6)';
     return '#fff';
   }
   /* แสดงตัวเลขอย่างกระชับ: < 10 → "9.5", ≥ 10 → "21" (ไม่มีทศนิยมประหยัดพื้นที่) */
@@ -410,19 +424,28 @@ function IndividualCard({
           );
         })}
 
-        {/* Legend */}
+        {/* Legend — แสดง 6 ระดับพร้อม label */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          marginTop: 8, justifyContent: 'flex-end',
+          display: 'flex', alignItems: 'center', gap: 6,
+          marginTop: 10, justifyContent: 'flex-end', flexWrap: 'wrap',
         }}>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginRight: 3 }}>0</span>
-          {['rgba(255,255,255,0.04)','#2e1065','#4c1d95','#8b5cf6','#a855f7','#e879f9'].map((c, i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: 3,
-              background: c, border: '1px solid rgba(255,255,255,0.1)',
-            }} />
+          {[
+            { color: 'rgba(255,255,255,0.07)', label: '0' },
+            { color: '#312e81', label: '1' },
+            { color: '#4f46e5', label: '3' },
+            { color: '#7c3aed', label: '5' },
+            { color: '#db2777', label: '8' },
+            { color: '#f59e0b', label: '10+' },
+          ].map(({ color, label }) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <div style={{
+                width: 18, height: 18, borderRadius: 4,
+                background: color, border: '1px solid rgba(255,255,255,0.12)',
+              }} />
+              <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', lineHeight: 1 }}>{label}</span>
+            </div>
           ))}
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginLeft: 3 }}>40+ กม./วัน</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginLeft: 2 }}>กม./วัน</span>
         </div>
       </div>
 
@@ -735,11 +758,14 @@ export default function RunCalendar() {
           style={{
             position: 'fixed', inset: 0, zIndex: 200,
             background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24, overflowY: 'auto',
+            overflowY: 'auto',
+            /* ใช้ flex-start + margin:auto แทน center
+               เพื่อให้ scroll ได้ถึงส่วนบนของ card เมื่อ content สูงกว่า viewport */
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+            padding: '32px 16px 40px',
           }}
         >
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', margin: 'auto' }}>
             {/* Close */}
             <button
               onClick={() => setSelected(null)}
