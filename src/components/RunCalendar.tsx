@@ -175,7 +175,8 @@ function IndividualCard({
   const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
   /* สร้าง grid totalWeeks × 7 จาก dailyData */
-  const DAY_LABELS = ['1','2','3','4','5','6','7'];
+  // refDate = วันจันทร์ → day_in_week: 0=จ 1=อ 2=พ 3=พฤ 4=ศ 5=ส 6=อา
+  const DAY_LABELS = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'];
   const numWeeks = dailyData?.totalWeeks ?? person.weeks.length;
   const grid: { km: number; date: string }[][] = Array.from({ length: numWeeks }, () =>
     Array.from({ length: 7 }, () => ({ km: 0, date: '' }))
@@ -183,177 +184,321 @@ function IndividualCard({
   if (dailyData) {
     for (const d of dailyData.days) {
       const wi = d.week_no - 1;
-      const di = d.day_in_week; // 0-6
+      const di = d.day_in_week;
       if (wi >= 0 && wi < numWeeks && di >= 0 && di < 7) {
         grid[wi][di] = { km: d.km, date: d.run_date };
       }
     }
   }
 
+  /* สีและ text ของ cell ตาม km รายวัน — ปรับให้ contrast ชัดขึ้น */
+  function cellBg(km: number) {
+    if (!km || km <= 0) return 'rgba(255,255,255,0.04)';
+    if (km < 5)  return '#2e1065';
+    if (km < 10) return '#4c1d95';
+    if (km < 20) return '#6d28d9';
+    if (km < 30) return '#8b5cf6';
+    if (km < 40) return '#a855f7';
+    return '#e879f9';
+  }
+  function cellTextColor(km: number) {
+    if (!km || km <= 0) return 'transparent';
+    if (km < 5)  return 'rgba(255,255,255,0.55)';
+    return '#fff';
+  }
+  /* แสดงตัวเลขอย่างกระชับ: < 10 → "9.5", ≥ 10 → "21" (ไม่มีทศนิยมประหยัดพื้นที่) */
+  function cellLabel(km: number) {
+    if (!km || km <= 0) return '';
+    return km < 10 ? km.toFixed(1) : Math.round(km).toString();
+  }
+
+  const CELL_H  = 32;   // ความสูง cell (px)
+  const CELL_GAP = 4;   // ช่องว่างระหว่าง cell (px)
+  const COL_W   = '28px repeat(7,1fr) 8px 52px'; // W-label | 7 วัน | spacer | รวม
+
   return (
     <div
       ref={cardRef}
       style={{
-        background: 'linear-gradient(135deg,#0a0a1a 0%,#12082a 60%,#0a1220 100%)',
-        borderRadius: 16, padding: 24, width: 620, maxWidth: '100%',
+        background: 'linear-gradient(160deg,#08071a 0%,#110720 55%,#07111e 100%)',
+        borderRadius: 20, padding: '24px 26px 20px',
+        width: 660, maxWidth: '100%',
         fontFamily: "'Sarabun', sans-serif",
-        boxShadow: '0 0 60px rgba(168,85,247,0.2)',
-        border: '1px solid rgba(168,85,247,0.2)',
+        boxShadow: '0 0 0 1px rgba(139,92,246,0.25), 0 24px 80px rgba(0,0,0,0.7), 0 0 40px rgba(139,92,246,0.12)',
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+      {/* ═══ HEADER ═══ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+        {/* Avatar */}
         <div style={{
-          width: 52, height: 52, borderRadius: '50%',
-          background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
+          width: 58, height: 58, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg,#7c3aed 0%,#db2777 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18, fontWeight: 700, color: '#fff', flexShrink: 0,
+          fontSize: 20, fontWeight: 800, color: '#fff',
+          boxShadow: '0 0 0 3px rgba(139,92,246,0.3), 0 0 20px rgba(139,92,246,0.3)',
         }}>{person.initials}</div>
-        <div>
-          <div style={{ fontFamily: 'Bebas Neue', fontSize: 24, letterSpacing: 2, color: '#fff', lineHeight: 1 }}>
+
+        {/* Name + badge */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: 'Bebas Neue', fontSize: 28, letterSpacing: 2,
+            color: '#fff', lineHeight: 1.05, whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
             {person.name}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
-            {isPreSeason
-              ? `📅 Pre-Season · ก่อนเริ่มแข่ง 1 มิ.ย. 2569`
-              : `🏆 Season 2026 · 92 วัน (1 มิ.ย.–31 ส.ค. 2569)`
-            }
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+              padding: '2px 8px', borderRadius: 999,
+              background: isPreSeason ? 'rgba(251,146,60,0.15)' : 'rgba(99,102,241,0.18)',
+              color: isPreSeason ? '#fb923c' : '#a5b4fc',
+              border: `1px solid ${isPreSeason ? 'rgba(251,146,60,0.3)' : 'rgba(99,102,241,0.35)'}`,
+            }}>
+              {isPreSeason ? 'PRE-SEASON' : 'SEASON 2026'}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>
+              {isPreSeason ? 'ก่อนเริ่มแข่ง 1 มิ.ย. 2569' : '1 มิ.ย. – 31 ส.ค. 2569 · 92 วัน'}
+            </span>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{ fontFamily: 'Bebas Neue', fontSize: 30, lineHeight: 1, color: '#a855f7' }}>
+
+        {/* Total km — hero number */}
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{
+            fontFamily: 'Bebas Neue', fontSize: 40, lineHeight: 1,
+            background: 'linear-gradient(135deg,#c084fc,#f472b6)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            letterSpacing: 1,
+          }}>
             {person.total.toFixed(1)}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10 }}>กม. รวม</div>
+          <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, letterSpacing: 1, marginTop: 1 }}>
+            กม. รวม
+          </div>
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>ความคืบหน้า</span>
-          <span style={{ color: '#a855f7', fontSize: 11, fontWeight: 700 }}>{pct}% จาก {goalKm} กม.</span>
+      {/* ═══ PROGRESS BAR ═══ */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 600, letterSpacing: 0.5 }}>
+            ความคืบหน้า
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#c084fc' }}>
+            {pct}% <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>จาก {goalKm} กม.</span>
+          </span>
         </div>
-        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 999, height: 7, overflow: 'hidden' }}>
+        {/* Track */}
+        <div style={{
+          background: 'rgba(255,255,255,0.07)', borderRadius: 999, height: 10,
+          overflow: 'hidden', position: 'relative',
+        }}>
           <div style={{
-            height: '100%', width: `${pct}%`,
-            background: 'linear-gradient(90deg,#7c3aed,#ec4899)',
-            borderRadius: 999, boxShadow: '0 0 10px rgba(168,85,247,0.5)',
+            position: 'absolute', inset: 0, width: `${pct}%`,
+            background: 'linear-gradient(90deg,#7c3aed,#a855f7,#ec4899)',
+            borderRadius: 999,
+            boxShadow: '0 0 12px rgba(168,85,247,0.6)',
           }} />
         </div>
+        {/* Milestone ticks */}
+        <div style={{ position: 'relative', height: 6, marginTop: 2 }}>
+          {[25, 50, 75].map(m => (
+            <div key={m} style={{
+              position: 'absolute', left: `${m}%`, top: 0,
+              width: 1, height: 4,
+              background: pct >= m ? 'rgba(168,85,247,0.5)' : 'rgba(255,255,255,0.12)',
+              transform: 'translateX(-50%)',
+            }} />
+          ))}
+        </div>
       </div>
 
-      {/* Daily heatmap */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>
-            กิโลเมตรรายวัน — แต่ละแถว = 1 สัปดาห์ · แต่ละช่อง = 1 วัน
+      {/* ═══ HEATMAP ═══ */}
+      <div style={{
+        background: 'rgba(0,0,0,0.2)', borderRadius: 14,
+        padding: '14px 14px 10px', marginBottom: 16,
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        {/* Section label */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10,
+        }}>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 700, letterSpacing: 1.5 }}>
+            กม. รายวัน
           </span>
-          <span style={{
-            fontSize: 9, fontWeight: 700, letterSpacing: 1, borderRadius: 999,
-            padding: '2px 8px',
-            background: isPreSeason ? 'rgba(251,146,60,0.2)' : 'rgba(99,102,241,0.2)',
-            color: isPreSeason ? '#fb923c' : '#818cf8',
-          }}>
-            {isPreSeason ? `PRE-SEASON W1–W${numWeeks}` : `SEASON W1–W${numWeeks}`}
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>
+            แถว = สัปดาห์ · ช่อง = วัน
           </span>
         </div>
-        {/* Column headers: day 1-7 + รวม (weekly total) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr) 34px', gap: 3, marginBottom: 3 }}>
+
+        {/* Column headers */}
+        <div style={{ display: 'grid', gridTemplateColumns: COL_W, gap: CELL_GAP, marginBottom: 4 }}>
           <div />
           {DAY_LABELS.map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>
-              วัน{d}
-            </div>
+            <div key={d} style={{
+              textAlign: 'center', fontSize: 10, fontWeight: 700,
+              color: 'rgba(255,255,255,0.38)', letterSpacing: 0.3,
+            }}>{d}</div>
           ))}
-          <div style={{ textAlign: 'center', fontSize: 9, color: 'rgba(168,85,247,0.6)', fontWeight: 700 }}>
+          <div />
+          <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#c084fc' }}>
             รวม
           </div>
         </div>
-        {/* Rows: one per week (totalWeeks rows รวม partial week สุดท้าย) */}
+
+        {/* Week rows */}
         {grid.map((weekDays, wi) => {
           const weekTotal = weekDays.reduce((s, c) => s + (c.km || 0), 0);
+          const hasActivity = weekTotal > 0;
           return (
-          <div key={wi} style={{ display: 'grid', gridTemplateColumns: '28px repeat(7,1fr) 34px', gap: 3, marginBottom: 3 }}>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4 }}>
-              W{wi + 1}
-            </div>
-            {weekDays.map((cell, di) => {
-              const lv = heatLevel(cell.km);
-              return (
+            <div key={wi} style={{
+              display: 'grid', gridTemplateColumns: COL_W,
+              gap: CELL_GAP, marginBottom: CELL_GAP,
+            }}>
+              {/* Week label */}
+              <div style={{
+                height: CELL_H, display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                paddingRight: 4,
+                fontSize: 10, fontWeight: 700,
+                color: hasActivity ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.2)',
+              }}>
+                W{wi + 1}
+              </div>
+
+              {/* Day cells */}
+              {weekDays.map((cell, di) => (
                 <div key={di}
                   title={cell.date ? `${cell.date}: ${cell.km.toFixed(1)} กม.` : 'ไม่มีข้อมูล'}
                   style={{
-                    height: 26, borderRadius: 4,
-                    background: HEAT[lv],
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    height: CELL_H, borderRadius: 5,
+                    background: cellBg(cell.km),
+                    border: cell.km > 0
+                      ? '1px solid rgba(255,255,255,0.12)'
+                      : '1px solid rgba(255,255,255,0.05)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 8, color: lv >= 3 ? '#fff' : '#555', fontWeight: 600,
+                    fontSize: 10, fontWeight: 700,
+                    color: cellTextColor(cell.km),
                   }}
                 >
-                  {cell.km > 0 ? cell.km.toFixed(1) : ''}
+                  {cellLabel(cell.km)}
                 </div>
-              );
-            })}
-            {/* ช่องสรุปผลรวมประจำสัปดาห์ */}
-            <div
-              title={`รวมสัปดาห์ที่ ${wi + 1}: ${weekTotal.toFixed(1)} กม.`}
-              style={{
-                height: 26, borderRadius: 4,
-                background: 'rgba(168,85,247,0.12)',
-                border: '1px solid rgba(168,85,247,0.25)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 8, color: '#d8b4fe', fontWeight: 700,
-              }}
-            >
-              {weekTotal > 0 ? weekTotal.toFixed(1) : ''}
+              ))}
+
+              {/* Visual spacer before total */}
+              <div style={{ height: CELL_H }} />
+
+              {/* Weekly total cell */}
+              <div
+                title={`รวมสัปดาห์ ${wi + 1}: ${weekTotal.toFixed(1)} กม.`}
+                style={{
+                  height: CELL_H, borderRadius: 5,
+                  background: weekTotal > 0
+                    ? 'linear-gradient(135deg,rgba(168,85,247,0.22),rgba(236,72,153,0.14))'
+                    : 'rgba(255,255,255,0.03)',
+                  border: weekTotal > 0
+                    ? '1px solid rgba(192,132,252,0.35)'
+                    : '1px solid rgba(255,255,255,0.04)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: weekTotal >= 100 ? 9 : 10, fontWeight: 800,
+                  color: weekTotal > 0 ? '#e9d5ff' : 'transparent',
+                }}
+              >
+                {weekTotal > 0 ? (weekTotal >= 100 ? Math.round(weekTotal) : weekTotal.toFixed(1)) : ''}
+              </div>
             </div>
-          </div>
           );
         })}
+
         {/* Legend */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 6, justifyContent: 'flex-end' }}>
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginRight: 2 }}>น้อย</span>
-          {HEAT.map((c, i) => (
-            <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: c, border: '1px solid rgba(255,255,255,0.1)' }} />
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          marginTop: 8, justifyContent: 'flex-end',
+        }}>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginRight: 3 }}>0</span>
+          {['rgba(255,255,255,0.04)','#2e1065','#4c1d95','#8b5cf6','#a855f7','#e879f9'].map((c, i) => (
+            <div key={i} style={{
+              width: 14, height: 14, borderRadius: 3,
+              background: c, border: '1px solid rgba(255,255,255,0.1)',
+            }} />
           ))}
-          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginLeft: 2 }}>40+ กม.</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginLeft: 3 }}>40+ กม./วัน</span>
         </div>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 6, marginBottom: 16 }}>
+      {/* ═══ STATS ROW ═══ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 18 }}>
         {[
-          { label: 'รวมทั้งหมด',     value: `${person.total.toFixed(1)} กม.`,  color: '#a855f7' },
-          { label: 'สัปดาห์ดีที่สุด', value: `${person.best_week.toFixed(1)} กม.`, color: '#ec4899' },
-          { label: 'เฉลี่ย/สัปดาห์',  value: `${person.active_weeks > 0 ? (person.total / person.active_weeks).toFixed(1) : '0'} กม.`, color: '#818cf8' },
-          { label: 'สัปดาห์ที่วิ่ง',   value: `${person.active_weeks}/${numWeeks}`,  color: '#34d399' },
+          {
+            label: 'รวมทั้งหมด',
+            value: person.total.toFixed(1),
+            unit: 'กม.',
+            color: '#c084fc',
+            glow: 'rgba(192,132,252,0.2)',
+          },
+          {
+            label: 'สัปดาห์ดีที่สุด',
+            value: person.best_week.toFixed(1),
+            unit: 'กม.',
+            color: '#f472b6',
+            glow: 'rgba(244,114,182,0.2)',
+          },
+          {
+            label: 'เฉลี่ย/สัปดาห์',
+            value: person.active_weeks > 0
+              ? (person.total / person.active_weeks).toFixed(1)
+              : '0',
+            unit: 'กม.',
+            color: '#818cf8',
+            glow: 'rgba(129,140,248,0.2)',
+          },
+          {
+            label: 'สัปดาห์ที่วิ่ง',
+            value: `${person.active_weeks}/${numWeeks}`,
+            unit: 'สัปดาห์',
+            color: '#34d399',
+            glow: 'rgba(52,211,153,0.2)',
+          },
         ].map(s => (
           <div key={s.label} style={{
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8, padding: '8px 6px', textAlign: 'center',
+            background: `${s.glow}`,
+            border: `1px solid ${s.color}30`,
+            borderRadius: 10, padding: '10px 8px',
+            textAlign: 'center',
           }}>
-            <div style={{ color: s.color, fontWeight: 700, fontSize: 14, lineHeight: 1, marginBottom: 3 }}>{s.value}</div>
-            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9 }}>{s.label}</div>
+            <div style={{
+              fontFamily: 'Bebas Neue',
+              fontSize: 22, lineHeight: 1,
+              color: s.color, marginBottom: 1,
+            }}>{s.value}</div>
+            <div style={{ color: s.color, opacity: 0.6, fontSize: 8, fontWeight: 700, letterSpacing: 0.5 }}>
+              {s.unit}
+            </div>
+            <div style={{
+              color: 'rgba(255,255,255,0.3)', fontSize: 9, marginTop: 3, lineHeight: 1.2,
+            }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Footer */}
+      {/* ═══ FOOTER ═══ */}
       <div style={{
-        borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 10,
+        borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 12,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <img src="/logo.png" alt="logo"
-            style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(168,85,247,0.4)' }}
+            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(168,85,247,0.5)' }}
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
-          <span style={{ fontFamily: 'Bebas Neue', fontSize: 12, color: '#a855f7', letterSpacing: 2 }}>
+          <span style={{
+            fontFamily: 'Bebas Neue', fontSize: 13, color: '#a855f7',
+            letterSpacing: 2.5,
+          }}>
             450K TEACHER'S SPIRIT
           </span>
         </div>
-        <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>ณ {today}</span>
+        <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>ณ {today}</span>
       </div>
     </div>
   );
