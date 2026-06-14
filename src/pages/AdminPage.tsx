@@ -901,7 +901,7 @@ function Participants() {
                   <span style={{ fontSize:11, padding:'2px 8px', borderRadius:999, fontWeight:600,
                     background: r.age_group==='senior' ? '#f59e0b22' : '#2a2a3e',
                     color: r.age_group==='senior' ? '#f59e0b' : '#555' }}>
-                    {r.age_group==='senior' ? '👑 60+' : 'ทั่วไป'}
+                    {r.age_group==='senior' ? '👑 55+' : 'ทั่วไป'}
                   </span>
                 </td>
                 <td style={{ padding:'10px 14px', color:'#555', fontSize:11 }}>{r.strava_key||'—'}</td>
@@ -958,7 +958,7 @@ function Participants() {
               <select value={editing.age_group || 'general'} onChange={e=>setEditing((prev:any)=>({...prev,age_group:e.target.value}))}
                 style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }}>
                 <option value="general">ทั่วไป</option>
-                <option value="senior">👑 กลุ่ม 60+</option>
+                <option value="senior">👑 กลุ่ม 55+</option>
               </select>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:16 }}>
@@ -989,7 +989,7 @@ function Participants() {
                   <select value={newForm.age_group} onChange={e=>setNewForm(p=>({...p,age_group:e.target.value}))}
                     style={{ display:'block', width:'100%', marginTop:4, background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }}>
                     <option value="general">ทั่วไป</option>
-                    <option value="senior">👑 กลุ่ม 60+</option>
+                    <option value="senior">👑 กลุ่ม 55+</option>
                   </select>
                 </div>
                 <div style={{ display:'flex', gap:8 }}>

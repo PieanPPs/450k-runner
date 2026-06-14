@@ -41,7 +41,7 @@ const rules = [
   { icon: '🏃', label: 'วิ่ง — pace', value: '3.5–30 นาที/km (ไม่บังคับระยะ/เวลา)' },
   { icon: '🚶', label: 'เดิน — pace', value: '8–17 นาที/km (ไม่บังคับระยะ/เวลา)' },
   { icon: '🚗', label: 'ไม่นับ', value: 'ขับรถ, ปั่นจักรยาน, เปิดทิ้งไว้' },
-  { icon: '👑', label: 'กลุ่ม 60+', value: 'admin กำหนดใน Leaderboard แยก' },
+  { icon: '👑', label: 'กลุ่ม 55+', value: 'admin กำหนดใน Leaderboard แยก' },
 ];
 
 export default function HealthTips() {
