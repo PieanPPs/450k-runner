@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { refreshAccessToken, getClubActivitiesByAthlete } from '../strava/client.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
+import { exceedsPaceCap } from '../lib/paceCap.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -129,6 +130,9 @@ router.post('/', async (_req, res) => {
       ).get(stravaKey, distKm, elapsed);
       if (crossDup) continue;
 
+      // pace เกิน 20 นาที/กม. (มักเกิดจากกดหยุด/เริ่ม activity ใหม่กลางทาง) → ไม่ sync เข้าระบบเลย
+      if (exceedsPaceCap(distKm, elapsed, moving)) continue;
+
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
       insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
       if (!before) newCount++;
@@ -247,14 +251,14 @@ router.post('/baseline', requireAdmin, async (_req, res) => {
 router.post('/close-preseason', requireAdmin, (_req, res) => {
   // 1. รวมสถิติจาก activities ที่ยังไม่ใช่ baseline (season ปัจจุบัน)
   const totals = db.prepare(`
-    SELECT COALESCE(SUM(distance_km),0) as totalKm,
+    SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as totalKm,
            COUNT(DISTINCT strava_key)   as participantCount
     FROM strava_activities WHERE is_baseline=0
   `).get();
 
   // 2. หาผู้นำ
   const topRunner = db.prepare(`
-    SELECT p.name, COALESCE(SUM(a.distance_km),0) as km
+    SELECT p.name, COALESCE(SUM(COALESCE(a.credited_km, a.distance_km)),0) as km
     FROM strava_activities a
     JOIN participants p ON p.strava_key = a.strava_key
     WHERE a.is_baseline=0
@@ -391,7 +395,7 @@ export default router;
 function rebuildWeeklyData(seasonStart) {
   const start = new Date(seasonStart + 'T00:00:00');
   const activities = db.prepare(
-    'SELECT strava_key, distance_km, first_seen FROM strava_activities WHERE is_baseline=0'
+    'SELECT strava_key, distance_km, credited_km, first_seen FROM strava_activities WHERE is_baseline=0'
   ).all();
   const weeks = {};
   for (const a of activities) {
@@ -400,8 +404,9 @@ function rebuildWeeklyData(seasonStart) {
     if (diffDays < 0) continue;
     const weekNum = Math.floor(diffDays / 7) + 1;
     if (!weeks[weekNum]) weeks[weekNum] = { km: 0, steps: 0 };
-    weeks[weekNum].km += a.distance_km;
-    weeks[weekNum].steps += Math.round(a.distance_km * 1350);
+    const effKm = a.credited_km != null ? a.credited_km : a.distance_km;
+    weeks[weekNum].km += effKm;
+    weeks[weekNum].steps += Math.round(effKm * 1350);
   }
   db.prepare('DELETE FROM weekly_data').run();
   const ins = db.prepare('INSERT INTO weekly_data (week,km,steps) VALUES (?,?,?)');

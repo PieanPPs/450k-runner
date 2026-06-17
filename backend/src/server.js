@@ -9,6 +9,7 @@ import syncRoutes       from './routes/sync.js';
 import adminRoutes      from './routes/admin.js';
 import calendarRoutes   from './routes/calendar.js';
 import { db } from './db/connection.js';
+import { exceedsPaceCap } from './lib/paceCap.js';
 
 // node-cron (optional — skip gracefully if not installed)
 let cron;
@@ -63,6 +64,9 @@ try {
   db.prepare('ALTER TABLE strava_activities ADD COLUMN credited_km REAL').run();
   console.log('[migration] added credited_km column to strava_activities');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
+// หมายเหตุ: ไม่ backfill ข้อมูลเก่าที่ pace เกิน cap — ตามคำสั่งล่าสุด ใช้กฎ pace cap
+// กับกิจกรรมที่ sync เข้ามาใหม่นับจากนี้เท่านั้น ข้อมูลเก่าที่เคย sync ไปแล้วคงไว้ตามเดิม
 
 // Migration: moving_time — เวลาเคลื่อนที่จริง (ตัดเวลาหยุดออก) ใช้คำนวณ pace
 // DEFAULT 0 → ถ้า 0 ให้ fallback ใช้ elapsed_time แทน (ข้อมูลเก่า)
@@ -212,10 +216,13 @@ async function runAutoSync(label = 'cron') {
       ).get(stravaKey, distKm, elapsed);
       if (crossDup) continue;
 
+      // pace เกิน 20 นาที/กม. → ไม่ sync เข้าระบบเลย
+      if (exceedsPaceCap(distKm, elapsed, moving)) continue;
+
       insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
     }
     // คำนวณ km, weekly_km
-    const seasonRow = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
+    const seasonRow = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
     const totalKm  = Math.round(seasonRow.km * 100) / 100;
     const steps    = Math.round(totalKm * 1350);
     // weekly km — จันทร์ถึงอาทิตย์ปัจจุบัน (calendar week ตรงกับ Strava)
@@ -226,7 +233,7 @@ async function runAutoSync(label = 'cron') {
     wStart2.setDate(nowBkk2.getDate() - dFromMon2);
     wStart2.setHours(0, 0, 0, 0);
     const weekStr  = wStart2.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ').slice(0,19);
-    const weekRow  = db.prepare('SELECT COALESCE(SUM(distance_km),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
+    const weekRow  = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
     const weeklyKm = Math.round(weekRow.km * 100) / 100;
     // คำนวณ streak จาก first_seen (Strava Club API ไม่มีวันจริง)
     const seenDates = db.prepare('SELECT DISTINCT substr(first_seen,1,10) as day FROM strava_activities WHERE strava_key=? AND is_baseline=0').all(stravaKey).map(r => r.day);

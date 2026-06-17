@@ -114,6 +114,7 @@ function Dashboard() {
   const [logs, setLogs] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [baselining, setBaselining] = useState(false);
+  const [snapshotting, setSnapshotting] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [baselineStatus, setBaselineStatus] = useState<{ hasBaseline:boolean; baselineCount:number; seasonCount:number } | null>(null);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -197,6 +198,15 @@ function Dashboard() {
     reload();
   };
 
+  const doSnapshot = async () => {
+    if (!confirm('📸 บันทึกผลสัปดาห์นี้ทันที?\n\nระบบจะบันทึก km ปัจจุบันของทุกคนเป็นผลประจำสัปดาห์\n(ถ้าสัปดาห์นี้มีอยู่แล้วจะ overwrite)')) return;
+    setSnapshotting(true); setSyncMsg('');
+    const j = await api('/snapshot', { method:'POST' });
+    setSnapshotting(false);
+    setSyncMsg(j.ok ? `✅ ${j.message}` : `❌ ${j.message}`);
+    reload();
+  };
+
   const card = (label: string, value: string|number, unit: string, color='#a78bfa') => (
     <div key={label} style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:'16px 20px' }}>
       <div style={{ color:'#666', fontSize:11, marginBottom:4 }}>{label}</div>
@@ -272,6 +282,11 @@ function Dashboard() {
             {baselining ? 'กำลังตั้ง Baseline...' : '📍 ตั้ง Baseline (ก่อนเริ่มแข่ง)'}
           </button>
         )}
+
+        <button onClick={doSnapshot} disabled={syncing || baselining || snapshotting}
+          style={{ background:'linear-gradient(135deg,#1e3a5f,#2563eb)', border:'none', borderRadius:10, padding:'10px 20px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+          {snapshotting ? 'กำลังบันทึก...' : '📸 บันทึกผลสัปดาห์นี้'}
+        </button>
 
         <button onClick={() => setShowTestPanel(p => !p)}
           style={{ background:'#1e2a3a', border:'1px solid #334155', borderRadius:10, padding:'10px 18px', color:'#94a3b8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Sarabun' }}>
@@ -684,7 +699,7 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
   };
 
   const seasonActs = acts.filter(a => !a.is_baseline);
-  const suspiciousCount = seasonActs.filter(a => (a.pace < 5.5 && a.distance_km > 5) || a.distance_km > 20).length;
+  const suspiciousCount = seasonActs.filter(a => (a.pace < 5.5 && a.distance_km > 5) || a.distance_km > 20 || a.credited_km === 0).length;
 
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
@@ -763,7 +778,9 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
                 {acts.map((a, i) => {
                   const likelyCycling = a.pace < 5.5 && a.distance_km > 5;
                   const longDist = a.distance_km > 20;
-                  const suspicious = likelyCycling || longDist;
+                  // pace เกิน 20 นาที/กม. → ระบบไม่นับ km อัตโนมัติแล้ว (credited_km ถูกตั้งเป็น 0)
+                  const autoExcluded = !a.is_baseline && a.credited_km === 0;
+                  const suspicious = likelyCycling || longDist || autoExcluded;
                   return (
                     <tr key={a.id} style={{ borderBottom:'1px solid #1a1a2e',
                       background: suspicious ? '#2a1500' : a.is_baseline ? '#141208' : i%2===0 ? 'transparent' : '#141420' }}>
@@ -787,7 +804,7 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
                           </span>
                         ) : (
                           <span style={{ display:'flex', gap:4, alignItems:'center', fontWeight:700,
-                            color: longDist ? '#f87171' : a.is_baseline ? '#888' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
+                            color: longDist ? '#f87171' : a.is_baseline ? '#888' : autoExcluded ? '#f87171' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
                             {a.credited_km != null
                               ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#555', fontSize:10, textDecoration:'line-through', fontWeight:400 }}>{a.distance_km.toFixed(2)}</span></>
                               : a.distance_km.toFixed(2)
@@ -802,14 +819,16 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
                         )}
                       </td>
                       <td style={{ padding:'7px 12px',
-                        color: likelyCycling ? '#fb923c' : a.pace > 18 ? '#555' : '#a3e635' }}>
+                        color: autoExcluded ? '#f87171' : likelyCycling ? '#fb923c' : a.pace > 18 ? '#555' : '#a3e635' }}>
                         {fmtPace(a.distance_km, a.elapsed_time)} /km
                         {likelyCycling && <span title="เร็วเกินวิ่ง — อาจปั่น"> 🚲</span>}
+                        {autoExcluded && <span title="เกิน 20 นาที/กม. — ระบบไม่นับ km อัตโนมัติ (มักเกิดจากกดหยุด/เริ่ม activity ใหม่กลางทาง) — ปรับด้วยปุ่ม ✏️ ได้ถ้าอยากนับ"> 🚫</span>}
                       </td>
                       <td style={{ padding:'7px 12px' }}>
                         {a.is_baseline
                           ? <span style={{ color:'#f59e0b', fontSize:10 }}>Baseline</span>
                           : <span style={{ color:'#34d399', fontSize:10 }}>Season</span>}
+                        {autoExcluded && <div style={{ color:'#f87171', fontSize:9, marginTop:2 }}>🚫 ไม่นับ (pace&gt;20)</div>}
                       </td>
                       <td style={{ padding:'7px 12px' }}>
                         <button onClick={() => deleteAct(a.id, a.distance_km)}
@@ -1671,9 +1690,12 @@ function DailyReport() {
                     const likelyCycling = paceNum < 5.5 && a.distance_km > 5;
                     // ระยะไกลผิดปกติ
                     const longDist = a.distance_km > 20;
-                    const isSuspicious = likelyCycling || longDist;
+                    // pace เกิน 20 นาที/กม. (มักเกิดจากกดหยุด/เริ่ม activity ใหม่กลางทาง ทำให้ elapsed_time
+                    // รวมช่วงที่หยุดพักด้วย) → backend ตั้ง credited_km=0 ให้แล้ว ไม่นับ km อัตโนมัติ
+                    const autoExcluded = !a.is_baseline && a.credited_km === 0;
+                    const isSuspicious = likelyCycling || longDist || autoExcluded;
                     // label แสดงเหตุผล
-                    const suspLabel = likelyCycling ? '🚲 อาจปั่น' : longDist ? '📏 ไกลผิดปกติ' : '';
+                    const suspLabel = likelyCycling ? '🚲 อาจปั่น' : longDist ? '📏 ไกลผิดปกติ' : autoExcluded ? '🚫 ไม่นับ (pace>20)' : '';
                     return (
                     <tr key={i} style={{ borderBottom:'1px solid #1e1e2e',
                       background: isSuspicious ? '#2a1500' : a.is_baseline ? '#161208' : i%2===0 ? 'transparent' : '#141428' }}>
@@ -1702,7 +1724,7 @@ function DailyReport() {
                         ) : (
                           <span style={{ display:'flex', gap:4, alignItems:'center' }}>
                             <span style={{ fontWeight:700,
-                              color: longDist ? '#f87171' : a.is_baseline ? '#888' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
+                              color: longDist ? '#f87171' : a.is_baseline ? '#888' : autoExcluded ? '#f87171' : (a.credited_km != null ? '#facc15' : '#a78bfa') }}>
                               {a.credited_km != null
                                 ? <>{a.credited_km.toFixed(2)} <span style={{ color:'#666', fontSize:10, textDecoration:'line-through' }}>{a.distance_km.toFixed(2)}</span></>
                                 : <>{a.distance_km.toFixed(2)}</>
@@ -1717,11 +1739,15 @@ function DailyReport() {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding:'9px 12px', color:'#888' }}>{fmtTime(a.elapsed_time)}</td>
+                      <td style={{ padding:'9px 12px', color: autoExcluded ? '#f87171' : '#888' }}>
+                        {fmtTime(a.elapsed_time)}
+                        {autoExcluded && <span title="ระยะเวลานี้รวมช่วงที่หยุดพัก/วางมือถือ — น่าจะไม่ใช่เวลาวิ่งจริง" style={{ marginLeft:4 }}>⏸️</span>}
+                      </td>
                       <td style={{ padding:'9px 12px',
-                        color: likelyCycling ? '#fb923c' : paceNum > 18 ? '#666' : '#a3e635' }}>
+                        color: autoExcluded ? '#f87171' : likelyCycling ? '#fb923c' : paceNum > 18 ? '#666' : '#a3e635' }}>
                         {fmtPace(a.distance_km, a.elapsed_time)}
                         {likelyCycling && <span title="เร็วเกินวิ่ง — อาจปั่น (< 5.5 min/km, > 5 km)" style={{ marginLeft:4 }}>⚠️</span>}
+                        {autoExcluded && <span title="เกิน 20 นาที/กม. — ระบบไม่นับ km อัตโนมัติ มักเกิดจากกดหยุด/เริ่ม activity ใหม่กลางทาง — แก้ด้วยปุ่ม ✏️ ได้ถ้าอยากนับ" style={{ marginLeft:4 }}>🚫</span>}
                       </td>
                       <td style={{ padding:'9px 12px' }}>
                         <div style={{ display:'flex', flexDirection:'column', gap:3 }}>

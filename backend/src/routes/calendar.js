@@ -95,7 +95,7 @@ router.get('/weekly-stats', (req, res) => {
         m.name,
         m.initials,
         CAST((julianday(date(sa.first_seen)) - julianday(?)) / 7 AS INTEGER) + 1 AS week_no,
-        ROUND(SUM(sa.distance_km), 2) AS km
+        ROUND(SUM(COALESCE(sa.credited_km, sa.distance_km)), 2) AS km
       FROM strava_activities sa
       JOIN participants m ON m.strava_key = sa.strava_key
       WHERE sa.is_baseline = 0
@@ -154,7 +154,7 @@ router.get('/daily-stats', (req, res) => {
         CAST(julianday(date(first_seen)) - julianday(?)          AS INTEGER)    AS day_offset,
         CAST((julianday(date(first_seen)) - julianday(?)) / 7 AS INTEGER) + 1  AS week_no,
         CAST((julianday(date(first_seen)) - julianday(?)) AS INTEGER) % 7       AS day_in_week,
-        ROUND(SUM(distance_km), 2)                                               AS km
+        ROUND(SUM(COALESCE(credited_km, distance_km)), 2)                        AS km
       FROM strava_activities
       WHERE strava_key = ? AND is_baseline = 0
       GROUP BY run_date
