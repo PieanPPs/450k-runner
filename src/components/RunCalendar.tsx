@@ -136,8 +136,11 @@ interface DailyData { refDate: string; isPreSeason: boolean; totalWeeks: number;
 
 /** กล่อง km เล็กๆ ใน overview */
 function HeatCell({ km, onClick }: { km: number; onClick?: () => void }) {
-  const lv  = heatLevel(km);
-  const tip = km > 0 ? `${km.toFixed(1)} กม.` : 'ไม่มีข้อมูล';
+  const lv    = heatLevel(km);
+  const label = km > 0 ? km.toFixed(1) : '';
+  const tip   = km > 0 ? `${label} กม.` : 'ไม่มีข้อมูล';
+  // เลข 4+ ตัวอักษร (≥10.0) ใช้ font เล็กลงเพื่อไม่ล้นช่อง 28px
+  const fs    = label.length >= 4 ? 7 : 8;
   return (
     <div
       title={tip}
@@ -148,14 +151,14 @@ function HeatCell({ km, onClick }: { km: number; onClick?: () => void }) {
         border: '1px solid rgba(255,255,255,0.06)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: onClick ? 'pointer' : 'default',
-        fontSize: 8, color: lv >= 3 ? '#fff' : '#666',
+        fontSize: fs, color: lv >= 3 ? '#fff' : '#666',
         fontWeight: 600, transition: 'transform .1s',
         userSelect: 'none',
       }}
       onMouseEnter={e => { if (onClick)(e.currentTarget.style.transform = 'scale(1.25)'); }}
       onMouseLeave={e => { if (onClick)(e.currentTarget.style.transform = 'scale(1)'); }}
     >
-      {km > 0 ? km.toFixed(0) : ''}
+      {label}
     </div>
   );
 }
