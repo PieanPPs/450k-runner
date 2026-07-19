@@ -13,13 +13,14 @@ const GALLERY_DIR = path.resolve(__dirname, '../../data/gallery');
 const router = Router();
 
 // helper — คำนวณ weekly_km สำหรับ strava_key ที่ระบุ (จันทร์ 00:00 BKK จนถึงตอนนี้)
+// ใช้ toLocaleDateString แทน setHours เพราะ setHours บน UTC server = midnight UTC = 07:00 BKK (ผิด)
 function calcWeeklyKm(stravaKey) {
-  const nowBkk      = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
-  const daysFromMon = nowBkk.getDay() === 0 ? 6 : nowBkk.getDay() - 1;
-  const weekStart   = new Date(nowBkk);
-  weekStart.setDate(nowBkk.getDate() - daysFromMon);
-  weekStart.setHours(0, 0, 0, 0);
-  const weekStr = weekStart.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ').slice(0, 19);
+  const todayBkk    = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' }); // 'YYYY-MM-DD'
+  const pivot       = new Date(todayBkk + 'T12:00:00Z');
+  const dow         = pivot.getUTCDay();
+  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  pivot.setUTCDate(pivot.getUTCDate() - daysFromMon);
+  const weekStr     = pivot.toISOString().slice(0, 10) + ' 00:00:00';
   const row = db.prepare(
     'SELECT COALESCE(SUM(COALESCE(credited_km,distance_km)),0) AS km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
   ).get(stravaKey, weekStr);

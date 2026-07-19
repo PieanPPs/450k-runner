@@ -149,14 +149,15 @@ router.post('/', async (_req, res) => {
     const actCount = seasonRow.cnt;
     const steps    = Math.round(totalKm * 1350);
 
-    // weekly km — จันทร์ถึงอาทิตย์ปัจจุบัน (calendar week ตรงกับ Strava)
-    const nowBkk   = new Date(new Date().toLocaleString('en-US', { timeZone:'Asia/Bangkok' }));
-    const dayOfWeek = nowBkk.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const daysFromMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // วันจันทร์ = 0
-    const weekStart = new Date(nowBkk);
-    weekStart.setDate(nowBkk.getDate() - daysFromMon);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekStr = weekStart.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ').slice(0,19);
+    // weekly km — จันทร์ 00:00 BKK ถึงอาทิตย์ปัจจุบัน
+    // ใช้ toLocaleDateString เพื่อหา Bangkok date ตรงๆ แล้วสร้าง weekStr เป็น midnight BKK
+    // (setHours บน UTC server จะได้ midnight UTC = 07:00 BKK ซึ่งผิด)
+    const todayBkk    = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' }); // 'YYYY-MM-DD'
+    const pivot       = new Date(todayBkk + 'T12:00:00Z');   // noon UTC — safe pivot ไม่ข้ามวัน
+    const dow         = pivot.getUTCDay();
+    const daysFromMon = dow === 0 ? 6 : dow - 1;
+    pivot.setUTCDate(pivot.getUTCDate() - daysFromMon);
+    const weekStr     = pivot.toISOString().slice(0, 10) + ' 00:00:00'; // 'YYYY-MM-DD 00:00:00' BKK midnight
     const weekRow = db.prepare(
       `SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?`
     ).get(stravaKey, weekStr);
