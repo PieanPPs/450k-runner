@@ -12,6 +12,20 @@ const GALLERY_DIR = path.resolve(__dirname, '../../data/gallery');
 
 const router = Router();
 
+// helper — คำนวณ weekly_km สำหรับ strava_key ที่ระบุ (จันทร์ 00:00 BKK จนถึงตอนนี้)
+function calcWeeklyKm(stravaKey) {
+  const nowBkk      = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+  const daysFromMon = nowBkk.getDay() === 0 ? 6 : nowBkk.getDay() - 1;
+  const weekStart   = new Date(nowBkk);
+  weekStart.setDate(nowBkk.getDate() - daysFromMon);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekStr = weekStart.toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ').slice(0, 19);
+  const row = db.prepare(
+    'SELECT COALESCE(SUM(COALESCE(credited_km,distance_km)),0) AS km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen>=?'
+  ).get(stravaKey, weekStr);
+  return Math.round(row.km * 100) / 100;
+}
+
 // POST /api/adminpp/login
 router.post('/login', (req, res) => {
   const { username, password } = req.body;
@@ -355,9 +369,10 @@ router.patch('/activities/:id', requireAdmin, (req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(act.strava_key);
-    const totalKm = Math.round(row.km * 100) / 100;
-    db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
-      .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
+    const totalKm  = Math.round(row.km * 100) / 100;
+    const weeklyKm = calcWeeklyKm(act.strava_key);
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
+      .run(totalKm, Math.round(totalKm * 1350), weeklyKm, row.cnt, participant.id);
   }
   res.json({ ok: true, credited_km: newKm });
 });
@@ -400,9 +415,10 @@ router.post('/activities/manual', requireAdmin, (req, res) => {
   const row = db.prepare(
     'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
   ).get(p.strava_key);
-  const totalKm = Math.round(row.km * 100) / 100;
-  db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
-    .run(totalKm, Math.round(totalKm * 1350), row.cnt, Number(participant_id));
+  const totalKm  = Math.round(row.km * 100) / 100;
+  const weeklyKm = calcWeeklyKm(p.strava_key);
+  db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
+    .run(totalKm, Math.round(totalKm * 1350), weeklyKm, row.cnt, Number(participant_id));
 
   res.json({ ok: true, message: `เพิ่ม ${distKm} km ให้ ${p.strava_key} แล้ว`, km: totalKm });
 });
@@ -429,9 +445,10 @@ router.delete('/activities/:id', requireAdmin, (req, res) => {
     const row = db.prepare(
       'SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0'
     ).get(act.strava_key);
-    const totalKm = Math.round(row.km * 100) / 100;
-    db.prepare('UPDATE participants SET km=?,steps=?,activity_count=? WHERE id=?')
-      .run(totalKm, Math.round(totalKm * 1350), row.cnt, participant.id);
+    const totalKm  = Math.round(row.km * 100) / 100;
+    const weeklyKm = calcWeeklyKm(act.strava_key);
+    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,activity_count=? WHERE id=?')
+      .run(totalKm, Math.round(totalKm * 1350), weeklyKm, row.cnt, participant.id);
   }
   res.json({ ok: true, message: 'ย้ายไปถังขยะแล้ว — กู้คืนได้ที่เมนู 🗑️ ถังขยะ' });
 });
