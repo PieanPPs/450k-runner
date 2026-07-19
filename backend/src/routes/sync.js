@@ -118,16 +118,21 @@ router.post('/', async (_req, res) => {
       if (inTrash) continue;
 
       // ── in-batch dedup: phone vs smartwatch บันทึก run เดียวกัน → ปรากฏใน batch เดียวกัน
-      // threshold 15s: phone/watch ต่างกัน ~1-5s ✓ | วิ่งคนละรอบวันเดียวกัน >15s ผ่าน ✓
-      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 15);
+      // เช็ควันที่ด้วย เพื่อไม่ให้วิ่งระยะเดิม เวลาใกล้กัน คนละวัน ถูก skip ผิดๆ
+      const actDay = actDate.slice(0, 10);
+      const inBatch = batchSeen.some(s =>
+        Math.abs(s.distKm - distKm) < 0.1 &&
+        Math.abs(s.elapsed - elapsed) <= 15 &&
+        s.actDay === actDay
+      );
       if (inBatch) continue;
-      batchSeen.push({ distKm, elapsed });
+      batchSeen.push({ distKm, elapsed, actDay });
 
       // ── cross-batch dedup: ป้องกัน activity ถูก rename บน Strava แล้ว re-insert (hash ต่าง ชื่อต่าง)
-      // threshold 10s → rename = 0s ✓ | phone/watch คนละ sync ~5s ✓ | วิ่งคนละวัน >60s ผ่าน ✓
+      // เพิ่มเงื่อนไขวันที่ → วิ่งเส้นทางเดิมคนละวัน elapsed ต่างกันน้อยกว่า 10s จะไม่ถูก skip อีกต่อไป
       const crossDup = db.prepare(
-        'SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=10'
-      ).get(stravaKey, distKm, elapsed);
+        'SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=10 AND date(first_seen)=?'
+      ).get(stravaKey, distKm, elapsed, actDay);
       if (crossDup) continue;
 
       // pace เกิน 20 นาที/กม. (มักเกิดจากกดหยุด/เริ่ม activity ใหม่กลางทาง) → ไม่ sync เข้าระบบเลย
