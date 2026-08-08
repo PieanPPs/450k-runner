@@ -580,6 +580,72 @@ router.post('/reset', requireAdmin, (_req, res) => {
   res.json({ ok: true, message: 'รีเซ็ตข้อมูลการวิ่งแล้ว (ผู้เข้าร่วมยังอยู่)' });
 });
 
+// ── Close Season (archive + freeze + reset) ───────────────
+// POST /api/adminpp/close-season
+// 1) บันทึกสถิติสุดท้ายลง seasons table (status='done')
+// 2) Mark activities ทั้งหมด is_baseline=1 (freeze ข้อมูล season นี้)
+// 3) Reset participants ทุกคน km=0 พร้อมเริ่ม season ใหม่
+router.post('/close-season', requireAdmin, (req, res) => {
+  // Compute final stats
+  const totalKm      = Math.round(db.prepare('SELECT COALESCE(SUM(km),0) as v FROM participants').get().v * 100) / 100;
+  const pCount       = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
+  const top          = db.prepare('SELECT name, km FROM participants ORDER BY km DESC LIMIT 1').get();
+  const settingRow   = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get();
+  const SEASON_START = settingRow?.value || '2026-06-01';
+  const now          = new Date().toISOString().slice(0, 10);
+  const dateRange    = `${SEASON_START} – ${now}`;
+
+  // Find or create the season record
+  const activeSeason = db.prepare(
+    "SELECT id FROM seasons WHERE status='active' OR status='pre-season' ORDER BY id DESC LIMIT 1"
+  ).get();
+
+  if (activeSeason) {
+    db.prepare(
+      'UPDATE seasons SET total_km=?,participants=?,top_km=?,winner=?,date_range=?,status=? WHERE id=?'
+    ).run(totalKm, pCount, top?.km || 0, top?.name || '—', dateRange, 'done', activeSeason.id);
+  } else {
+    const seasonName = req.body?.season_name || 'Season 1';
+    db.prepare(
+      'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(seasonName, `กิจกรรมวิ่ง ${SEASON_START}`, dateRange, 'done', top?.km || 0, totalKm, pCount, top?.name || '—');
+  }
+
+  // Freeze all in-season activities
+  const frozen = db.prepare('UPDATE strava_activities SET is_baseline=1 WHERE is_baseline=0').run();
+
+  // Reset participants
+  db.prepare('UPDATE participants SET km=0,steps=0,weekly_km=0,streak=0,activity_count=0').run();
+
+  res.json({
+    ok: true,
+    frozen: frozen.changes,
+    total_km: totalKm,
+    winner: top?.name || '—',
+    message: `ปิด Season สำเร็จ! Freeze ${frozen.changes} กิจกรรม, Reset ${pCount} คน`,
+  });
+});
+
+// POST /api/adminpp/start-season — อัพเดท season_start ใน project_settings + สร้าง seasons record ใหม่
+router.post('/start-season', requireAdmin, (req, res) => {
+  const { season_start, season_name, subtitle } = req.body;
+  if (!season_start) return res.status(400).json({ ok: false, message: 'season_start required' });
+
+  // Update season_start setting
+  db.prepare(
+    "INSERT INTO project_settings (key,value) VALUES ('season_start',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+  ).run(season_start);
+
+  // Create new active season record
+  const name = season_name || 'Season 2';
+  const sub  = subtitle || `กิจกรรมวิ่ง ${season_start}`;
+  db.prepare(
+    'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
+  ).run(name, sub, `${season_start} – …`, 'active', 0, 0, 0, '—');
+
+  res.json({ ok: true, message: `เริ่ม ${name} วันที่ ${season_start} แล้ว` });
+});
+
 // ── Season auto-compute ───────────────────────────────────
 router.get('/seasons/compute', requireAdmin, (_req, res) => {
   const totalKm      = db.prepare('SELECT COALESCE(SUM(km),0) as v FROM participants').get().v;

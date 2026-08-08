@@ -1400,6 +1400,14 @@ function SeasonsPage() {
   const [form, setForm] = useState<any>({});
   const [editId, setEditId] = useState<number|null>(null);
   const [computing, setComputing] = useState(false);
+  // season-close modal state
+  const [closeModal, setCloseModal] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [closeResult, setCloseResult] = useState<any>(null);
+  // start-season modal state
+  const [startModal, setStartModal] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [newSeasonForm, setNewSeasonForm] = useState({ season_start:'', season_name:'Season 2', subtitle:'' });
   const load = useCallback(() => api('/seasons').then(setRows), []);
   useEffect(() => { load(); }, [load]);
 
@@ -1420,6 +1428,23 @@ function SeasonsPage() {
     cancel(); load();
   };
 
+  const closeSeason = async () => {
+    setClosing(true);
+    const res = await api('/close-season', { method:'POST', body:'{}' });
+    setCloseResult(res);
+    setClosing(false);
+    load();
+  };
+
+  const startSeason = async () => {
+    if (!newSeasonForm.season_start) return alert('กรุณาระบุวันเริ่ม Season ใหม่');
+    setStarting(true);
+    await api('/start-season', { method:'POST', body:JSON.stringify(newSeasonForm) });
+    setStarting(false);
+    setStartModal(false);
+    load();
+  };
+
   const del = async (id: number) => {
     if (!confirm('ลบ Season นี้?')) return;
     await api(`/seasons/${id}`, { method:'DELETE' }); load();
@@ -1427,10 +1452,99 @@ function SeasonsPage() {
 
   return (
     <div>
+      {/* ── Season Control Banner ── */}
+      <div style={{ background:'linear-gradient(135deg,#1a0a2e,#0d1a2e)', border:'1px solid #3a1a5e', borderRadius:14, padding:'20px 24px', marginBottom:24 }}>
+        <div style={{ color:'#c4b5fd', fontSize:13, fontWeight:700, marginBottom:4 }}>⚙️ Season Control</div>
+        <div style={{ color:'#666', fontSize:12, marginBottom:16 }}>ปิด Season ปัจจุบันเพื่อ archive ข้อมูล หรือเริ่ม Season ใหม่</div>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <button onClick={()=>setCloseModal(true)}
+            style={{ background:'linear-gradient(135deg,#7f1d1d,#dc2626)', border:'none', borderRadius:8, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+            🔒 ปิด Season & Archive
+          </button>
+          <button onClick={()=>{ const next=rows.length+1; setNewSeasonForm(f=>({...f,season_name:`Season ${next}`})); setStartModal(true); }}
+            style={{ background:'linear-gradient(135deg,#064e3b,#059669)', border:'none', borderRadius:8, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+            🚀 เริ่ม Season ใหม่
+          </button>
+        </div>
+      </div>
+
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
         <h2 style={{ color:'#e2e8f0' }}>Seasons</h2>
         <button onClick={startNew} style={{ background:'linear-gradient(135deg,#7c3aed,#a78bfa)', border:'none', borderRadius:8, padding:'7px 16px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>+ เพิ่ม Season</button>
       </div>
+
+      {/* ── ปิด Season Modal ── */}
+      {closeModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:'#1a0a0a', border:'2px solid #7f1d1d', borderRadius:16, padding:32, width:440, maxWidth:'90vw' }}>
+            {!closeResult ? (<>
+              <div style={{ fontSize:22, marginBottom:8 }}>🔒 ปิด Season & Archive</div>
+              <div style={{ color:'#f87171', fontWeight:700, fontSize:14, marginBottom:16 }}>⚠️ การกระทำนี้ไม่สามารถย้อนกลับได้</div>
+              <div style={{ color:'#aaa', fontSize:13, lineHeight:1.7, marginBottom:24 }}>
+                ระบบจะ:<br/>
+                1️⃣ บันทึกสถิติสุดท้ายลงหน้า Seasons<br/>
+                2️⃣ Freeze กิจกรรมทั้งหมด (ป้องกัน Season ใหม่นับซ้ำ)<br/>
+                3️⃣ Reset km, สถิติของผู้เข้าร่วมทุกคนเป็น 0
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={closeSeason} disabled={closing}
+                  style={{ flex:1, background:'#dc2626', border:'none', borderRadius:8, padding:'10px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity: closing ? 0.6 : 1 }}>
+                  {closing ? 'กำลังปิด Season...' : 'ยืนยัน ปิด Season'}
+                </button>
+                <button onClick={()=>setCloseModal(false)} disabled={closing}
+                  style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'10px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>
+                  ยกเลิก
+                </button>
+              </div>
+            </>) : (<>
+              <div style={{ fontSize:22, marginBottom:12 }}>✅ ปิด Season สำเร็จ!</div>
+              <div style={{ color:'#4ade80', fontSize:13, marginBottom:8 }}>🏆 ผู้ชนะ: <strong>{closeResult.winner}</strong></div>
+              <div style={{ color:'#a78bfa', fontSize:13, marginBottom:8 }}>📍 ระยะรวม: <strong>{closeResult.total_km} km</strong></div>
+              <div style={{ color:'#888', fontSize:12, marginBottom:20 }}>Freeze {closeResult.frozen} กิจกรรม | Reset ผู้เข้าร่วมทุกคนแล้ว</div>
+              <div style={{ color:'#fbbf24', fontSize:12, marginBottom:20 }}>
+                👉 กด "เริ่ม Season ใหม่" เพื่อตั้งวันเริ่ม Season 2 (1 เม.ย. 2027)
+              </div>
+              <button onClick={()=>{ setCloseModal(false); setCloseResult(null); }}
+                style={{ width:'100%', background:'#2a2a3e', border:'none', borderRadius:8, padding:'10px', color:'#e2e8f0', cursor:'pointer', fontFamily:'Sarabun' }}>
+                ปิด
+              </button>
+            </>)}
+          </div>
+        </div>
+      )}
+
+      {/* ── เริ่ม Season ใหม่ Modal ── */}
+      {startModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:'#0a1a10', border:'2px solid #064e3b', borderRadius:16, padding:32, width:400, maxWidth:'90vw' }}>
+            <div style={{ fontSize:20, marginBottom:16 }}>🚀 เริ่ม Season ใหม่</div>
+            {[
+              { key:'season_name', label:'ชื่อ Season', placeholder:'Season 2' },
+              { key:'season_start', label:'วันเริ่มต้น (YYYY-MM-DD)', placeholder:'2027-04-01', type:'date' },
+              { key:'subtitle', label:'Subtitle (ไม่บังคับ)', placeholder:'กิจกรรมวิ่ง เมษา–มิถุนา 2027' },
+            ].map(f=>(
+              <div key={f.key} style={{ marginBottom:12 }}>
+                <label style={{ color:'#888', fontSize:12, display:'block', marginBottom:4 }}>{f.label}</label>
+                <input type={f.type||'text'} placeholder={f.placeholder}
+                  value={(newSeasonForm as any)[f.key]}
+                  onChange={e=>setNewSeasonForm((p:any)=>({...p,[f.key]:e.target.value}))}
+                  style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }} />
+              </div>
+            ))}
+            <div style={{ display:'flex', gap:10, marginTop:16 }}>
+              <button onClick={startSeason} disabled={starting}
+                style={{ flex:1, background:'#059669', border:'none', borderRadius:8, padding:'10px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity: starting ? 0.6 : 1 }}>
+                {starting ? 'กำลังเริ่ม...' : 'เริ่ม Season ใหม่'}
+              </button>
+              <button onClick={()=>setStartModal(false)}
+                style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'10px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, overflow:'hidden' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
           <thead>
