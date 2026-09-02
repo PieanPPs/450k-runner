@@ -1459,12 +1459,16 @@ function SeasonsPage() {
     if (!csvUploadId) return;
     setCsvUploading(true); setCsvMsg('');
     try {
-      // Parse CSV: ชื่อ,initials,กลุ่มอายุ,km,steps,streak,weekly_km,activity_count
+      // Parse CSV/TSV: ชื่อ,initials,กลุ่มอายุ,km,steps,streak,weekly_km,activity_count
+      // ตรวจ delimiter อัตโนมัติ — Excel copy ใช้ tab, ไฟล์ .csv ใช้ comma
+      const firstLine = csvText.trim().split('\n')[0] || '';
+      const delim = firstLine.includes('\t') ? '\t' : ',';
       const lines = csvText.trim().split('\n').slice(1); // skip header
       const results = lines.map(line => {
-        const [name, initials, age_group, km, steps, streak,,activity_count] = line.split(',').map(s => s.trim());
+        const cols = line.split(delim).map(s => s.trim());
+        const [name, initials, age_group, km, steps, streak,,activity_count] = cols;
         return { name, initials, age_group, km: parseFloat(km)||0, steps: parseInt(steps)||0, streak: parseInt(streak)||0, activity_count: parseInt(activity_count)||0 };
-      }).filter(r => r.name);
+      }).filter(r => r.name && r.km > 0);
       const res = await api(`/seasons/${csvUploadId}/results`, { method:'POST', body:JSON.stringify({ results }) });
       setCsvMsg(res.ok ? `✅ อัพโหลดสำเร็จ ${res.count} คน` : `❌ ${res.message}`);
       if (res.ok) { setCsvText(''); load(); }

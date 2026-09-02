@@ -50,30 +50,10 @@ git push origin main
 > git push origin main
 > ```
 
-### 2. VPS — Pull + Build + Restart
-
-SSH เข้า VPS แล้วรันทีละคำสั่ง:
+### 2. VPS — Pull + Build + Deploy (คำสั่งเดียวจบ)
 
 ```bash
-cd ~/450k-runner
-git pull origin main
-```
-
-#### Build frontend (VPS ไม่มี npm ให้ใช้ Docker):
-```bash
-docker run --rm -v $(pwd):/app -w /app node:22-slim sh -c "npm install && npm run build"
-```
-
-#### Restart backend (ถ้ามีการแก้ backend):
-```bash
-pm2 restart 450k-backend
-# หรือ
-pm2 restart all
-```
-
-#### ตรวจสอบ log:
-```bash
-pm2 logs 450k-backend --lines 30
+cd /home/450k-runner && git pull && docker run --rm -v $(pwd):/app -w /app node:22-slim sh -c "npm install && npm run build" && docker compose up -d --build
 ```
 
 ### สรุปสั้น ๆ (ทุกครั้งที่ deploy)
@@ -81,6 +61,4 @@ pm2 logs 450k-backend --lines 30
 | ขั้นตอน | คำสั่ง |
 |---------|--------|
 | Local — commit & push | `git add -A` → `git commit -m "..."` → `git push origin main` |
-| VPS — pull | `git pull origin main` |
-| VPS — build frontend | `docker run --rm -v $(pwd):/app -w /app node:22-slim sh -c "npm install && npm run build"` |
-| VPS — restart backend | `pm2 restart 450k-backend` |
+| VPS — pull + build + restart | `cd /home/450k-runner && git pull && docker run --rm -v $(pwd):/app -w /app node:22-slim sh -c "npm install && npm run build" && docker compose up -d --build` |
