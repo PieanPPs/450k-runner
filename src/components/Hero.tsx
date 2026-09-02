@@ -38,7 +38,7 @@ export default function Hero() {
 
       <div style={{ textAlign:'center', maxWidth:720 }}>
         <div style={{ fontFamily:'Bebas Neue', fontSize:'clamp(42px,7vw,96px)', letterSpacing:4, lineHeight:1, marginBottom:8 }}>
-          <span className="hero-gradient-text" style={{ backgroundImage:`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})` }}>{projectName}</span>
+          <span style={{ color:'#FFFFFF', textShadow:'0 2px 24px rgba(0,0,0,0.25)' }}>{projectName}</span>
         </div>
         <div style={{ color:t.heroText, fontSize:'clamp(16px,2.5vw,22px)', fontWeight:600, marginBottom:4 }}>{subtitle}</div>
         <div style={{ color:t.heroTextMuted, fontSize:15, marginBottom:32 }}>Healthy Teacher, Happy School · {goalPerPerson} กิโลเมตร · โรงเรียนอนุสรณ์ศุภมาศ</div>
