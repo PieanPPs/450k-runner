@@ -2091,7 +2091,7 @@ function BadgesPage() {
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={saveBadge} style={btn()}>{bEdit ? 'บันทึก' : 'เพิ่ม Badge'}</button>
-          {bEdit && <button onClick={()=>{setBForm({id:0,icon:'🏅',label:'',color:'#f59e0b',description:'',auto_km:''});setBEdit(false);}} style={btn('#444')}>ยกเลิก</button>}
+          {bEdit && <button onClick={()=>{setBForm({id:0,icon:'🏅',label:'',color:'#f59e0b',description:'',auto_km:'',auto_streak:'',auto_activity_count:''});setBEdit(false);}} style={btn('#444')}>ยกเลิก</button>}
         </div>
       </div>
 
