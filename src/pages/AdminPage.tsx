@@ -1979,7 +1979,7 @@ function BadgesPage() {
   const [mAssigning, setMAssigning] = useState(false);
 
   // form: badge def
-  const [bForm, setBForm] = useState({ id: 0, icon: '🏅', label: '', color: '#f59e0b', description: '', auto_km: '' });
+  const [bForm, setBForm] = useState({ id: 0, icon: '🏅', label: '', color: '#f59e0b', description: '', auto_km: '', auto_streak: '', auto_activity_count: '' });
   const [bEdit, setBEdit] = useState(false);
 
   // form: assign
@@ -2008,12 +2008,17 @@ function BadgesPage() {
 
   const saveBadge = async () => {
     if (!bForm.label) return flash('กรุณาใส่ชื่อ badge');
-    const body = { icon: bForm.icon, label: bForm.label, color: bForm.color, description: bForm.description || null, auto_km: bForm.auto_km !== '' ? parseFloat(bForm.auto_km) : null };
+    const body = {
+      icon: bForm.icon, label: bForm.label, color: bForm.color, description: bForm.description || null,
+      auto_km:             bForm.auto_km             !== '' ? parseFloat(bForm.auto_km)             : null,
+      auto_streak:         bForm.auto_streak         !== '' ? parseInt(bForm.auto_streak)           : null,
+      auto_activity_count: bForm.auto_activity_count !== '' ? parseInt(bForm.auto_activity_count)   : null,
+    };
     const url  = bEdit ? `${API}/api/adminpp/badges/${bForm.id}` : `${API}/api/adminpp/badges`;
     const meth = bEdit ? 'PUT' : 'POST';
     const r = await fetch(url, { method: meth, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` }, body: JSON.stringify(body) });
     const d = await r.json();
-    if (d.ok) { flash(bEdit ? '✅ บันทึกแล้ว' : '✅ เพิ่ม badge แล้ว'); setBForm({ id:0, icon:'🏅', label:'', color:'#f59e0b', description:'', auto_km:'' }); setBEdit(false); load(); }
+    if (d.ok) { flash(bEdit ? '✅ บันทึกแล้ว' : '✅ เพิ่ม badge แล้ว'); setBForm({ id:0, icon:'🏅', label:'', color:'#f59e0b', description:'', auto_km:'', auto_streak:'', auto_activity_count:'' }); setBEdit(false); load(); }
     else flash('❌ ' + d.message);
   };
 
@@ -2078,9 +2083,11 @@ function BadgesPage() {
           <input value={bForm.label} onChange={e=>setBForm(f=>({...f, label:e.target.value}))} style={inp} placeholder="ชื่อ badge เช่น Mission W3" />
           <input value={bForm.color} onChange={e=>setBForm(f=>({...f, color:e.target.value}))} style={inp} placeholder="#f59e0b" />
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 140px', gap:10, marginBottom:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 130px 130px 130px', gap:10, marginBottom:12 }}>
           <input value={bForm.description} onChange={e=>setBForm(f=>({...f, description:e.target.value}))} style={inp} placeholder="คำอธิบาย (optional)" />
-          <input value={bForm.auto_km} onChange={e=>setBForm(f=>({...f, auto_km:e.target.value}))} style={inp} placeholder="auto km (เช่น 100)" type="number" min="0" />
+          <input value={bForm.auto_km} onChange={e=>setBForm(f=>({...f, auto_km:e.target.value}))} style={inp} placeholder="auto km ≥" type="number" min="0" title="auto-award เมื่อ km สะสม ≥ ตัวเลขนี้" />
+          <input value={bForm.auto_streak} onChange={e=>setBForm(f=>({...f, auto_streak:e.target.value}))} style={inp} placeholder="auto streak ≥" type="number" min="0" title="auto-award เมื่อ streak ≥ ตัวเลขนี้ (วัน)" />
+          <input value={bForm.auto_activity_count} onChange={e=>setBForm(f=>({...f, auto_activity_count:e.target.value}))} style={inp} placeholder="auto ครั้ง ≥" type="number" min="0" title="auto-award เมื่อจำนวนครั้ง ≥ ตัวเลขนี้" />
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={saveBadge} style={btn()}>{bEdit ? 'บันทึก' : 'เพิ่ม Badge'}</button>
@@ -2096,7 +2103,7 @@ function BadgesPage() {
             <span style={{ fontSize:20 }}>{b.icon}</span>
             <span style={{ flex:1, color:'#e2e8f0', fontSize:13 }}>{b.label} {b.auto_km ? <span style={{ color:'#888', fontSize:11 }}>· auto ≥{b.auto_km} km</span> : <span style={{ color:'#888', fontSize:11 }}>· manual</span>}</span>
             <span style={{ width:16, height:16, borderRadius:'50%', background:b.color, display:'inline-block' }} />
-            <button onClick={()=>{setBForm({id:b.id,icon:b.icon,label:b.label,color:b.color,description:b.description||'',auto_km:b.auto_km!=null?String(b.auto_km):''});setBEdit(true);}} style={btn('#4c1d95')}>แก้</button>
+            <button onClick={()=>{setBForm({id:b.id,icon:b.icon,label:b.label,color:b.color,description:b.description||'',auto_km:b.auto_km!=null?String(b.auto_km):'',auto_streak:(b as any).auto_streak!=null?String((b as any).auto_streak):'',auto_activity_count:(b as any).auto_activity_count!=null?String((b as any).auto_activity_count):''});setBEdit(true);}} style={btn('#4c1d95')}>แก้</button>
             <button onClick={()=>deleteBadge(b.id)} style={btn('#7f1d1d')}>ลบ</button>
           </div>
         ))}

@@ -112,17 +112,24 @@ try {
 try {
   db.prepare(`
     CREATE TABLE IF NOT EXISTS badges (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      icon        TEXT NOT NULL DEFAULT '🏅',
-      label       TEXT NOT NULL,
-      color       TEXT NOT NULL DEFAULT '#f59e0b',
-      description TEXT,
-      auto_km     REAL,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      icon               TEXT NOT NULL DEFAULT '🏅',
+      label              TEXT NOT NULL,
+      color              TEXT NOT NULL DEFAULT '#f59e0b',
+      description        TEXT,
+      auto_km            REAL,
+      auto_streak        INTEGER,
+      auto_activity_count INTEGER,
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
   console.log('[migration] created badges table');
 } catch { /* already exists */ }
+
+// Migration: add auto_streak + auto_activity_count columns (safe on existing DB)
+for (const col of ['auto_streak INTEGER', 'auto_activity_count INTEGER']) {
+  try { db.prepare(`ALTER TABLE badges ADD COLUMN ${col}`).run(); } catch { /* already exists */ }
+}
 
 // Migration: participant_badges — ใครได้ badge ไหน ใน season ไหน
 try {

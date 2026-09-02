@@ -194,24 +194,27 @@ router.post('/', async (_req, res) => {
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
 
-  // ── Auto-award km milestone badges ──────────────────────────────────────
+  // ── Auto-award badges (km, streak, activity_count) ──────────────────────
   try {
-    const milestoneBadges = db.prepare('SELECT * FROM badges WHERE auto_km IS NOT NULL ORDER BY auto_km ASC').all();
-    if (milestoneBadges.length > 0) {
+    const autoBadges = db.prepare(
+      'SELECT * FROM badges WHERE auto_km IS NOT NULL OR auto_streak IS NOT NULL OR auto_activity_count IS NOT NULL'
+    ).all();
+    if (autoBadges.length > 0) {
       const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
         || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
       const seasonId = season?.id ?? null;
-      const allParticipants = db.prepare('SELECT name, km FROM participants').all();
+      const allParticipants = db.prepare('SELECT name, km, streak, activity_count FROM participants').all();
+      const insert = db.prepare('INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)');
       let autoAwarded = 0;
       for (const p of allParticipants) {
-        for (const badge of milestoneBadges) {
-          if (p.km >= badge.auto_km) {
-            try {
-              db.prepare(
-                'INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)'
-              ).run(p.name, badge.id, seasonId, 'auto');
-              autoAwarded++;
-            } catch { /* duplicate — ข้ามได้ */ }
+        for (const badge of autoBadges) {
+          const qualifies =
+            (badge.auto_km            != null && p.km             >= badge.auto_km) ||
+            (badge.auto_streak        != null && p.streak         >= badge.auto_streak) ||
+            (badge.auto_activity_count != null && p.activity_count >= badge.auto_activity_count);
+          if (qualifies) {
+            const r = insert.run(p.name, badge.id, seasonId, 'auto');
+            if (r.changes > 0) autoAwarded++;
           }
         }
       }
