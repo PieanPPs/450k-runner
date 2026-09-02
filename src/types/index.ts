@@ -19,9 +19,17 @@ export interface WeeklyData { week: string; km: number; steps: number }
 export interface WeeklySnapshotEntry { id: number; name: string; initials: string; km: number; rank: number }
 export interface WeeklySnapshot { weekNo: number; weekLabel: string; snappedAt: string; participants: WeeklySnapshotEntry[] }
 export type SeasonStatus = 'done' | 'active' | 'upcoming' | 'pre-season';
+export interface SeasonResult {
+  name: string; initials: string; km: number; steps: number;
+  streak: number; activity_count: number; age_group?: string;
+}
 export interface Season {
-  name: string; subtitle: string; dateRange: string; status: SeasonStatus;
+  id?: number; name: string; subtitle: string; dateRange: string; status: SeasonStatus;
   topKm: number; totalKm: number; participants: number; winner: string;
+  results?: SeasonResult[] | null;
+}
+export interface ImprovementEntry {
+  name: string; initials: string; currentKm: number; prevKm: number; diff: number; ageGroup?: string;
 }
 export interface Distance {
   km: number; label: string; icon: string; desc: string; gmapUrl: string;

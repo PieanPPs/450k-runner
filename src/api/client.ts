@@ -3,7 +3,7 @@
  * Base URL อ่านจาก VITE_API_URL (หรือ default http://localhost:4000)
  */
 
-import type { Participant, WeeklyData, WeeklySnapshot, Season, Distance, Milestone } from '@/types';
+import type { Participant, WeeklyData, WeeklySnapshot, Season, Distance, Milestone, ImprovementEntry } from '@/types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
 
@@ -53,4 +53,7 @@ export const api = {
   /** สร้าง Strava connect URL สำหรับผู้เข้าร่วม */
   stravaConnectUrl: (participantId: number) =>
     `${BASE}/api/auth/strava?participant_id=${participantId}`,
+
+  /** Most Improved — เปรียบเทียบ Season ปัจจุบัน vs Season ก่อนหน้า */
+  improvement: () => get<ImprovementEntry[]>('/api/improvement'),
 };

@@ -102,6 +102,12 @@ try {
   console.log('[migration] created deleted_activities table (recycle bin)');
 } catch { /* already exists */ }
 
+// Migration: results_json — เก็บ snapshot ผลแต่ละคนต่อ Season
+try {
+  db.prepare('ALTER TABLE seasons ADD COLUMN results_json TEXT').run();
+  console.log('[migration] added results_json column to seasons');
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Ensure gallery folder exists & serve statically at /gallery/<filename>
 const galleryDir = path.resolve(__dirname, '../data/gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });

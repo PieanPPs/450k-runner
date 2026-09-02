@@ -11,7 +11,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '@/api/client';
-import type { Participant, WeeklyData, Season, Distance, Milestone } from '@/types';
+import type { Participant, WeeklyData, Season, Distance, Milestone, ImprovementEntry } from '@/types';
 
 // ---- mock fallback ----
 import {
@@ -25,6 +25,7 @@ export interface AppData {
   seasons       : Season[];
   distances     : Distance[];
   milestones    : Milestone[];
+  improvement   : ImprovementEntry[];
   totalKm       : number;
   goalKm        : number;
   pct           : number;
@@ -51,6 +52,7 @@ const MOCK_DATA: AppData = {
   seasons     : SEASONS,
   distances   : DISTANCES,
   milestones  : MILESTONES,
+  improvement : [],
   totalKm     : PARTICIPANTS.reduce((s, p) => s + p.km, 0),
   goalKm      : GOAL_KM,
   pct         : Math.min(100, (PARTICIPANTS.reduce((s, p) => s + p.km, 0) / GOAL_KM) * 100),
@@ -89,6 +91,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           api.syncLast(),
         ]);
 
+      // improvement ดึงแยก — ถ้า fail ไม่ทำให้ข้อมูลหลักพัง (Season 1 อาจยังไม่มี results_json)
+      const improvement = await api.improvement().catch(() => []);
+
       // settings ดึงแยก — ถ้า fail (เช่น backend เก่ายังไม่มี route) ไม่ทำให้ข้อมูลหลักพัง
       const settings = await api.settings().catch(() => ({} as Record<string, string>));
 
@@ -100,6 +105,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         seasons,
         distances,
         milestones,
+        improvement,
         totalKm  : summary.totalKm,
         goalKm   : summary.goalKm,
         pct      : summary.pct,

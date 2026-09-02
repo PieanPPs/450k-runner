@@ -1408,6 +1408,11 @@ function SeasonsPage() {
   const [startModal, setStartModal] = useState(false);
   const [starting, setStarting] = useState(false);
   const [newSeasonForm, setNewSeasonForm] = useState({ season_start:'', season_name:'Season 2', subtitle:'' });
+  const [csvUploadId, setCsvUploadId] = useState<number|null>(null);
+  const [csvText, setCsvText] = useState('');
+  const [csvMsg, setCsvMsg] = useState('');
+  const [csvUploading, setCsvUploading] = useState(false);
+
   const load = useCallback(() => api('/seasons').then(setRows), []);
   useEffect(() => { load(); }, [load]);
 
@@ -1450,6 +1455,26 @@ function SeasonsPage() {
     await api(`/seasons/${id}`, { method:'DELETE' }); load();
   };
 
+  const uploadCsv = async () => {
+    if (!csvUploadId) return;
+    setCsvUploading(true); setCsvMsg('');
+    try {
+      // Parse CSV: ชื่อ,initials,กลุ่มอายุ,km,steps,streak,weekly_km,activity_count
+      const lines = csvText.trim().split('\n').slice(1); // skip header
+      const results = lines.map(line => {
+        const [name, initials, age_group, km, steps, streak,,activity_count] = line.split(',').map(s => s.trim());
+        return { name, initials, age_group, km: parseFloat(km)||0, steps: parseInt(steps)||0, streak: parseInt(streak)||0, activity_count: parseInt(activity_count)||0 };
+      }).filter(r => r.name);
+      const res = await api(`/seasons/${csvUploadId}/results`, { method:'POST', body:JSON.stringify({ results }) });
+      setCsvMsg(res.ok ? `✅ อัพโหลดสำเร็จ ${res.count} คน` : `❌ ${res.message}`);
+      if (res.ok) { setCsvText(''); load(); }
+    } catch(e) {
+      setCsvMsg(`❌ เกิดข้อผิดพลาด: ${(e as Error).message}`);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
   return (
     <div>
       {/* ── Season Control Banner ── */}
@@ -1466,6 +1491,34 @@ function SeasonsPage() {
             🚀 เริ่ม Season ใหม่
           </button>
         </div>
+      </div>
+
+      {/* ── CSV Upload Panel ── */}
+      <div style={{ background:'linear-gradient(135deg,#0a1a2e,#0d1a0e)', border:'1px solid #1a3a5e', borderRadius:14, padding:'20px 24px', marginBottom:24 }}>
+        <div style={{ color:'#93c5fd', fontSize:13, fontWeight:700, marginBottom:4 }}>📂 อัพโหลดผล Season ย้อนหลัง (CSV)</div>
+        <div style={{ color:'#555', fontSize:12, marginBottom:12 }}>สำหรับ Season 1 ที่ยังไม่มีข้อมูล — วาง CSV แล้วเลือก Season ที่ต้องการบันทึก</div>
+        <div style={{ display:'flex', gap:10, alignItems:'flex-end', flexWrap:'wrap' }}>
+          <div style={{ flex:1, minWidth:200 }}>
+            <label style={{ color:'#888', fontSize:11, display:'block', marginBottom:4 }}>เลือก Season</label>
+            <select value={csvUploadId ?? ''} onChange={e=>setCsvUploadId(Number(e.target.value)||null)}
+              style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'7px 10px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' as const }}>
+              <option value=''>-- เลือก --</option>
+              {rows.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex:2, minWidth:260 }}>
+            <label style={{ color:'#888', fontSize:11, display:'block', marginBottom:4 }}>CSV (วางข้อความ)</label>
+            <textarea value={csvText} onChange={e=>setCsvText(e.target.value)} rows={3} placeholder={'ชื่อ,initials,กลุ่มอายุ,km,steps,streak,weekly_km,activity_count\nกุลธิรัตน์ เอกวงษา,BT,ทั่วไป,1022.06,...'}
+              style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'7px 10px', color:'#e2e8f0', fontSize:12, boxSizing:'border-box' as const, resize:'vertical', fontFamily:'monospace' }} />
+          </div>
+          <div>
+            <button onClick={uploadCsv} disabled={csvUploading || !csvUploadId || !csvText.trim()}
+              style={{ background:csvUploading?'#333':'linear-gradient(135deg,#1d4ed8,#3b82f6)', border:'none', borderRadius:8, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity:(!csvUploadId||!csvText.trim())?0.5:1 }}>
+              {csvUploading ? 'กำลังอัพโหลด...' : '⬆️ บันทึกผล'}
+            </button>
+          </div>
+        </div>
+        {csvMsg && <div style={{ color: csvMsg.startsWith('✅')?'#4ade80':'#f87171', fontSize:13, marginTop:10 }}>{csvMsg}</div>}
       </div>
 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
@@ -1566,7 +1619,8 @@ function SeasonsPage() {
                 </td>
                 <td style={{ padding:'10px 14px', color:'#a78bfa', fontFamily:'Bebas Neue', fontSize:16 }}>{r.total_km} km</td>
                 <td style={{ padding:'10px 14px', color:'#fbbf24' }}>{r.winner}</td>
-                <td style={{ padding:'10px 14px', display:'flex', gap:6 }}>
+                <td style={{ padding:'10px 14px', display:'flex', gap:6, alignItems:'center' }}>
+                  {r.results_json && <span style={{ fontSize:10, background:'#14532d', color:'#4ade80', borderRadius:4, padding:'2px 6px' }}>📊 ผล</span>}
                   <button onClick={()=>startEdit(r)} style={{ background:'#2a2a3e', border:'none', borderRadius:6, padding:'4px 10px', color:'#a78bfa', fontSize:12, cursor:'pointer' }}>แก้</button>
                   <button onClick={()=>del(r.id)} style={{ background:'#2a1010', border:'none', borderRadius:6, padding:'4px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>ลบ</button>
                 </td>

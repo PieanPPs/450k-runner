@@ -595,6 +595,10 @@ router.post('/close-season', requireAdmin, (req, res) => {
   const now          = new Date().toISOString().slice(0, 10);
   const dateRange    = `${SEASON_START} – ${now}`;
 
+  // Snapshot all participants before reset
+  const allParticipants = db.prepare('SELECT name,initials,km,steps,streak,activity_count,age_group FROM participants ORDER BY km DESC').all();
+  const resultsJson = JSON.stringify(allParticipants);
+
   // Find or create the season record
   const activeSeason = db.prepare(
     "SELECT id FROM seasons WHERE status='active' OR status='pre-season' ORDER BY id DESC LIMIT 1"
@@ -602,13 +606,13 @@ router.post('/close-season', requireAdmin, (req, res) => {
 
   if (activeSeason) {
     db.prepare(
-      'UPDATE seasons SET total_km=?,participants=?,top_km=?,winner=?,date_range=?,status=? WHERE id=?'
-    ).run(totalKm, pCount, top?.km || 0, top?.name || '—', dateRange, 'done', activeSeason.id);
+      'UPDATE seasons SET total_km=?,participants=?,top_km=?,winner=?,date_range=?,status=?,results_json=? WHERE id=?'
+    ).run(totalKm, pCount, top?.km || 0, top?.name || '—', dateRange, 'done', resultsJson, activeSeason.id);
   } else {
     const seasonName = req.body?.season_name || 'Season 1';
     db.prepare(
-      'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
-    ).run(seasonName, `กิจกรรมวิ่ง ${SEASON_START}`, dateRange, 'done', top?.km || 0, totalKm, pCount, top?.name || '—');
+      'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner,results_json) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).run(seasonName, `กิจกรรมวิ่ง ${SEASON_START}`, dateRange, 'done', top?.km || 0, totalKm, pCount, top?.name || '—', resultsJson);
   }
 
   // Freeze all in-season activities
@@ -624,6 +628,20 @@ router.post('/close-season', requireAdmin, (req, res) => {
     winner: top?.name || '—',
     message: `ปิด Season สำเร็จ! Freeze ${frozen.changes} กิจกรรม, Reset ${pCount} คน`,
   });
+});
+
+// POST /api/adminpp/seasons/:id/results — อัพโหลด results_json ย้อนหลัง (เช่น Season 1 จาก CSV)
+// body: { results: [{ name, initials, km, steps, streak, activity_count, age_group }, ...] }
+router.post('/seasons/:id/results', requireAdmin, (req, res) => {
+  const { id } = req.params;
+  const { results } = req.body;
+  if (!Array.isArray(results) || results.length === 0) {
+    return res.status(400).json({ ok: false, message: 'results array required' });
+  }
+  const season = db.prepare('SELECT id FROM seasons WHERE id=?').get(id);
+  if (!season) return res.status(404).json({ ok: false, message: 'season not found' });
+  db.prepare('UPDATE seasons SET results_json=? WHERE id=?').run(JSON.stringify(results), id);
+  res.json({ ok: true, count: results.length });
 });
 
 // POST /api/adminpp/start-season — อัพเดท season_start ใน project_settings + สร้าง seasons record ใหม่

@@ -39,8 +39,35 @@ export function getWeekly(_req, res) {
 }
 
 export function getSeasons(_req, res) {
-  const rows = db.prepare('SELECT name,subtitle,date_range as dateRange,status,top_km as topKm,total_km as totalKm,participants,winner FROM seasons ORDER BY id').all();
-  res.json(rows);
+  const rows = db.prepare('SELECT id,name,subtitle,date_range as dateRange,status,top_km as topKm,total_km as totalKm,participants,winner,results_json as resultsJson FROM seasons ORDER BY id').all();
+  // Parse resultsJson string → array (keep null if missing)
+  res.json(rows.map(r => ({ ...r, results: r.resultsJson ? JSON.parse(r.resultsJson) : null, resultsJson: undefined })));
+}
+
+// GET /api/improvement — เปรียบเทียบ Season ปัจจุบัน vs Season ก่อนหน้า (by name match)
+// คืน array เรียงตาม diff (km เพิ่มขึ้น) desc
+export function getImprovement(_req, res) {
+  // Season ก่อนหน้า = season ที่ status='done' ล่าสุด (id ใหญ่สุด)
+  const prevSeason = db.prepare("SELECT results_json FROM seasons WHERE status='done' AND results_json IS NOT NULL ORDER BY id DESC LIMIT 1").get();
+  if (!prevSeason) return res.json([]);
+
+  const prev = JSON.parse(prevSeason.results_json);
+  const prevMap = new Map(prev.map(p => [p.name, p]));
+
+  // Season ปัจจุบัน
+  const current = db.prepare('SELECT name,initials,km,age_group FROM participants ORDER BY km DESC').all();
+
+  const result = current
+    .map(p => {
+      const old = prevMap.get(p.name);
+      const prevKm = old ? old.km : null;
+      const diff = prevKm !== null ? Math.round((p.km - prevKm) * 100) / 100 : null;
+      return { name: maskName(p.name), initials: p.initials, currentKm: p.km, prevKm, diff, ageGroup: p.age_group };
+    })
+    .filter(p => p.diff !== null)         // เฉพาะคนที่มีข้อมูล Season ก่อน
+    .sort((a, b) => b.diff - a.diff);     // เรียงจากมากไปน้อย
+
+  res.json(result);
 }
 
 export function getDistances(_req, res) {
