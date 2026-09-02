@@ -31,7 +31,7 @@ export function useCountdown(target: string) {
 export const ThemeCtx = createContext<ThemeContextValue>({ theme: DARK, mode:'dark', toggle:()=>{} });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<'dark'|'light'>('dark');
+  const [mode, setMode] = useState<'dark'|'light'>('light');
   const theme = mode === 'dark' ? DARK : LIGHT;
   const toggle = () => setMode(m => (m === 'dark' ? 'light' : 'dark'));
   return <ThemeCtx.Provider value={{ theme, mode, toggle }}>{children}</ThemeCtx.Provider>;
