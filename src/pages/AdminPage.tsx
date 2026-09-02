@@ -1959,7 +1959,7 @@ function DailyReport() {
 // ─── BadgesPage ───────────────────────────────────────────
 function BadgesPage() {
   const API = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
-  const tok = () => localStorage.getItem('admin_token') || '';
+  const tok = () => localStorage.getItem('adminToken') || '';
 
   type BadgeDef = { id: number; icon: string; label: string; color: string; description?: string | null; auto_km?: number | null };
   type Assignment = { id: number; participant_name: string; badge_id: number; source: string; note?: string | null; icon: string; label: string; color: string };
