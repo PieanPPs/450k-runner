@@ -805,4 +805,38 @@ router.delete('/participant-badges/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/adminpp/mission-check?min_km=4 — คนที่ weekly_km >= เกณฑ์ (ชื่อจริง ไม่ mask)
+router.get('/mission-check', requireAdmin, (req, res) => {
+  const minKm = parseFloat(req.query.min_km) || 4;
+  const rows = db.prepare(
+    'SELECT id, name, weekly_km FROM participants WHERE weekly_km >= ? ORDER BY weekly_km DESC'
+  ).all(minKm);
+  res.json({ minKm, qualifiers: rows });
+});
+
+// POST /api/adminpp/participant-badges/batch — assign badge ให้หลายคนพร้อมกัน
+router.post('/participant-badges/batch', requireAdmin, (req, res) => {
+  const { badge_id, participant_names, note } = req.body;
+  if (!badge_id || !Array.isArray(participant_names) || participant_names.length === 0) {
+    return res.status(400).json({ ok: false, message: 'badge_id + participant_names[] required' });
+  }
+  const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+    || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+  const seasonId = season?.id ?? null;
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source, note) VALUES (?,?,?,?,?)'
+  );
+  const batchInsert = db.transaction((names) => {
+    let assigned = 0;
+    for (const name of names) {
+      const r = insert.run(name, badge_id, seasonId, 'manual', note || null);
+      if (r.changes > 0) assigned++;
+    }
+    return assigned;
+  });
+  const assigned = batchInsert(participant_names);
+  const skipped = participant_names.length - assigned;
+  res.json({ ok: true, assigned, skipped });
+});
+
 export default router;

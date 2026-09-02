@@ -1970,6 +1970,14 @@ function BadgesPage() {
   const [participants, setParticipants] = useState<{id:number;name:string}[]>([]);
   const [msg, setMsg] = useState('');
 
+  // weekly mission check
+  const [mMinKm, setMMinKm]         = useState('4');
+  const [mBadgeId, setMBadgeId]     = useState('');
+  const [mQualifiers, setMQualifiers] = useState<{id:number;name:string;weekly_km:number}[]|null>(null);
+  const [mSelected, setMSelected]   = useState<Set<string>>(new Set());
+  const [mChecking, setMChecking]   = useState(false);
+  const [mAssigning, setMAssigning] = useState(false);
+
   // form: badge def
   const [bForm, setBForm] = useState({ id: 0, icon: '🏅', label: '', color: '#f59e0b', description: '', auto_km: '' });
   const [bEdit, setBEdit] = useState(false);
@@ -2028,6 +2036,28 @@ function BadgesPage() {
     flash('🗑️ ถอด badge แล้ว'); load();
   };
 
+  const checkMission = async () => {
+    setMChecking(true); setMQualifiers(null);
+    const r = await fetch(`${API}/api/adminpp/mission-check?min_km=${parseFloat(mMinKm)||4}`, { headers: { Authorization: `Bearer ${tok()}` } }).then(safeJson);
+    setMQualifiers(r?.qualifiers ?? []);
+    setMSelected(new Set((r?.qualifiers ?? []).map((p: {name:string}) => p.name)));
+    setMChecking(false);
+  };
+
+  const batchAssign = async () => {
+    if (!mBadgeId) return flash('เลือก Badge ก่อน');
+    if (mSelected.size === 0) return flash('ไม่มีใครถูกเลือก');
+    setMAssigning(true);
+    const r = await fetch(`${API}/api/adminpp/participant-badges/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+      body: JSON.stringify({ badge_id: parseInt(mBadgeId), participant_names: [...mSelected] }),
+    }).then(safeJson);
+    setMAssigning(false);
+    if (r?.ok) { flash(`✅ Assign ${r.assigned} คน ${r.skipped > 0 ? `(ข้าม ${r.skipped} ที่รับแล้ว)` : ''}`); setMQualifiers(null); load(); }
+    else flash('❌ เกิดข้อผิดพลาด');
+  };
+
   const card = { background:'#1a1a2e', border:'1px solid #333', borderRadius:12, padding:20, marginBottom:20 };
   const inp  = { background:'#0d0d1a', border:'1px solid #444', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, width:'100%', boxSizing:'border-box' as const };
   const btn  = (c='#7c3aed') => ({ background:c, border:'none', borderRadius:8, padding:'8px 16px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' });
@@ -2072,9 +2102,62 @@ function BadgesPage() {
         ))}
       </div>
 
+      {/* ── Weekly Mission Check ── */}
+      <div style={{ ...card, borderColor:'#065f46' }}>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:4, color:'#34d399' }}>🎯 Weekly Mission Check</div>
+        <div style={{ color:'#555', fontSize:12, marginBottom:12 }}>ดูว่าใครผ่านเกณฑ์สัปดาห์นี้ แล้ว assign badge ได้เลย</div>
+        <div style={{ display:'flex', gap:10, alignItems:'flex-end', marginBottom:12, flexWrap:'wrap' }}>
+          <div>
+            <div style={{ color:'#888', fontSize:11, marginBottom:4 }}>เกณฑ์ km สัปดาห์นี้</div>
+            <input type="number" min="0" step="0.5" value={mMinKm} onChange={e=>setMMinKm(e.target.value)}
+              style={{ ...inp, width:90 }} />
+          </div>
+          <button onClick={checkMission} disabled={mChecking}
+            style={{ ...btn('#065f46'), opacity: mChecking ? 0.6 : 1 }}>
+            {mChecking ? 'กำลังตรวจ...' : '🔍 ตรวจสอบ'}
+          </button>
+        </div>
+
+        {mQualifiers !== null && (
+          <>
+            {mQualifiers.length === 0 ? (
+              <div style={{ color:'#555', fontSize:13, marginBottom:12 }}>ไม่มีใครผ่านเกณฑ์ {mMinKm} km สัปดาห์นี้</div>
+            ) : (
+              <>
+                <div style={{ color:'#4ade80', fontSize:13, marginBottom:8 }}>
+                  ผ่านเกณฑ์ {mQualifiers.length} คน
+                  <button onClick={()=>setMSelected(new Set(mQualifiers.map(p=>p.name)))} style={{ marginLeft:10, background:'none', border:'none', color:'#34d399', fontSize:11, cursor:'pointer' }}>เลือกทั้งหมด</button>
+                  <button onClick={()=>setMSelected(new Set())} style={{ marginLeft:6, background:'none', border:'none', color:'#888', fontSize:11, cursor:'pointer' }}>ยกเลิกทั้งหมด</button>
+                </div>
+                <div style={{ marginBottom:12, maxHeight:200, overflowY:'auto' }}>
+                  {mQualifiers.map(p => (
+                    <label key={p.name} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 8px', borderRadius:6, marginBottom:4, background: mSelected.has(p.name) ? '#0a2a1a' : '#111', cursor:'pointer' }}>
+                      <input type="checkbox" checked={mSelected.has(p.name)}
+                        onChange={e => setMSelected(s => { const n = new Set(s); e.target.checked ? n.add(p.name) : n.delete(p.name); return n; })} />
+                      <span style={{ color:'#e2e8f0', fontSize:13, flex:1 }}>{p.name}</span>
+                      <span style={{ color:'#34d399', fontSize:12, fontFamily:'Bebas Neue' }}>{p.weekly_km.toFixed(2)} km</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+                  <select value={mBadgeId} onChange={e=>setMBadgeId(e.target.value)} style={{ ...inp, flex:1, minWidth:160 }}>
+                    <option value="">— เลือก Mission Badge —</option>
+                    {badges.filter(b => !b.auto_km).map(b => <option key={b.id} value={b.id}>{b.icon} {b.label}</option>)}
+                  </select>
+                  <button onClick={batchAssign} disabled={mAssigning || !mBadgeId || mSelected.size === 0}
+                    style={{ ...btn('#059669'), opacity: (mAssigning || !mBadgeId || mSelected.size === 0) ? 0.5 : 1 }}>
+                    {mAssigning ? 'กำลัง assign...' : `✅ Assign ${mSelected.size} คน`}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
       {/* ── Assign ── */}
       <div style={card}>
-        <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#c4b5fd' }}>Assign Badge ให้ผู้เข้าร่วม</div>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#c4b5fd' }}>Assign Badge ให้ผู้เข้าร่วม (ทีละคน)</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
           <select value={aName} onChange={e=>setAName(e.target.value)} style={inp}>
             <option value="">— เลือกชื่อครู —</option>
