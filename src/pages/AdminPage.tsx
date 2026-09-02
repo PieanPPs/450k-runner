@@ -73,8 +73,6 @@ const MENUS = [
   { key:'settings',     label:'⚙️ ตั้งค่าโครงการ' },
   { key:'participants', label:'👥 ผู้เข้าร่วม' },
   { key:'milestones',   label:'🏆 Milestones' },
-  { key:'distances',    label:'🗺️ Distances' },
-  { key:'preseason',    label:'📈 Pre-Season' },
   { key:'seasons',      label:'📅 Seasons' },
   { key:'gallery',      label:'🖼️ Gallery' },
   { key:'trash',        label:'🗑️ ถังขยะ' },

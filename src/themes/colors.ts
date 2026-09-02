@@ -23,7 +23,7 @@ export const LIGHT: ThemeColors = {
   heroText: '#FFFFFF', heroTextMuted: 'rgba(255,255,255,0.8)', heroTextSub: 'rgba(255,255,255,0.58)',
   accent1: '#DC0050', accent2: '#00A884', accent3: '#C49A00',
   navBg: 'rgba(245,240,232,0.96)',
-  heroGrad: 'linear-gradient(135deg,#4a0020 0%,#0a2e1e 55%,#1a3d00 100%)',
+  heroGrad: 'linear-gradient(135deg,#FF6B9D 0%,#E8005C 50%,#A8003D 100%)',
   progressBg: 'rgba(220,0,80,0.10)', tabActive: '#DC0050',
   tabBg: 'rgba(220,0,80,0.07)', inputBg: 'rgba(220,0,80,0.06)', altBg: 'rgba(220,0,80,0.07)',
 };
