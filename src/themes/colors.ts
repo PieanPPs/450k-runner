@@ -11,7 +11,7 @@ export const DARK: ThemeColors = {
   heroText: '#F0EDE6', heroTextMuted: 'rgba(240,237,230,0.7)', heroTextSub: 'rgba(240,237,230,0.45)',
   accent1: '#FF0066', accent2: '#00D4AA', accent3: '#FFD700',
   navBg: 'rgba(8,21,16,0.94)',
-  heroGrad: 'linear-gradient(135deg,#1a0010 0%,#081510 50%,#001a12 100%)',
+  heroGrad: 'linear-gradient(135deg,#1b6b4a 0%,#0d4a32 55%,#4a1030 100%)',
   progressBg: 'rgba(255,0,102,0.13)', tabActive: '#FF0066',
   tabBg: 'rgba(255,0,102,0.08)', inputBg: 'rgba(255,0,102,0.07)', altBg: 'rgba(255,0,102,0.07)',
 };
