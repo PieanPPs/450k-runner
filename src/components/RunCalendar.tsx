@@ -268,14 +268,14 @@ function IndividualCard({
             <span style={{
               fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
               padding: '2px 8px', borderRadius: 999,
-              background: isPreSeason ? 'rgba(251,146,60,0.15)' : 'rgba(99,102,241,0.18)',
-              color: isPreSeason ? '#fb923c' : '#a5b4fc',
-              border: `1px solid ${isPreSeason ? 'rgba(251,146,60,0.3)' : 'rgba(99,102,241,0.35)'}`,
+              background: 'rgba(99,102,241,0.18)',
+              color: '#a5b4fc',
+              border: '1px solid rgba(99,102,241,0.35)',
             }}>
-              {isPreSeason ? 'PRE-SEASON' : 'SEASON 2026'}
+              SEASON 2026
             </span>
             <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>
-              {isPreSeason ? 'ก่อนเริ่มแข่ง 1 มิ.ย. 2569' : '1 มิ.ย. – 31 ส.ค. 2569 · 92 วัน'}
+              {seasonStart}
             </span>
           </div>
         </div>
@@ -580,18 +580,9 @@ export default function RunCalendar() {
           }}>
             ปฏิทินสถิติการวิ่ง
           </div>
-          <div style={{ color: t.textMuted, fontSize: 14, marginBottom: data?.isPreSeason ? 10 : 0 }}>
+          <div style={{ color: t.textMuted, fontSize: 14 }}>
             คลิกชื่อครูเพื่อดูรายละเอียด และบันทึกเป็นภาพ
           </div>
-          {data?.isPreSeason && (
-            <div style={{
-              display: 'inline-block', marginTop: 8,
-              background: `${t.accent3}22`, border: `1px solid ${t.accent3}55`,
-              borderRadius: 999, padding: '4px 14px', fontSize: 12, color: t.accent3,
-            }}>
-              ⏳ Pre-Season — นับจากวันที่ {new Date(data.refDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })} · กิจกรรมเริ่ม 1 มิ.ย. 2569
-            </div>
-          )}
         </div>
 
         {/* Search */}
@@ -623,10 +614,16 @@ export default function RunCalendar() {
             <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
             <div>กำลังโหลดข้อมูล...</div>
           </div>
+        ) : data?.isPreSeason ? (
+          <div style={{ textAlign: 'center', color: t.textMuted, padding: 60 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🗓️</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 8 }}>กิจกรรมยังไม่เริ่ม</div>
+            <div>กิจกรรมจะเริ่มวันที่ {data.seasonStart}</div>
+          </div>
         ) : !data || data.participants.length === 0 ? (
           <div style={{ textAlign: 'center', color: t.textMuted, padding: 60 }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
-            <div>ยังไม่มีข้อมูล — กรุณา Sync Strava ก่อน หรือเริ่มกิจกรรม {data?.seasonStart ?? ''}</div>
+            <div>ยังไม่มีข้อมูล — กรุณา Sync Strava ก่อนนะครับ</div>
           </div>
         ) : (
           /* ─── Overview heatmap ─── */
@@ -647,28 +644,24 @@ export default function RunCalendar() {
                     colSpan={totalWeeks}
                     style={{
                       textAlign: 'center', padding: '7px 4px',
-                      background: data?.isPreSeason
-                        ? 'rgba(251,146,60,0.07)'
-                        : 'rgba(99,102,241,0.07)',
-                      borderBottom: `1px dashed ${data?.isPreSeason ? 'rgba(251,146,60,0.25)' : 'rgba(99,102,241,0.25)'}`,
+                      background: 'rgba(99,102,241,0.07)',
+                      borderBottom: '1px dashed rgba(99,102,241,0.25)',
                     }}
                   >
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 7,
                       fontSize: 10, fontWeight: 700, letterSpacing: 2,
-                      color: data?.isPreSeason ? '#fb923c' : '#818cf8',
+                      color: '#818cf8',
                     }}>
-                      {data?.isPreSeason ? '⏳ PRE-SEASON' : '🏆 SEASON 2026'}
+                      🏆 SEASON 2026
                       <span style={{
-                        background: data?.isPreSeason ? 'rgba(251,146,60,0.2)' : 'rgba(99,102,241,0.2)',
+                        background: 'rgba(99,102,241,0.2)',
                         borderRadius: 999, padding: '1px 8px', fontSize: 9,
                       }}>
                         W1 – W{totalWeeks}
                       </span>
                       <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 9, fontWeight: 400 }}>
-                        {data?.isPreSeason
-                          ? '· เริ่มนับ Season ใหม่ W1 วันที่ 1 มิ.ย. 2569'
-                          : '· 1 มิ.ย. – 31 ส.ค. 2569 (92 วัน)'}
+                        · {data?.seasonStart}
                       </span>
                     </span>
                   </th>
@@ -691,7 +684,7 @@ export default function RunCalendar() {
                   {weeks.map(w => (
                     <th key={w} style={{
                       padding: '8px 4px', textAlign: 'center',
-                      color: data?.isPreSeason ? '#fb923c' : t.textSub,
+                      color: t.textSub,
                       fontSize: 10, fontWeight: 600,
                       borderBottom: `1px solid ${t.cardBorder}`,
                       background: t.altBg, minWidth: 36,
@@ -788,7 +781,7 @@ export default function RunCalendar() {
               goalKm={data?.goalKm ?? 450}
               cardRef={cardRef}
               dailyData={dailyData}
-              isPreSeason={data?.isPreSeason ?? false}
+              isPreSeason={false}
             />
 
             {/* Save button */}
