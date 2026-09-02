@@ -10,17 +10,16 @@ export default function Leaderboard() {
   const { participants, improvement } = data;
   const [tab, setTab] = useState(0);
 
-  const seniors = useMemo(() => participants.filter(p => p.ageGroup === 'senior'), [participants]);
-  const hasImprovement = improvement && improvement.length > 0;
+  // hasImprovement: แสดง tab เมื่อมีคนที่ km Season 2 > 0 แล้ว (diff เป็นบวกอย่างน้อย 1 คน)
+  const hasImprovement = improvement && improvement.some(p => p.diff > 0);
 
   const tabs = useMemo(() => [
     { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.km-a.km),            isSenior: false, isImprove: false },
     { label:'จำนวนครั้ง',    key:'activityCount' as const,  unit:'ครั้ง', fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.activityCount-a.activityCount), isSenior: false, isImprove: false },
     { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm), isSenior: false, isImprove: false },
     { label:'Streak (วัน)',  key:'streak' as const,          unit:'วัน',  fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.streak-a.streak),     isSenior: false, isImprove: false },
-    ...(seniors.length > 0 ? [{ label:'👑 กลุ่ม 55+', key:'km' as const, unit:'km', fmt:(v:number)=>fmtKm(v), data:[...seniors].sort((a,b)=>b.km-a.km), isSenior: true, isImprove: false }] : []),
     ...(hasImprovement ? [{ label:'📈 พัฒนาดีที่สุด', key:'km' as const, unit:'km', fmt:(v:number)=>fmtKm(v), data:[] as typeof participants, isSenior: false, isImprove: true }] : []),
-  ], [participants, seniors, hasImprovement]);
+  ], [participants, hasImprovement]);
 
   const cur = tabs[tab];
   const medals = ['🥇','🥈','🥉'];
