@@ -194,23 +194,25 @@ router.post('/', async (_req, res) => {
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
 
-  // ── Auto-award badges (km, streak, activity_count) ──────────────────────
+  // ── Auto-award badges (km, streak, activity_count, single-activity) ──────
   try {
-    const autoBadges = db.prepare(
+    const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+      || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+    const seasonId = season?.id ?? null;
+    const insert = db.prepare('INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)');
+    let autoAwarded = 0;
+
+    // 1) Participant-level badges (km สะสม / streak / จำนวนครั้ง)
+    const statBadges = db.prepare(
       'SELECT * FROM badges WHERE auto_km IS NOT NULL OR auto_streak IS NOT NULL OR auto_activity_count IS NOT NULL'
     ).all();
-    if (autoBadges.length > 0) {
-      const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
-        || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
-      const seasonId = season?.id ?? null;
+    if (statBadges.length > 0) {
       const allParticipants = db.prepare('SELECT name, km, streak, activity_count FROM participants').all();
-      const insert = db.prepare('INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)');
-      let autoAwarded = 0;
       for (const p of allParticipants) {
-        for (const badge of autoBadges) {
+        for (const badge of statBadges) {
           const qualifies =
-            (badge.auto_km            != null && p.km             >= badge.auto_km) ||
-            (badge.auto_streak        != null && p.streak         >= badge.auto_streak) ||
+            (badge.auto_km             != null && p.km             >= badge.auto_km) ||
+            (badge.auto_streak         != null && p.streak         >= badge.auto_streak) ||
             (badge.auto_activity_count != null && p.activity_count >= badge.auto_activity_count);
           if (qualifies) {
             const r = insert.run(p.name, badge.id, seasonId, 'auto');
@@ -218,8 +220,32 @@ router.post('/', async (_req, res) => {
           }
         }
       }
-      if (autoAwarded > 0) console.log(`[badge] auto-awarded ${autoAwarded} badge entries`);
     }
+
+    // 2) Single-activity badges (ระยะ + เวลา ในกิจกรรมเดียว)
+    const actBadges = db.prepare(
+      'SELECT * FROM badges WHERE auto_act_km IS NOT NULL AND auto_act_min IS NOT NULL'
+    ).all();
+    for (const badge of actBadges) {
+      const maxElapsedSec = badge.auto_act_min * 60;
+      // หาผู้เข้าร่วมที่มีกิจกรรม season (ไม่ใช่ baseline) ที่ผ่านเกณฑ์
+      const qualifiers = db.prepare(`
+        SELECT DISTINCT p.name
+        FROM strava_activities sa
+        JOIN participants p ON p.strava_key = sa.strava_key
+        WHERE sa.is_baseline = 0
+          AND COALESCE(sa.credited_km, sa.distance_km) >= ?
+          AND sa.elapsed_time > 0
+          AND sa.elapsed_time <= ?
+          AND COALESCE(sa.credited_km, sa.distance_km) > 0
+      `).all(badge.auto_act_km, maxElapsedSec);
+      for (const q of qualifiers) {
+        const r = insert.run(q.name, badge.id, seasonId, 'auto');
+        if (r.changes > 0) autoAwarded++;
+      }
+    }
+
+    if (autoAwarded > 0) console.log(`[badge] auto-awarded ${autoAwarded} badge entries`);
   } catch(e) { console.error('[badge] auto-award error:', e.message); }
 
   const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');

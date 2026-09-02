@@ -126,8 +126,8 @@ try {
   console.log('[migration] created badges table');
 } catch { /* already exists */ }
 
-// Migration: add auto_streak + auto_activity_count columns (safe on existing DB)
-for (const col of ['auto_streak INTEGER', 'auto_activity_count INTEGER']) {
+// Migration: add auto columns (safe on existing DB)
+for (const col of ['auto_streak INTEGER', 'auto_activity_count INTEGER', 'auto_act_km REAL', 'auto_act_min INTEGER']) {
   try { db.prepare(`ALTER TABLE badges ADD COLUMN ${col}`).run(); } catch { /* already exists */ }
 }
 

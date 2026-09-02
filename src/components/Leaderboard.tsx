@@ -19,10 +19,17 @@ function BadgeModal({
   const unearned = badges.filter(b => !earnedIds.includes(b.id));
 
   const hint = (b: Badge) => {
+    const x = b as any;
     const parts: string[] = [];
-    if ((b as any).auto_km            != null) parts.push(`km สะสม ≥ ${(b as any).auto_km} km (ตอนนี้ ${fmtKm(p.km)})`);
-    if ((b as any).auto_streak        != null) parts.push(`streak ≥ ${(b as any).auto_streak} วัน (ตอนนี้ ${p.streak})`);
-    if ((b as any).auto_activity_count!= null) parts.push(`วิ่ง ≥ ${(b as any).auto_activity_count} ครั้ง (ตอนนี้ ${p.activityCount})`);
+    if (x.auto_km             != null) parts.push(`km สะสม ≥ ${x.auto_km} km (ตอนนี้ ${fmtKm(p.km)})`);
+    if (x.auto_streak         != null) parts.push(`streak ≥ ${x.auto_streak} วัน (ตอนนี้ ${p.streak})`);
+    if (x.auto_activity_count != null) parts.push(`วิ่ง ≥ ${x.auto_activity_count} ครั้ง (ตอนนี้ ${p.activityCount})`);
+    if (x.auto_act_km != null && x.auto_act_min != null) {
+      const h = Math.floor(x.auto_act_min / 60);
+      const m = x.auto_act_min % 60;
+      const timeStr = h > 0 ? `${h} ชม. ${m > 0 ? m + ' นาที' : ''}`.trim() : `${m} นาที`;
+      parts.push(`วิ่ง ≥ ${x.auto_act_km} km ภายใน ${timeStr} (ในกิจกรรมเดียว)`);
+    }
     if (parts.length === 0) return 'มอบพิเศษโดยแอดมิน';
     return parts.join(' · ');
   };
