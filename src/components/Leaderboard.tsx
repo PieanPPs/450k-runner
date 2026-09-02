@@ -43,8 +43,8 @@ export default function Leaderboard() {
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap' }}>
               <span style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</span>
-              {(badgeAssignments[String(p.id)] ?? []).map(bid => {
-                const b = badges.find(x => x.id === bid);
+              {(badgeAssignments?.[String(p.id)] ?? []).map(bid => {
+                const b = (badges ?? []).find(x => x.id === bid);
                 if (!b) return null;
                 return (
                   <span key={bid} title={b.label} style={{ fontSize:14, cursor:'default', lineHeight:1 }}>{b.icon}</span>

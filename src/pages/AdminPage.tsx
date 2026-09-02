@@ -1981,17 +1981,19 @@ function BadgesPage() {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
+  const safeJson = async (res: Response) => { try { return res.ok ? await res.json() : null; } catch { return null; } };
+
   const load = async () => {
     const [bd, pd] = await Promise.all([
-      fetch(`${API}/api/adminpp/badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
-      fetch(`${API}/api/adminpp/participant-badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
+      fetch(`${API}/api/adminpp/badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(safeJson),
+      fetch(`${API}/api/adminpp/participant-badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(safeJson),
     ]);
-    setBadges(bd);
-    setAssigns(pd.rows ?? []);
-    setSeasonId(pd.seasonId ?? null);
+    setBadges(Array.isArray(bd) ? bd : []);
+    setAssigns(pd?.rows ?? []);
+    setSeasonId(pd?.seasonId ?? null);
     // participants list จาก admin endpoint (ชื่อจริง ไม่ mask)
-    const pp = await fetch(`${API}/api/adminpp/participants`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json());
-    setParticipants(pp.map((p: {id:number;name:string}) => ({ id: p.id, name: p.name })));
+    const pp = await fetch(`${API}/api/adminpp/participants`, { headers: { Authorization: `Bearer ${tok()}` } }).then(safeJson);
+    setParticipants(Array.isArray(pp) ? pp.map((p: {id:number;name:string}) => ({ id: p.id, name: p.name })) : []);
   };
 
   useEffect(() => { load(); }, []);
