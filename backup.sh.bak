@@ -1,0 +1,19 @@
+#!/bin/bash
+DB="/home/450k-runner/backend/data/450k.sqlite"
+BACKUP_DIR="/home/450k-runner/backend/data/backups"
+mkdir -p "$BACKUP_DIR"
+DEST="${BACKUP_DIR}/450k_$(date '+%Y%m%d_%H%M%S').sqlite"
+
+# ใช้ sqlite3 .backup — checkpoint WAL แล้ว copy อัตโนมัติ
+sqlite3 "$DB" ".backup '${DEST}'"
+
+if [ $? -eq 0 ]; then
+  echo "✅ Backup: $DEST ($(du -sh $DEST | cut -f1))"
+else
+  echo "❌ Backup ล้มเหลว!"
+  exit 1
+fi
+
+# เก็บแค่ 30 ไฟล์ล่าสุด
+ls -1t "${BACKUP_DIR}"/450k_*.sqlite | tail -n +31 | xargs rm -f 2>/dev/null
+ls -lht "${BACKUP_DIR}"/450k_*.sqlite | head -5
