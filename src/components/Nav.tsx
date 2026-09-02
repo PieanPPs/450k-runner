@@ -30,7 +30,6 @@ export default function Nav() {
     { href: '#about',       label: 'โครงการ' },
     { href: '#leaderboard', label: 'อันดับ' },
     { href: '#milestones',  label: 'รางวัล' },
-    { href: '#journey',     label: 'การเดินทาง' },
     { href: '#calendar',    label: 'ปฏิทินวิ่ง' },
     { href: '#seasons',     label: 'Season' },
     { href: '#gallery',     label: 'ภาพกิจกรรม' },
@@ -78,9 +77,6 @@ export default function Nav() {
             <span style={{ fontSize: 12, color: t.textMuted, whiteSpace: 'nowrap' }}>
               {syncing ? 'กำลัง sync...' : loading ? 'โหลด...' : syncMsg}
             </span>
-          )}
-          {data.isMockData && !loading && (
-            <span style={{ fontSize: 11, color: '#f59e0b', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 999, padding: '2px 8px' }}>Mock Data</span>
           )}
           <button onClick={handleSync} disabled={syncing || loading}
             style={{ background: syncing ? t.progressBg : `linear-gradient(135deg,${t.accent1},${t.accent2})`, border: 'none', borderRadius: 999, padding: '6px 14px', cursor: syncing ? 'not-allowed' : 'pointer', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'Sarabun', opacity: syncing ? 0.6 : 1, transition: 'opacity 0.2s' }}>

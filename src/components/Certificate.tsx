@@ -97,7 +97,7 @@ export default function Certificate() {
 // ─── Corner HUD bracket (SVG) ────────────────────────────────
 function HUDCorner({ size = 50, flip = [false, false] as [boolean, boolean] }) {
   const [fx, fy] = flip;
-  const c = '#e91e8c';
+  const c = '#00D4AA';
   return (
     <svg width={size + 18} height={size + 18} style={{
       transform: `scale(${fx ? -1 : 1},${fy ? -1 : 1})`,
@@ -134,11 +134,11 @@ export function CertificateCard({
       position: 'relative',
       borderRadius: 8 * p,
       overflow: 'hidden',
-      background: '#0d0818',
+      background: 'linear-gradient(180deg,#071a14 0%,#0d0818 100%)',
       fontFamily: 'Sarabun, sans-serif',
       boxShadow: large
-        ? '0 0 60px rgba(233,30,140,0.4), 0 0 120px rgba(233,30,140,0.15)'
-        : '0 8px 32px rgba(233,30,140,0.3)',
+        ? '0 0 60px rgba(255,0,102,0.35), 0 0 100px rgba(0,212,170,0.15)'
+        : '0 8px 32px rgba(255,0,102,0.25)',
     }}>
 
       {/* Centre purple glow */}
@@ -148,16 +148,16 @@ export function CertificateCard({
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* Pink border inner */}
+      {/* Border inner */}
       <div style={{
         position: 'absolute', inset: 6 * p,
-        border: `${1.5 * p}px solid #e91e8c`,
+        border: `${1.5 * p}px solid #FF0066`,
         borderRadius: 6 * p, pointerEvents: 'none', zIndex: 2,
-        boxShadow: 'inset 0 0 12px rgba(233,30,140,0.15)',
+        boxShadow: 'inset 0 0 12px rgba(255,0,102,0.12)',
       }} />
       <div style={{
         position: 'absolute', inset: 10 * p,
-        border: `${0.5 * p}px solid rgba(233,30,140,0.3)`,
+        border: `${0.5 * p}px solid rgba(0,212,170,0.4)`,
         borderRadius: 4 * p, pointerEvents: 'none', zIndex: 2,
       }} />
 
@@ -183,20 +183,28 @@ export function CertificateCard({
         boxSizing: 'border-box', textAlign: 'center',
       }}>
 
+        {/* Season 2 badge */}
+        <div style={{
+          background: 'linear-gradient(135deg,#FF0066,#00D4AA)',
+          borderRadius: 999, padding: `${3*p}px ${10*p}px`,
+          fontSize: 7*p, fontWeight: 800, color: '#fff', letterSpacing: 2,
+          marginBottom: 8*p,
+        }}>SEASON 2</div>
+
         {/* Badge top */}
         <div style={{
           marginBottom: 10 * p,
           width: 70 * p, height: 70 * p,
-          border: `${2 * p}px solid #e91e8c`,
+          border: `${2 * p}px solid #00D4AA`,
           borderRadius: '50%',
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 16px rgba(233,30,140,0.5)',
-          background: 'rgba(233,30,140,0.08)',
+          boxShadow: '0 0 16px rgba(0,212,170,0.5)',
+          background: 'rgba(0,212,170,0.08)',
           gap: 2,
         }}>
           <div style={{ fontSize: 18 * p }}>🏃</div>
-          <div style={{ color: '#e91e8c', fontSize: 5 * p, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>
+          <div style={{ color: '#00D4AA', fontSize: 5 * p, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1.2 }}>
             THE TEACHER'S<br />GAME
           </div>
         </div>
@@ -208,21 +216,21 @@ export function CertificateCard({
             fontFamily: '"Bebas Neue",serif',
             fontSize: 42 * p,
             letterSpacing: 3,
-            background: 'linear-gradient(180deg, #ff66cc 0%, #e91e8c 50%, #c2185b 100%)',
+            background: 'linear-gradient(180deg, #FF6699 0%, #FF0066 50%, #CC0055 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             lineHeight: 1,
           }}>TEACHER'S</div>
-          <div style={{ color: '#e8e0ff', fontFamily: '"Bebas Neue",serif', fontSize: 34 * p, letterSpacing: 6, lineHeight: 1 }}>GAME</div>
+          <div style={{ color: '#00D4AA', fontFamily: '"Bebas Neue",serif', fontSize: 34 * p, letterSpacing: 6, lineHeight: 1 }}>GAME</div>
         </div>
 
         {/* Tagline */}
-        <div style={{ color: '#e91e8c', fontSize: 8 * p, letterSpacing: 2, marginBottom: 10 * p, fontWeight: 600 }}>
+        <div style={{ color: '#FF0066', fontSize: 8 * p, letterSpacing: 2, marginBottom: 10 * p, fontWeight: 600 }}>
           {'>>> RUN TOGETHER, WIN TOGETHER <<<'}
         </div>
 
         {/* Thai title */}
         <div style={{
-          color: '#ff3399', fontWeight: 700, fontSize: 16 * p,
+          color: '#FF0066', fontWeight: 700, fontSize: 16 * p,
           fontFamily: 'Sarabun, sans-serif', letterSpacing: 0.5,
           textShadow: '0 0 20px rgba(255,51,153,0.6)',
           marginBottom: 4 * p,
@@ -241,25 +249,25 @@ export function CertificateCard({
         {/* Name box */}
         <div style={{
           width: '85%',
-          border: `${1.5 * p}px solid #e91e8c`,
+          border: `${1.5 * p}px solid #FF0066`,
           borderRadius: 4 * p,
           padding: `${12 * p}px ${16 * p}px`,
-          background: 'rgba(233,30,140,0.06)',
-          boxShadow: '0 0 20px rgba(233,30,140,0.2)',
+          background: 'rgba(255,0,102,0.06)',
+          boxShadow: '0 0 20px rgba(255,0,102,0.2)',
           marginBottom: 10 * p,
         }}>
           <div style={{
             color: '#fff', fontWeight: 700, fontSize: 14 * p,
             fontFamily: 'Sarabun, sans-serif',
           }}>{name}</div>
-          <div style={{ color: '#e91e8c', fontSize: 8 * p, marginTop: 3 * p }}>
+          <div style={{ color: '#FF0066', fontSize: 8 * p, marginTop: 3 * p }}>
             วิ่ง {km} กิโลเมตร
           </div>
         </div>
 
         {/* Body */}
         <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 7 * p, marginBottom: 4 * p }}>ได้เข้าร่วมกิจกรรม</div>
-        <div style={{ color: '#ff3399', fontStyle: 'italic', fontSize: 11 * p, fontWeight: 700, fontFamily: '"Bebas Neue",serif', letterSpacing: 2 }}>
+        <div style={{ color: '#FF0066', fontStyle: 'italic', fontSize: 11 * p, fontWeight: 700, fontFamily: '"Bebas Neue",serif', letterSpacing: 2 }}>
           THE TEACHER'S GAME
         </div>
         <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 7.5 * p, marginBottom: 6 * p }}>RUN CHALLENGE</div>
@@ -271,9 +279,9 @@ export function CertificateCard({
 
         {/* Divider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '60%', marginBottom: 12 * p }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(233,30,140,0.4)' }} />
-          <div style={{ color: '#e91e8c', fontSize: 8 * p }}>◆</div>
-          <div style={{ flex: 1, height: 1, background: 'rgba(233,30,140,0.4)' }} />
+          <div style={{ flex: 1, height: 1, background: 'rgba(0,212,170,0.4)' }} />
+          <div style={{ color: '#00D4AA', fontSize: 8 * p }}>◆</div>
+          <div style={{ flex: 1, height: 1, background: 'rgba(0,212,170,0.4)' }} />
         </div>
 
         {/* Signature */}

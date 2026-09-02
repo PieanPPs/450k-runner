@@ -6,7 +6,6 @@ import About from '@/components/About';
 import Leaderboard from '@/components/Leaderboard';
 import DailyLog from '@/components/DailyLog';
 import Milestones from '@/components/Milestones';
-import Journey from '@/components/Journey';
 import WeeklyGraph from '@/components/WeeklyGraph';
 import Seasons from '@/components/Seasons';
 import Gallery from '@/components/Gallery';
@@ -35,7 +34,6 @@ function AppBody() {
       <Leaderboard />
       <DailyLog />
       <Milestones />
-      <Journey />
       <WeeklyGraph />
       <RunCalendar />
       <Seasons />
