@@ -193,6 +193,32 @@ router.post('/', async (_req, res) => {
   }
 
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
+
+  // ── Auto-award km milestone badges ──────────────────────────────────────
+  try {
+    const milestoneBadges = db.prepare('SELECT * FROM badges WHERE auto_km IS NOT NULL ORDER BY auto_km ASC').all();
+    if (milestoneBadges.length > 0) {
+      const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+        || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+      const seasonId = season?.id ?? null;
+      const allParticipants = db.prepare('SELECT name, km FROM participants').all();
+      let autoAwarded = 0;
+      for (const p of allParticipants) {
+        for (const badge of milestoneBadges) {
+          if (p.km >= badge.auto_km) {
+            try {
+              db.prepare(
+                'INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)'
+              ).run(p.name, badge.id, seasonId, 'auto');
+              autoAwarded++;
+            } catch { /* duplicate — ข้ามได้ */ }
+          }
+        }
+      }
+      if (autoAwarded > 0) console.log(`[badge] auto-awarded ${autoAwarded} badge entries`);
+    }
+  } catch(e) { console.error('[badge] auto-award error:', e.message); }
+
   const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
   db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)')
     .run(thaiNow, synced===total?'ok':'partial', JSON.stringify(results));

@@ -7,7 +7,7 @@ import { fmtKm } from '@/utils/fmt';
 export default function Leaderboard() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
-  const { participants, improvement } = data;
+  const { participants, improvement, badges, badgeAssignments } = data;
   const [tab, setTab] = useState(0);
 
   // hasImprovement: แสดง tab เมื่อมีคนที่ km Season 2 > 0 แล้ว (diff เป็นบวกอย่างน้อย 1 คน)
@@ -41,7 +41,16 @@ export default function Leaderboard() {
             {p.initials}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+              <span style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</span>
+              {(badgeAssignments[String(p.id)] ?? []).map(bid => {
+                const b = badges.find(x => x.id === bid);
+                if (!b) return null;
+                return (
+                  <span key={bid} title={b.label} style={{ fontSize:14, cursor:'default', lineHeight:1 }}>{b.icon}</span>
+                );
+              })}
+            </div>
             <div style={{ background:t.progressBg, borderRadius:999, height:5, marginTop:6, overflow:'hidden' }}>
               <div style={{ height:'100%', width:`${max>0?(val/max)*100:0}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius:999 }} />
             </div>

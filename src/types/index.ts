@@ -31,6 +31,12 @@ export interface Season {
 export interface ImprovementEntry {
   name: string; initials: string; currentKm: number; prevKm: number; diff: number; ageGroup?: string;
 }
+export interface Badge {
+  id: number; icon: string; label: string; color: string;
+  description?: string | null; auto_km?: number | null; created_at: string;
+}
+// { participantId (string): [badgeId, ...] }
+export type BadgeAssignments = Record<string, number[]>;
 export interface Distance {
   km: number; label: string; icon: string; desc: string; gmapUrl: string;
 }

@@ -108,6 +108,39 @@ try {
   console.log('[migration] added results_json column to seasons');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: badges — badge definitions (manual + auto km milestone)
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS badges (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      icon        TEXT NOT NULL DEFAULT '🏅',
+      label       TEXT NOT NULL,
+      color       TEXT NOT NULL DEFAULT '#f59e0b',
+      description TEXT,
+      auto_km     REAL,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  console.log('[migration] created badges table');
+} catch { /* already exists */ }
+
+// Migration: participant_badges — ใครได้ badge ไหน ใน season ไหน
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS participant_badges (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      participant_name TEXT NOT NULL,
+      badge_id         INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+      season_id        INTEGER REFERENCES seasons(id),
+      source           TEXT NOT NULL DEFAULT 'manual',
+      note             TEXT,
+      awarded_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(participant_name, badge_id, season_id)
+    )
+  `).run();
+  console.log('[migration] created participant_badges table');
+} catch { /* already exists */ }
+
 // Ensure gallery folder exists & serve statically at /gallery/<filename>
 const galleryDir = path.resolve(__dirname, '../data/gallery');
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });

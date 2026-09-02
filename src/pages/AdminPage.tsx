@@ -74,6 +74,7 @@ const MENUS = [
   { key:'participants', label:'👥 ผู้เข้าร่วม' },
   { key:'milestones',   label:'🏆 Milestones' },
   { key:'seasons',      label:'📅 Seasons' },
+  { key:'badges',       label:'🏅 Badges' },
   { key:'gallery',      label:'🖼️ Gallery' },
   { key:'trash',        label:'🗑️ ถังขยะ' },
   { key:'export',       label:'📤 Export' },
@@ -1955,6 +1956,153 @@ function DailyReport() {
   );
 }
 
+// ─── BadgesPage ───────────────────────────────────────────
+function BadgesPage() {
+  const API = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
+  const tok = () => localStorage.getItem('admin_token') || '';
+
+  type BadgeDef = { id: number; icon: string; label: string; color: string; description?: string | null; auto_km?: number | null };
+  type Assignment = { id: number; participant_name: string; badge_id: number; source: string; note?: string | null; icon: string; label: string; color: string };
+
+  const [badges, setBadges]   = useState<BadgeDef[]>([]);
+  const [assigns, setAssigns] = useState<Assignment[]>([]);
+  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const [participants, setParticipants] = useState<{id:number;name:string}[]>([]);
+  const [msg, setMsg] = useState('');
+
+  // form: badge def
+  const [bForm, setBForm] = useState({ id: 0, icon: '🏅', label: '', color: '#f59e0b', description: '', auto_km: '' });
+  const [bEdit, setBEdit] = useState(false);
+
+  // form: assign
+  const [aName, setAName]   = useState('');
+  const [aBadge, setABadge] = useState('');
+  const [aNote, setANote]   = useState('');
+
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+
+  const load = async () => {
+    const [bd, pd] = await Promise.all([
+      fetch(`${API}/api/adminpp/badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
+      fetch(`${API}/api/adminpp/participant-badges`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json()),
+    ]);
+    setBadges(bd);
+    setAssigns(pd.rows ?? []);
+    setSeasonId(pd.seasonId ?? null);
+    // participants list จาก admin endpoint (ชื่อจริง ไม่ mask)
+    const pp = await fetch(`${API}/api/adminpp/participants`, { headers: { Authorization: `Bearer ${tok()}` } }).then(r => r.json());
+    setParticipants(pp.map((p: {id:number;name:string}) => ({ id: p.id, name: p.name })));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const saveBadge = async () => {
+    if (!bForm.label) return flash('กรุณาใส่ชื่อ badge');
+    const body = { icon: bForm.icon, label: bForm.label, color: bForm.color, description: bForm.description || null, auto_km: bForm.auto_km !== '' ? parseFloat(bForm.auto_km) : null };
+    const url  = bEdit ? `${API}/api/adminpp/badges/${bForm.id}` : `${API}/api/adminpp/badges`;
+    const meth = bEdit ? 'PUT' : 'POST';
+    const r = await fetch(url, { method: meth, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) { flash(bEdit ? '✅ บันทึกแล้ว' : '✅ เพิ่ม badge แล้ว'); setBForm({ id:0, icon:'🏅', label:'', color:'#f59e0b', description:'', auto_km:'' }); setBEdit(false); load(); }
+    else flash('❌ ' + d.message);
+  };
+
+  const deleteBadge = async (id: number) => {
+    if (!confirm('ลบ badge นี้? (จะลบทุก assignment ที่เกี่ยวด้วย)')) return;
+    await fetch(`${API}/api/adminpp/badges/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok()}` } });
+    flash('🗑️ ลบแล้ว'); load();
+  };
+
+  const assignBadge = async () => {
+    if (!aName || !aBadge) return flash('เลือกชื่อครูและ badge ก่อน');
+    const r = await fetch(`${API}/api/adminpp/participant-badges`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` }, body: JSON.stringify({ participant_name: aName, badge_id: parseInt(aBadge), note: aNote || null }) });
+    const d = await r.json();
+    if (d.ok) { flash('✅ Assign แล้ว'); setANote(''); load(); }
+    else flash('❌ ' + d.message);
+  };
+
+  const removeAssign = async (id: number) => {
+    await fetch(`${API}/api/adminpp/participant-badges/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tok()}` } });
+    flash('🗑️ ถอด badge แล้ว'); load();
+  };
+
+  const card = { background:'#1a1a2e', border:'1px solid #333', borderRadius:12, padding:20, marginBottom:20 };
+  const inp  = { background:'#0d0d1a', border:'1px solid #444', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, width:'100%', boxSizing:'border-box' as const };
+  const btn  = (c='#7c3aed') => ({ background:c, border:'none', borderRadius:8, padding:'8px 16px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' });
+
+  return (
+    <div style={{ maxWidth:780 }}>
+      <h2 style={{ color:'#a78bfa', marginBottom:4 }}>🏅 Badges</h2>
+      <div style={{ color:'#666', fontSize:12, marginBottom:24 }}>Season ID: {seasonId ?? '—'}</div>
+      {msg && <div style={{ background: msg.startsWith('✅') ? '#14532d' : '#450a0a', border:'1px solid #333', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13 }}>{msg}</div>}
+
+      {/* ── Badge Definitions ── */}
+      <div style={card}>
+        <div style={{ fontWeight:700, fontSize:15, marginBottom:16, color:'#c4b5fd' }}>
+          {bEdit ? '✏️ แก้ไข Badge' : '➕ Badge ใหม่'}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'60px 1fr 120px', gap:10, marginBottom:10 }}>
+          <input value={bForm.icon} onChange={e=>setBForm(f=>({...f, icon:e.target.value}))} style={inp} placeholder="icon" />
+          <input value={bForm.label} onChange={e=>setBForm(f=>({...f, label:e.target.value}))} style={inp} placeholder="ชื่อ badge เช่น Mission W3" />
+          <input value={bForm.color} onChange={e=>setBForm(f=>({...f, color:e.target.value}))} style={inp} placeholder="#f59e0b" />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 140px', gap:10, marginBottom:12 }}>
+          <input value={bForm.description} onChange={e=>setBForm(f=>({...f, description:e.target.value}))} style={inp} placeholder="คำอธิบาย (optional)" />
+          <input value={bForm.auto_km} onChange={e=>setBForm(f=>({...f, auto_km:e.target.value}))} style={inp} placeholder="auto km (เช่น 100)" type="number" min="0" />
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={saveBadge} style={btn()}>{bEdit ? 'บันทึก' : 'เพิ่ม Badge'}</button>
+          {bEdit && <button onClick={()=>{setBForm({id:0,icon:'🏅',label:'',color:'#f59e0b',description:'',auto_km:''});setBEdit(false);}} style={btn('#444')}>ยกเลิก</button>}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#c4b5fd' }}>Badge ทั้งหมด ({badges.length})</div>
+        {badges.length === 0 && <div style={{ color:'#555', fontSize:13 }}>ยังไม่มี badge — เพิ่มด้านบนก่อน</div>}
+        {badges.map(b => (
+          <div key={b.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #222' }}>
+            <span style={{ fontSize:20 }}>{b.icon}</span>
+            <span style={{ flex:1, color:'#e2e8f0', fontSize:13 }}>{b.label} {b.auto_km ? <span style={{ color:'#888', fontSize:11 }}>· auto ≥{b.auto_km} km</span> : <span style={{ color:'#888', fontSize:11 }}>· manual</span>}</span>
+            <span style={{ width:16, height:16, borderRadius:'50%', background:b.color, display:'inline-block' }} />
+            <button onClick={()=>{setBForm({id:b.id,icon:b.icon,label:b.label,color:b.color,description:b.description||'',auto_km:b.auto_km!=null?String(b.auto_km):''});setBEdit(true);}} style={btn('#4c1d95')}>แก้</button>
+            <button onClick={()=>deleteBadge(b.id)} style={btn('#7f1d1d')}>ลบ</button>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Assign ── */}
+      <div style={card}>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#c4b5fd' }}>Assign Badge ให้ผู้เข้าร่วม</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+          <select value={aName} onChange={e=>setAName(e.target.value)} style={inp}>
+            <option value="">— เลือกชื่อครู —</option>
+            {participants.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+          </select>
+          <select value={aBadge} onChange={e=>setABadge(e.target.value)} style={inp}>
+            <option value="">— เลือก Badge —</option>
+            {badges.map(b => <option key={b.id} value={b.id}>{b.icon} {b.label}</option>)}
+          </select>
+        </div>
+        <input value={aNote} onChange={e=>setANote(e.target.value)} style={{...inp, marginBottom:10}} placeholder="หมายเหตุ (optional)" />
+        <button onClick={assignBadge} style={btn('#065f46')}>✅ Assign</button>
+      </div>
+
+      {/* ── Current Assignments ── */}
+      <div style={card}>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:12, color:'#c4b5fd' }}>Assignments ปัจจุบัน ({assigns.length})</div>
+        {assigns.length === 0 && <div style={{ color:'#555', fontSize:13 }}>ยังไม่มี assignment</div>}
+        {assigns.map(a => (
+          <div key={a.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 0', borderBottom:'1px solid #222' }}>
+            <span style={{ fontSize:18 }}>{a.icon}</span>
+            <span style={{ flex:1, color:'#e2e8f0', fontSize:13 }}>{a.participant_name} <span style={{ color:'#888' }}>→ {a.label}</span> {a.source==='auto' && <span style={{ color:'#6ee7b7', fontSize:11 }}>auto</span>}</span>
+            <button onClick={()=>removeAssign(a.id)} style={btn('#7f1d1d')}>ถอด</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main AdminPage ───────────────────────────────────────
 export default function AdminPage() {
   const [authed, setAuthed]   = useState(false);
@@ -2005,6 +2153,7 @@ export default function AdminPage() {
     distances:    <CrudList title="Distances (เส้นทาง)" endpoint="distances" fields={DISTANCE_FIELDS} />,
     preseason:    <PreSeasonPage />,
     seasons:      <SeasonsPage />,
+    badges:       <BadgesPage />,
     gallery:      <GalleryAdmin />,
     trash:        <TrashPage />,
     export:       <ExportPage />,

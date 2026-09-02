@@ -12,6 +12,7 @@ import {
   getSettings,
   getDailyLog,
   getImprovement,
+  getBadges,
 } from '../controllers/dashboardController.js';
 
 const router = Router();
@@ -28,5 +29,6 @@ router.get('/gallery', getGallery);
 router.get('/settings', getSettings);
 router.get('/daily', getDailyLog);
 router.get('/improvement', getImprovement);
+router.get('/badges', getBadges);
 
 export default router;

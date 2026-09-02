@@ -714,4 +714,95 @@ router.delete('/gallery/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─────────────────────────────────────────────────────────────
+//  BADGES — CRUD + ASSIGN
+// ─────────────────────────────────────────────────────────────
+
+// GET /api/adminpp/badges — รายการ badge ทั้งหมด
+router.get('/badges', requireAdmin, (_req, res) => {
+  const badges = db.prepare('SELECT * FROM badges ORDER BY auto_km ASC NULLS LAST, created_at ASC').all();
+  res.json(badges);
+});
+
+// POST /api/adminpp/badges — สร้าง badge ใหม่
+router.post('/badges', requireAdmin, (req, res) => {
+  const { icon, label, color, description, auto_km } = req.body;
+  if (!label) return res.status(400).json({ ok: false, message: 'label required' });
+  const result = db.prepare(
+    'INSERT INTO badges (icon, label, color, description, auto_km) VALUES (?,?,?,?,?)'
+  ).run(
+    icon || '🏅',
+    label,
+    color || '#f59e0b',
+    description || null,
+    auto_km != null ? parseFloat(auto_km) : null,
+  );
+  res.json({ ok: true, id: result.lastInsertRowid });
+});
+
+// PUT /api/adminpp/badges/:id — แก้ไข badge
+router.put('/badges/:id', requireAdmin, (req, res) => {
+  const { icon, label, color, description, auto_km } = req.body;
+  if (!label) return res.status(400).json({ ok: false, message: 'label required' });
+  db.prepare(
+    'UPDATE badges SET icon=?, label=?, color=?, description=?, auto_km=? WHERE id=?'
+  ).run(
+    icon || '🏅',
+    label,
+    color || '#f59e0b',
+    description || null,
+    auto_km != null ? parseFloat(auto_km) : null,
+    req.params.id,
+  );
+  res.json({ ok: true });
+});
+
+// DELETE /api/adminpp/badges/:id — ลบ badge (cascade ลบ participant_badges ด้วย)
+router.delete('/badges/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM badges WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// GET /api/adminpp/participant-badges — assignments ของ season ปัจจุบัน
+router.get('/participant-badges', requireAdmin, (_req, res) => {
+  const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+    || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+  const seasonId = season?.id ?? null;
+  const rows = seasonId
+    ? db.prepare(`
+        SELECT pb.id, pb.participant_name, pb.badge_id, pb.source, pb.note, pb.awarded_at,
+               b.icon, b.label, b.color
+        FROM participant_badges pb
+        JOIN badges b ON b.id = pb.badge_id
+        WHERE pb.season_id = ?
+        ORDER BY pb.awarded_at DESC
+      `).all(seasonId)
+    : [];
+  res.json({ seasonId, rows });
+});
+
+// POST /api/adminpp/participant-badges — assign badge ให้ participant
+router.post('/participant-badges', requireAdmin, (req, res) => {
+  const { participant_name, badge_id, note } = req.body;
+  if (!participant_name || !badge_id) return res.status(400).json({ ok: false, message: 'participant_name + badge_id required' });
+  const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+    || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+  const seasonId = season?.id ?? null;
+  try {
+    const result = db.prepare(
+      'INSERT INTO participant_badges (participant_name, badge_id, season_id, source, note) VALUES (?,?,?,?,?)'
+    ).run(participant_name, badge_id, seasonId, 'manual', note || null);
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (e) {
+    if (e.message?.includes('UNIQUE')) return res.status(409).json({ ok: false, message: 'badge นี้ assign ให้คนนี้แล้ว' });
+    throw e;
+  }
+});
+
+// DELETE /api/adminpp/participant-badges/:id — ถอด badge
+router.delete('/participant-badges/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM participant_badges WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 export default router;

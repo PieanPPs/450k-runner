@@ -177,3 +177,38 @@ export function getDailyLog(req, res) {
 
   res.json({ date, activities: activities.map(a => ({ ...a, name: maskName(a.name_full), name_full: undefined })), days });
 }
+
+/**
+ * GET /api/badges
+ * คืน badge definitions ทั้งหมด + participant assignments ของ season ปัจจุบัน
+ * Format: { badges: [...], assignments: { participantName: [badge, ...] } }
+ */
+export function getBadges(_req, res) {
+  const badges = db.prepare('SELECT * FROM badges ORDER BY auto_km ASC NULLS LAST, created_at ASC').all();
+
+  // หา season ปัจจุบัน (active หรือล่าสุด)
+  const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
+    || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
+  const seasonId = season?.id ?? null;
+
+  // assignments ของ season นี้ — keyed by participant.id (integer) เพื่อ match ง่ายใน frontend
+  const rows = seasonId
+    ? db.prepare(`
+        SELECT pb.badge_id, p.id as participant_id
+        FROM participant_badges pb
+        LEFT JOIN participants p ON p.name = pb.participant_name
+        WHERE pb.season_id = ?
+      `).all(seasonId)
+    : [];
+
+  // { participantId: [badgeId, ...] }
+  const assignments = {};
+  for (const r of rows) {
+    if (!r.participant_id) continue;
+    const key = String(r.participant_id);
+    if (!assignments[key]) assignments[key] = [];
+    assignments[key].push(r.badge_id);
+  }
+
+  res.json({ badges, assignments, seasonId });
+}
