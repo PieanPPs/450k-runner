@@ -1,26 +1,29 @@
 import { ThemeColors } from '@/types';
 
+// ── Season 2 — Dawn Runner ──────────────────────────────────────────────────
+// Dark: กลางคืน/รุ่งอรุณ — navy ลึก + cyan ไฟฟ้า + เขียว neon + ทอง
+// Light: เช้าสดใส — ขาวฟ้า + teal + emerald + ส้มรุ่งอรุณ
+
 export const DARK: ThemeColors = {
-  bg: '#0D0A1A', bg2: '#130F24', card: 'rgba(255,255,255,0.05)',
-  cardBorder: 'rgba(155,48,255,0.25)', text: '#F0EBF8',
-  textMuted: 'rgba(240,235,248,0.55)', textSub: 'rgba(240,235,248,0.35)',
-  heroText: '#F0EBF8', heroTextMuted: 'rgba(240,235,248,0.6)', heroTextSub: 'rgba(240,235,248,0.4)',
-  accent1: '#9B30FF', accent2: '#FF2D9B', accent3: '#FF8C35',
-  navBg: 'rgba(13,10,26,0.92)',
-  heroGrad: 'linear-gradient(135deg,#1a0533 0%,#0D0A1A 60%,#1a0f0a 100%)',
-  progressBg: 'rgba(255,255,255,0.08)', tabActive: '#9B30FF',
-  tabBg: 'rgba(255,255,255,0.05)', inputBg: 'rgba(255,255,255,0.07)', altBg: 'rgba(155,48,255,0.06)',
+  bg: '#020D18', bg2: '#061828', card: 'rgba(0,229,255,0.05)',
+  cardBorder: 'rgba(0,229,255,0.18)', text: '#E8F8FF',
+  textMuted: 'rgba(232,248,255,0.55)', textSub: 'rgba(232,248,255,0.35)',
+  heroText: '#E8F8FF', heroTextMuted: 'rgba(232,248,255,0.65)', heroTextSub: 'rgba(232,248,255,0.4)',
+  accent1: '#00E5FF', accent2: '#00FF87', accent3: '#FFB800',
+  navBg: 'rgba(2,13,24,0.93)',
+  heroGrad: 'linear-gradient(135deg,#001a2e 0%,#020D18 55%,#001a12 100%)',
+  progressBg: 'rgba(0,229,255,0.10)', tabActive: '#00E5FF',
+  tabBg: 'rgba(0,229,255,0.06)', inputBg: 'rgba(0,229,255,0.06)', altBg: 'rgba(0,229,255,0.07)',
 };
 
 export const LIGHT: ThemeColors = {
-  bg: '#F4FAF4', bg2: '#EBF5EB', card: '#FFFFFF',
-  cardBorder: 'rgba(46,125,50,0.2)', text: '#1A2E1A',
-  textMuted: 'rgba(26,46,26,0.6)', textSub: 'rgba(26,46,26,0.4)',
-  /* heroGrad มีพื้นหลังเข้ม → ตัวอักษรบน hero ต้องเป็นขาว */
-  heroText: '#FFFFFF', heroTextMuted: 'rgba(255,255,255,0.75)', heroTextSub: 'rgba(255,255,255,0.55)',
-  accent1: '#2E7D32', accent2: '#E65100', accent3: '#1565C0',
-  navBg: 'rgba(244,250,244,0.95)',
-  heroGrad: 'linear-gradient(135deg,#1b5e20 0%,#2e7d32 50%,#1565c0 100%)',
-  progressBg: 'rgba(0,0,0,0.08)', tabActive: '#2E7D32',
-  tabBg: 'rgba(0,0,0,0.04)', inputBg: 'rgba(0,0,0,0.04)', altBg: 'rgba(46,125,50,0.06)',
+  bg: '#EEF9FC', bg2: '#DDF3F8', card: '#FFFFFF',
+  cardBorder: 'rgba(0,140,180,0.2)', text: '#082530',
+  textMuted: 'rgba(8,37,48,0.6)', textSub: 'rgba(8,37,48,0.4)',
+  heroText: '#FFFFFF', heroTextMuted: 'rgba(255,255,255,0.78)', heroTextSub: 'rgba(255,255,255,0.55)',
+  accent1: '#0093AF', accent2: '#00976B', accent3: '#E05C00',
+  navBg: 'rgba(238,249,252,0.95)',
+  heroGrad: 'linear-gradient(135deg,#004d66 0%,#006d55 50%,#003d55 100%)',
+  progressBg: 'rgba(0,147,175,0.10)', tabActive: '#0093AF',
+  tabBg: 'rgba(0,147,175,0.06)', inputBg: 'rgba(0,147,175,0.05)', altBg: 'rgba(0,147,175,0.07)',
 };
