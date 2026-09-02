@@ -726,32 +726,34 @@ router.get('/badges', requireAdmin, (_req, res) => {
 
 // POST /api/adminpp/badges — สร้าง badge ใหม่
 router.post('/badges', requireAdmin, (req, res) => {
-  const { icon, label, color, description, auto_km } = req.body;
+  const { icon, label, color, description, auto_km, auto_streak, auto_activity_count, auto_act_km, auto_act_min } = req.body;
   if (!label) return res.status(400).json({ ok: false, message: 'label required' });
   const result = db.prepare(
-    'INSERT INTO badges (icon, label, color, description, auto_km) VALUES (?,?,?,?,?)'
+    'INSERT INTO badges (icon, label, color, description, auto_km, auto_streak, auto_activity_count, auto_act_km, auto_act_min) VALUES (?,?,?,?,?,?,?,?,?)'
   ).run(
-    icon || '🏅',
-    label,
-    color || '#f59e0b',
-    description || null,
-    auto_km != null ? parseFloat(auto_km) : null,
+    icon || '🏅', label, color || '#f59e0b', description || null,
+    auto_km             != null ? parseFloat(auto_km)             : null,
+    auto_streak         != null ? parseInt(auto_streak)           : null,
+    auto_activity_count != null ? parseInt(auto_activity_count)   : null,
+    auto_act_km         != null ? parseFloat(auto_act_km)         : null,
+    auto_act_min        != null ? parseInt(auto_act_min)          : null,
   );
   res.json({ ok: true, id: result.lastInsertRowid });
 });
 
 // PUT /api/adminpp/badges/:id — แก้ไข badge
 router.put('/badges/:id', requireAdmin, (req, res) => {
-  const { icon, label, color, description, auto_km } = req.body;
+  const { icon, label, color, description, auto_km, auto_streak, auto_activity_count, auto_act_km, auto_act_min } = req.body;
   if (!label) return res.status(400).json({ ok: false, message: 'label required' });
   db.prepare(
-    'UPDATE badges SET icon=?, label=?, color=?, description=?, auto_km=? WHERE id=?'
+    'UPDATE badges SET icon=?, label=?, color=?, description=?, auto_km=?, auto_streak=?, auto_activity_count=?, auto_act_km=?, auto_act_min=? WHERE id=?'
   ).run(
-    icon || '🏅',
-    label,
-    color || '#f59e0b',
-    description || null,
-    auto_km != null ? parseFloat(auto_km) : null,
+    icon || '🏅', label, color || '#f59e0b', description || null,
+    auto_km             != null ? parseFloat(auto_km)             : null,
+    auto_streak         != null ? parseInt(auto_streak)           : null,
+    auto_activity_count != null ? parseInt(auto_activity_count)   : null,
+    auto_act_km         != null ? parseFloat(auto_act_km)         : null,
+    auto_act_min        != null ? parseInt(auto_act_min)          : null,
     req.params.id,
   );
   res.json({ ok: true });
