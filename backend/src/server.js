@@ -1,24 +1,10 @@
-import express from 'express';
-import cors from 'cors';
+// Entry สำหรับ VPS (Node + better-sqlite3 + node-cron)
+// Cloudflare ใช้ src/worker.js แทน — routes/logic ใช้ร่วมกันผ่าน app.js
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import dashboardRoutes  from './routes/dashboard.js';
-import authRoutes       from './routes/auth.js';
-import syncRoutes       from './routes/sync.js';
-import adminRoutes      from './routes/admin.js';
-import calendarRoutes   from './routes/calendar.js';
-import { db } from './db/connection.js';
-import { exceedsPaceCap } from './lib/paceCap.js';
-import { currentSeasonId, getSeasonWindow, baselineFlagFor } from './lib/season.js';
-import { takeWeeklySnapshot, runSeasonLifecycle, migrateSeasonState } from './lib/seasonLifecycle.js';
 
-// node-cron (optional — skip gracefully if not installed)
-let cron;
-try { cron = (await import('node-cron')).default; } catch { cron = null; }
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Load .env manually (no dotenv dependency)
 const envPath = path.resolve(__dirname, '../.env');
@@ -36,311 +22,48 @@ if (fs.existsSync(envPath)) {
   console.log('Loaded .env from', envPath);
 }
 
-const PORT        = Number(process.env.PORT || 4000);
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const { openNodeDatabase }  = await import('./db/driver-node.js');
+const { runNodeMigrations } = await import('./db/migrate-node.js');
+const { setDbDriver }       = await import('./lib/db.js');
+const { setPlatform }       = await import('./lib/platform.js');
+const { createFileBackup, createDailyBackup, createDiskFiles } = await import('./lib/backup.js');
+const { migrateSeasonState, runSeasonLifecycle } = await import('./lib/seasonLifecycle.js');
+const { runSixHourly, runDaily } = await import('./lib/jobs.js');
+const { createApp }         = await import('./app.js');
 
-const app = express();
-app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+// ── Database + migrations ───────────────────────────────
+const { raw, driver } = openNodeDatabase();
+setDbDriver(driver);
+runNodeMigrations(raw);
 
-// Ensure schema exists (idempotent - CREATE TABLE IF NOT EXISTS)
-const schema = fs.readFileSync(path.resolve(__dirname, './db/schema.sql'), 'utf8');
-db.exec(schema);
-
-// Migration: เพิ่ม is_baseline
-try {
-  db.prepare('ALTER TABLE strava_activities ADD COLUMN is_baseline INTEGER NOT NULL DEFAULT 0').run();
-  console.log('[migration] added is_baseline column to strava_activities');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: เพิ่ม age_group
-try {
-  db.prepare("ALTER TABLE participants ADD COLUMN age_group TEXT NOT NULL DEFAULT 'general'").run();
-  console.log('[migration] added age_group column to participants');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: credited_km — km ที่ admin ปรับแล้ว (ตัด commute ออก)
-// NULL = ใช้ distance_km เต็ม | เลข = ใช้ค่านี้แทน
-try {
-  db.prepare('ALTER TABLE strava_activities ADD COLUMN credited_km REAL').run();
-  console.log('[migration] added credited_km column to strava_activities');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// หมายเหตุ: ไม่ backfill ข้อมูลเก่าที่ pace เกิน cap — ตามคำสั่งล่าสุด ใช้กฎ pace cap
-// กับกิจกรรมที่ sync เข้ามาใหม่นับจากนี้เท่านั้น ข้อมูลเก่าที่เคย sync ไปแล้วคงไว้ตามเดิม
-
-// Migration: moving_time — เวลาเคลื่อนที่จริง (ตัดเวลาหยุดออก) ใช้คำนวณ pace
-// DEFAULT 0 → ถ้า 0 ให้ fallback ใช้ elapsed_time แทน (ข้อมูลเก่า)
-try {
-  db.prepare('ALTER TABLE strava_activities ADD COLUMN moving_time INTEGER NOT NULL DEFAULT 0').run();
-  console.log('[migration] added moving_time column to strava_activities');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: activity_date — วันวิ่งจริงจาก start_date_local ของ Strava (YYYY-MM-DD)
-// ข้อมูลเก่าที่ไม่มีค่านี้ใช้ date(first_seen) แทน
-try {
-  db.prepare('ALTER TABLE strava_activities ADD COLUMN activity_date TEXT').run();
-  console.log('[migration] added activity_date column to strava_activities');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: ถังขยะ — เก็บ activity ที่ถูกลบไว้ก่อน ป้องกันลบพลาด
-try {
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS deleted_activities (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      original_id  INTEGER,
-      strava_key   TEXT,
-      activity_hash TEXT,
-      distance_km  REAL,
-      credited_km  REAL,
-      elapsed_time INTEGER,
-      activity_name TEXT,
-      first_seen   TEXT,
-      is_baseline  INTEGER DEFAULT 0,
-      deleted_at   TEXT
-    )
-  `).run();
-  console.log('[migration] created deleted_activities table (recycle bin)');
-} catch { /* already exists */ }
-
-// Migration: results_json — เก็บ snapshot ผลแต่ละคนต่อ Season
-try {
-  db.prepare('ALTER TABLE seasons ADD COLUMN results_json TEXT').run();
-  console.log('[migration] added results_json column to seasons');
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: weekly_snapshots.season_id — แยก snapshot ราย season (week_no เริ่มนับใหม่ทุก season)
-try {
-  db.prepare('ALTER TABLE weekly_snapshots ADD COLUMN season_id INTEGER REFERENCES seasons(id)').run();
-  // snapshot เดิมทั้งหมดเป็นของ season ปัจจุบัน ณ ตอน migrate (ต้อง deploy ก่อน start-season ใหม่)
-  const r = db.prepare('UPDATE weekly_snapshots SET season_id=? WHERE season_id IS NULL').run(currentSeasonId());
-  console.log(`[migration] added season_id to weekly_snapshots (backfilled ${r.changes} rows)`);
-} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
-
-// Migration: badges — badge definitions (manual + auto km milestone)
-try {
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS badges (
-      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-      icon               TEXT NOT NULL DEFAULT '🏅',
-      label              TEXT NOT NULL,
-      color              TEXT NOT NULL DEFAULT '#f59e0b',
-      description        TEXT,
-      auto_km            REAL,
-      auto_streak        INTEGER,
-      auto_activity_count INTEGER,
-      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `).run();
-  console.log('[migration] created badges table');
-} catch { /* already exists */ }
-
-// Migration: add auto columns (safe on existing DB)
-for (const col of ['auto_streak INTEGER', 'auto_activity_count INTEGER', 'auto_act_km REAL', 'auto_act_min INTEGER']) {
-  try { db.prepare(`ALTER TABLE badges ADD COLUMN ${col}`).run(); } catch { /* already exists */ }
-}
-
-// Migration: participant_badges — ใครได้ badge ไหน ใน season ไหน
-try {
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS participant_badges (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      participant_name TEXT NOT NULL,
-      badge_id         INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
-      season_id        INTEGER REFERENCES seasons(id),
-      source           TEXT NOT NULL DEFAULT 'manual',
-      note             TEXT,
-      awarded_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(participant_name, badge_id, season_id)
-    )
-  `).run();
-  console.log('[migration] created participant_badges table');
-} catch { /* already exists */ }
-
-// Ensure gallery folder exists & serve statically at /gallery/<filename>
-const galleryDir = path.resolve(__dirname, '../data/gallery');
-if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
-app.use('/gallery', express.static(galleryDir));
-
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: '450k-runner-backend' });
+setPlatform({
+  backup: createFileBackup(raw),
+  files: createDiskFiles(path.resolve(__dirname, '../data/gallery')),
 });
-
-// Public settings endpoint (no auth required — used by frontend About section)
-app.get('/api/settings', (_req, res) => {
-  const rows = db.prepare('SELECT key,value FROM project_settings').all();
-  const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  res.json(settings);
-});
-
-app.use('/api', dashboardRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/sync', syncRoutes);
-app.use('/api/adminpp', adminRoutes);
-app.use('/api',         calendarRoutes);
 
 // ระบบเดิมยังไม่มี season_closed → เดาสถานะครั้งแรก แล้วขยับ season ตามวันที่ทันทีตอนเปิดเซิร์ฟเวอร์
-migrateSeasonState();
+await migrateSeasonState();
 runSeasonLifecycle('startup').catch(err => console.error('[season:startup] error:', err.message));
 
-// ---- shared cron sync logic ----
-async function runAutoSync(label = 'cron') {
-  const CLUB_ID = process.env.STRAVA_CLUB_ID;
-  const tokenRow = db.prepare('SELECT access_token,refresh_token,expires_at,participant_id FROM strava_tokens LIMIT 1').get();
-  if (!tokenRow || !CLUB_ID) { console.log(`[${label}] skip — no token or CLUB_ID`); return; }
-
-  const { refreshAccessToken, getClubActivitiesByAthlete } = await import('./strava/client.js');
-
-  let { access_token, refresh_token, expires_at } = tokenRow;
-  const nowEpoch = Math.floor(Date.now() / 1000);
-  if (expires_at - nowEpoch < 300) {
-    const t = await refreshAccessToken(refresh_token);
-    access_token = t.access_token; refresh_token = t.refresh_token; expires_at = t.expires_at;
-    db.prepare('UPDATE strava_tokens SET access_token=?,refresh_token=?,expires_at=? WHERE participant_id=?')
-      .run(access_token, refresh_token, expires_at, tokenRow.participant_id);
-  }
-
-  const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
-  const insActivity = db.prepare(`
-    INSERT INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,moving_time,activity_name,first_seen,is_baseline)
-    VALUES (?,?,?,?,?,?,?,?)
-    ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
-  `);
-  const seasonWindow = getSeasonWindow();
-  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
-
-  for (const [stravaKey, data] of Object.entries(athleteMap)) {
-    const { stravaName, firstname, lastname, activities } = data;
-    let p = db.prepare('SELECT id FROM participants WHERE strava_key=?').get(stravaKey);
-    if (!p) {
-      const initials = (firstname.slice(0,1) + (lastname.slice(0,1)||'')).toUpperCase();
-      const info = db.prepare('INSERT INTO participants (name,initials,km,steps,streak,weekly_km,strava_key) VALUES (?,?,0,0,0,0,?)').run(stravaName, initials, stravaKey);
-      p = { id: info.lastInsertRowid };
-    }
-    const batchSeen = []; // in-batch dedup: phone vs smartwatch ใน sync เดียวกัน
-    for (const act of activities) {
-      const distKm  = (act.distance||0)/1000;
-      const elapsed = act.elapsed_time||0;
-      const moving  = act.moving_time||0;
-      let actDate = thaiNow;
-      if (act.start_date_local) {
-        const d = act.start_date_local.replace('T',' ').slice(0,19);
-        actDate = d < thaiNow ? d : thaiNow; // ป้องกัน future date
-      }
-      const hash = `${stravaKey}|${act.distance}|${act.elapsed_time}|${act.name || ''}`;
-
-      // ── ตรวจถังขยะก่อน — ถ้า admin เคยลบไว้ → ข้ามเสมอ (ไม่ insert คืน)
-      const inTrash = db.prepare(
-        'SELECT id FROM deleted_activities WHERE activity_hash=? OR (strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=60)'
-      ).get(hash, stravaKey, distKm, elapsed);
-      if (inTrash) continue;
-
-      // in-batch dedup: phone vs smartwatch บันทึก run เดียวกัน → ปรากฏใน batch เดียวกัน
-      // threshold 15s: phone/watch ต่างกัน ~1-5s ✓ | วิ่งคนละรอบวันเดียวกัน >15s ผ่าน ✓
-      const inBatch = batchSeen.some(s => Math.abs(s.distKm - distKm) < 0.1 && Math.abs(s.elapsed - elapsed) <= 15);
-      if (inBatch) continue;
-      batchSeen.push({ distKm, elapsed });
-
-      // cross-batch dedup: ป้องกัน activity ถูก rename บน Strava แล้ว re-insert (hash ต่าง ชื่อต่าง)
-      // threshold 10s → rename = 0s ✓ | phone/watch คนละ sync ~5s ✓ | วิ่งคนละวัน >60s ผ่าน ✓
-      const crossDup = db.prepare(
-        'SELECT id FROM strava_activities WHERE strava_key=? AND ABS(distance_km-?)<0.1 AND ABS(elapsed_time-?)<=10'
-      ).get(stravaKey, distKm, elapsed);
-      if (crossDup) continue;
-
-      // pace เกิน 20 นาที/กม. → ไม่ sync เข้าระบบเลย
-      if (exceedsPaceCap(distKm, elapsed, moving)) continue;
-
-      // กิจกรรมนอกช่วงวันของ season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
-      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate,
-        baselineFlagFor(actDate, seasonWindow));
-    }
-    // คำนวณ km, weekly_km
-    const seasonRow = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
-    const totalKm  = Math.round(seasonRow.km * 100) / 100;
-    const steps    = Math.round(totalKm * 1350);
-    // weekly km — จันทร์ถึงอาทิตย์ปัจจุบัน (calendar week ตรงกับ Strava)
-    const nowBkk2    = new Date(new Date().toLocaleString('en-US', { timeZone:'Asia/Bangkok' }));
-    const dow2       = nowBkk2.getDay();
-    const dFromMon2  = dow2 === 0 ? 6 : dow2 - 1;
-    const wStart2    = new Date(nowBkk2);
-    wStart2.setDate(nowBkk2.getDate() - dFromMon2);
-    wStart2.setHours(0, 0, 0, 0);
-    const weekStr  = wStart2.toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ').slice(0,19);
-    const weekRow  = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km FROM strava_activities WHERE strava_key=? AND is_baseline=0 AND first_seen >= ?').get(stravaKey, weekStr);
-    const weeklyKm = Math.round(weekRow.km * 100) / 100;
-    // คำนวณ streak จาก first_seen (Strava Club API ไม่มีวันจริง)
-    const seenDates = db.prepare('SELECT DISTINCT substr(first_seen,1,10) as day FROM strava_activities WHERE strava_key=? AND is_baseline=0').all(stravaKey).map(r => r.day);
-    const dateSet = new Set(seenDates);
-    let streak = 0;
-    const todayD = new Date();
-    for (let i = 0; i <= 365; i++) {
-      const d = new Date(todayD); d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      if (dateSet.has(key)) { streak++; }
-      else if (i === 0) { continue; }
-      else { break; }
-    }
-    db.prepare('UPDATE participants SET km=?,steps=?,weekly_km=?,streak=?,activity_count=? WHERE id=?')
-      .run(totalKm, steps, weeklyKm, streak, seasonRow.cnt, p.id);
-  }
-  db.prepare('INSERT INTO sync_log (synced_at,status,message) VALUES (?,?,?)').run(thaiNow, 'ok', `[${label}] auto-sync`);
-  console.log(`[${label}] sync done — ${Object.keys(athleteMap).length} athletes`);
-}
-
-// ---- daily backup helper ----
-async function dailyBackup() {
-  const backupDir = process.env.BACKUP_DIR || '/app/data/backups';
-  if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-  const ts   = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' })
-                         .replace(/[: ]/g, '-').slice(0, 19);
-  const dest = path.join(backupDir, `daily_${ts}.sqlite`);
-  await db.backup(dest);
-  // เก็บ daily backup ไว้ 90 ไฟล์ (3 เดือน)
-  const files = fs.readdirSync(backupDir)
-    .filter(f => f.startsWith('daily_') && f.endsWith('.sqlite'))
-    .sort();
-  if (files.length > 90) {
-    files.slice(0, files.length - 90).forEach(f => fs.unlinkSync(path.join(backupDir, f)));
-  }
-  console.log(`[backup] daily backup saved: ${dest}`);
-}
-
-// ---- cron schedule ----
-if (cron) {
-  // sync ทุก 6 ชั่วโมง: 00:00, 06:00, 12:00, 18:00
-  // ขยับสถานะ season ก่อน sync เสมอ — sync จะได้คำนวณ km ตามช่วงวันของ season ล่าสุด
-  // (00:00 ของวันเริ่ม season → upcoming เป็น active, เลยวันสิ้นสุด+grace → ปิดอัตโนมัติ)
-  cron.schedule('0 */6 * * *', async () => {
-    try { await runSeasonLifecycle('cron-6h'); }
-    catch (err) { console.error('[season:cron-6h] error:', err.message); }
-    try { await runAutoSync('cron-6h'); }
-    catch (err) { console.error('[cron-6h] error:', err.message); }
-  }, { timezone: 'Asia/Bangkok' });
-
-  // ทุกคืน 23:59 — sync สุดท้ายของวัน + backup รายวัน
-  cron.schedule('59 23 * * *', async () => {
-    console.log('[cron] daily end-of-day sync + backup...');
-    try {
-      await runAutoSync('cron-daily');
-      await dailyBackup();
-      // วันอาทิตย์ → เพิ่ม weekly snapshot (ข้ามเองถ้า season ปิดอยู่หรือยังไม่เริ่ม)
-      if (new Date().getDay() === 0) {
-        const r = takeWeeklySnapshot({ label: 'cron-sunday' });
-        console.log('[cron] Sunday weekly snapshot:', r.ok ? `week ${r.weekNo}` : `skip (${r.message})`);
-      }
-    } catch (err) { console.error('[cron-daily] error:', err.message); }
-  }, { timezone: 'Asia/Bangkok' });
-
-  console.log('Cron: season lifecycle + sync every 6h | daily sync+backup at 23:59 | weekly snapshot on Sunday (Bangkok)');
-} else {
-  console.log('node-cron not installed — run: npm install node-cron (in backend folder)');
-}
-
+// ── HTTP ────────────────────────────────────────────────
+const PORT = Number(process.env.PORT || 4000);
+const app = createApp();
 app.listen(PORT, () => {
   console.log('Backend running on http://localhost:' + PORT);
   console.log('  Dashboard : http://localhost:' + PORT + '/api/summary');
   console.log('  Auth      : http://localhost:' + PORT + '/api/auth/status');
   console.log('  Sync      : POST http://localhost:' + PORT + '/api/sync');
 });
+
+// ── Cron (node-cron optional — skip gracefully if not installed) ──
+let cron;
+try { cron = (await import('node-cron')).default; } catch { cron = null; }
+
+if (cron) {
+  const dailyBackup = createDailyBackup(raw);
+  cron.schedule('0 */6 * * *', () => runSixHourly('cron-6h'), { timezone: 'Asia/Bangkok' });
+  cron.schedule('59 23 * * *', () => runDaily({ label: 'cron-daily', dailyBackup }), { timezone: 'Asia/Bangkok' });
+  console.log('Cron: season lifecycle + sync every 6h | daily sync+backup at 23:59 | weekly snapshot on Sunday (Bangkok)');
+} else {
+  console.log('node-cron not installed — run: npm install node-cron (in backend folder)');
+}

@@ -9,3 +9,9 @@ backend/.env
 *.log
 .DS_Store
 vite.config.ts.timestamp-*.mjs
+
+# Cloudflare (wrangler) — ค่าลับสำหรับรันในเครื่อง และไฟล์ local state
+.dev.vars
+.dev.vars.*
+.wrangler/
+cf-secrets.env

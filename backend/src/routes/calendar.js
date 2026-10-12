@@ -1,5 +1,6 @@
-import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { Router } from '../lib/asyncRouter.js';
+import { db } from '../lib/db.js';
+import { loadSettings } from '../lib/season.js';
 
 /** maskName — ซ่อนนามสกุลเพื่อ PDPA ("กิตติพร กลสรร" → "กิตติพร ก.") */
 function maskName(fullName) {
@@ -17,10 +18,10 @@ const router = Router();
  *  - totalWeeks: คำนวณจาก season_end จริง ไม่ใช่ตายตัว 13
  *                ป้องกัน day 92 (31 ส.ค.) หายเพราะ week_no = 14 ถูก filter
  */
-function getRefDate() {
-  const seasonStart = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get()?.value || '2026-06-01';
-  const seasonEnd   = db.prepare("SELECT value FROM project_settings WHERE key='season_end'").get()?.value   || '2026-08-31';
-  const preseasonStart = db.prepare("SELECT value FROM project_settings WHERE key='preseason_start'").get()?.value || null;
+async function getRefDate(settings) {
+  const seasonStart = settings.season_start || '2026-06-01';
+  const seasonEnd   = settings.season_end   || '2026-08-31';
+  const preseasonStart = settings.preseason_start || null;
   const now = new Date();
 
   let refDate;
@@ -28,9 +29,9 @@ function getRefDate() {
 
   if (now < new Date(seasonStart)) {
     isPreSeason = true;
-    const earliest = db.prepare(
+    const earliest = (await db.prepare(
       "SELECT MIN(date(first_seen)) AS d FROM strava_activities WHERE is_baseline = 0"
-    ).get()?.d || null;
+    ).get())?.d || null;
     const candidates = [preseasonStart, earliest, seasonStart].filter(Boolean);
     refDate = candidates.sort()[0];
   } else {
@@ -81,15 +82,14 @@ function getRefDate() {
  * GET /api/weekly-stats
  * ส่งข้อมูล km รายสัปดาห์ของผู้เข้าร่วมทุกคน (13 สัปดาห์)
  */
-router.get('/weekly-stats', (req, res) => {
+router.get('/weekly-stats', async (req, res) => {
   try {
-    const { refDate, seasonStart, isPreSeason, totalWeeks } = getRefDate();
+    const settings = await loadSettings();
+    const { refDate, seasonStart, isPreSeason, totalWeeks } = await getRefDate(settings);
 
-    const goalKm = parseFloat(
-      db.prepare("SELECT value FROM project_settings WHERE key='goal_km_per_person'").get()?.value || '450'
-    );
+    const goalKm = parseFloat(settings.goal_km_per_person || '450');
 
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT
         sa.strava_key,
         m.name,
@@ -141,14 +141,14 @@ router.get('/weekly-stats', (req, res) => {
  * GET /api/daily-stats?strava_key=xxx
  * ส่งข้อมูล km รายวันของครู 1 คน (สำหรับ individual heatmap 13w×7d)
  */
-router.get('/daily-stats', (req, res) => {
+router.get('/daily-stats', async (req, res) => {
   try {
     const { strava_key } = req.query;
     if (!strava_key) return res.status(400).json({ error: 'strava_key required' });
 
-    const { refDate, isPreSeason, totalWeeks } = getRefDate();
+    const { refDate, isPreSeason, totalWeeks } = await getRefDate(await loadSettings());
 
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT
         date(first_seen)                                                         AS run_date,
         CAST(julianday(date(first_seen)) - julianday(?)          AS INTEGER)    AS day_offset,

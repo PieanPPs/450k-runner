@@ -1,0 +1,43 @@
+// Cloudflare Worker: หน้าเว็บ (dist/) + API (backend/src/worker.js) + cron
+// คู่มือย้ายระบบ: CLOUDFLARE.md
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "450k-runner",
+  "main": "backend/src/worker.js",
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // หน้าเว็บที่ build แล้ว — Cloudflare เสิร์ฟเองโดยไม่ผ่าน Worker ยกเว้น path ใน run_worker_first
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/gallery/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "450k-runner",
+      // ได้จากคำสั่ง: npx wrangler d1 create 450k-runner
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+
+  "r2_buckets": [
+    { "binding": "GALLERY", "bucket_name": "450k-runner-gallery" }
+  ],
+
+  // เวลาเป็น UTC — ต้องตรงกับ CRON_DAILY ใน backend/src/worker.js
+  //   0 5,11,17,23 = 12:00 18:00 00:00 06:00 เวลาไทย → ขยับสถานะ season + sync
+  //   59 16        = 23:59 เวลาไทย → sync + (วันอาทิตย์) บันทึกผลรายสัปดาห์
+  "triggers": { "crons": ["0 5,11,17,23 * * *", "59 16 * * *"] },
+
+  // ค่าที่ไม่ลับ — ค่าลับ (STRAVA_CLIENT_SECRET, ADMIN_PASSWORD ฯลฯ) ตั้งด้วย wrangler secret ดู CLOUDFLARE.md
+  "vars": {
+    "APP_BASE_URL": "https://api.ppiean.com",
+    "CORS_ORIGIN": "https://run.ppiean.com,https://api.ppiean.com"
+  },
+
+  "observability": { "enabled": true }
+}

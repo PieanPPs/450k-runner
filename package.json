@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "build:cf": "tsc && vite build --mode cloudflare",
+    "cf:dev": "npm run build:cf && wrangler dev",
+    "cf:deploy": "npm run build:cf && wrangler deploy"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
@@ -20,6 +23,7 @@
     "@types/react-dom": "^18.2.21",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
-    "vite": "^5.1.6"
+    "vite": "^5.1.6",
+    "wrangler": "^4.149.0"
   }
 }

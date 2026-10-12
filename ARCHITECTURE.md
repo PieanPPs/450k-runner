@@ -1,7 +1,8 @@
 # 🏗️ Architecture — 450K Runner Backend
 
-> อัพเดทล่าสุด: พฤษภาคม 2026  
+> อัพเดทล่าสุด: ตุลาคม 2026  
 > ใช้ไฟล์นี้เป็น reference เวลาพัฒนาต่อ หรือแก้ bug
+> Backend รันได้ 2 ที่จากโค้ดชุดเดียว: **VPS** (`server.js`, better-sqlite3, node-cron) และ **Cloudflare Worker** (`worker.js`, D1, R2, Cron Triggers) — ขั้นตอนย้ายดู [CLOUDFLARE.md](CLOUDFLARE.md)
 
 ---
 
@@ -10,15 +11,28 @@
 ```
 backend/
 ├── src/
-│   ├── server.js                  ← Entry point: Express app + Cron jobs
+│   ├── server.js                  ← Entry VPS: เปิด SQLite, migration, Express, node-cron
+│   ├── worker.js                  ← Entry Cloudflare: D1/R2 bindings, Express (nodejs_compat), Cron Triggers
+│   ├── app.js                     ← Express app ที่ใช้ร่วมกัน (routes, JSON body, /gallery, error handler)
 │   ├── db/
 │   │   ├── schema.sql             ← สร้างตาราง DB ทั้งหมด (idempotent)
-│   │   ├── connection.js          ← เชื่อมต่อ SQLite (better-sqlite3)
+│   │   ├── driver-node.js         ← better-sqlite3 → interface ของ lib/db.js (VPS)
+│   │   ├── migrate-node.js        ← migration ตอนเปิดเซิร์ฟเวอร์ (VPS เท่านั้น)
 │   │   └── seed-data.js           ← ข้อมูลตัวอย่างสำหรับ dev
+│   ├── worker/
+│   │   └── bindings.js            ← D1 / R2 → interface ของ lib/db.js, lib/platform.js
 │   ├── lib/
+│   │   ├── db.js                  ← ฐานข้อมูลแบบ async (await db.prepare().get/all/run, db.batch)
+│   │   ├── platform.js            ← backup + ที่เก็บรูป (ต่างกันระหว่าง VPS/Cloudflare)
+│   │   ├── asyncRouter.js         ← Router ที่ส่ง error ของ async handler ต่อให้ Express
+│   │   ├── jsonBody.js            ← อ่าน JSON body (แทน express.json ที่ bundle เป็น Worker ไม่ได้)
+│   │   ├── stravaSync.js          ← sync Strava แบบรวบ query (~20 query/รอบ) — ปุ่ม Sync และ cron ใช้ตัวเดียวกัน
+│   │   ├── participantStats.js    ← คำนวณ km/steps/weekly/streak ของทุกคนใน 4 query
+│   │   ├── jobs.js                ← งานตามเวลา (ทุก 6 ชม. / 23:59)
+│   │   ├── time.js                ← วัน/เวลาไทย
 │   │   ├── season.js              ← ช่วงวัน season, baselineFlagFor, currentSeasonId
 │   │   ├── seasonLifecycle.js     ← ปิด/เริ่ม/ตั้งเวลา season + cron lifecycle + weekly snapshot
-│   │   └── backup.js              ← autoBackup()
+│   │   └── backup.js              ← backup ไฟล์ + ที่เก็บรูปบนดิสก์ (VPS เท่านั้น)
 │   ├── middleware/
 │   │   └── adminAuth.js           ← JWT สำหรับ admin (signToken, requireAdmin)
 │   ├── strava/
@@ -217,6 +231,9 @@ docker start backend-450k
 | **strava_key collision** | ชื่อ firstname+initial ซ้ำกัน → activities รวมกัน |
 | **Group run duplicate** | ป้องกันด้วย pre-check distance+elapsed ก่อน insert |
 | **Strava Club API window** | คืนแค่ 4–6 สัปดาห์ล่าสุด → activities เก่ากว่านั้นต้องพึ่ง DB |
+| **DB เป็น async** | ทุกคำสั่งต้อง `await db.prepare(...).get/all/run()` — เขียนหลายตารางพร้อมกันใช้ `db.batch([...])` (D1 ไม่มี transaction แบบ interactive) |
+| **D1 ฟรี: 50 query ต่อ request** | ห้าม query ใน loop ทีละแถว — อ่านทั้งก้อนแล้วกรองใน JS, เขียนหลายแถวด้วย `json_each(?)` + `jsonParam(rows)` (ดู `stravaSync.js`) |
+| **Foreign key เปิดอยู่** | ทั้ง better-sqlite3 และ D1 — ลบ participants/seasons ต้องลบแถวที่อ้างอิงก่อน (weekly_snapshots, strava_tokens, participant_badges) |
 
 ---
 

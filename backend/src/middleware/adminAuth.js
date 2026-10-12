@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 // simple JWT ด้วย crypto (ไม่ต้องติดตั้ง library เพิ่ม)
 function base64url(str) {

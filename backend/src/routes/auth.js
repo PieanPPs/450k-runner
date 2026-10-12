@@ -1,15 +1,15 @@
-import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { Router } from '../lib/asyncRouter.js';
+import { db } from '../lib/db.js';
 import { makeStravaKey } from '../strava/client.js';
 
 const router = Router();
 const STRAVA_AUTH_URL  = 'https://www.strava.com/oauth/authorize';
 const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
 
-router.get('/strava', (req, res) => {
+router.get('/strava', async (req, res) => {
   const { participant_id } = req.query;
   if (!participant_id) return res.status(400).send('ต้องระบุ participant_id ครับ');
-  const participant = db.prepare('SELECT id, name FROM participants WHERE id = ?').get(Number(participant_id));
+  const participant = await db.prepare('SELECT id, name FROM participants WHERE id = ?').get(Number(participant_id));
   if (!participant) return res.status(404).send(`ไม่พบผู้เข้าร่วม id=${participant_id}`);
 
   const params = new URLSearchParams({
@@ -28,7 +28,7 @@ router.get('/strava/callback', async (req, res) => {
   if (error) return res.send(htmlPage('❌ ยกเลิก', '<p>คุณยกเลิกการเชื่อมต่อ Strava แล้วครับ</p>'));
 
   const participant_id = Number(state);
-  const participant = db.prepare('SELECT id, name FROM participants WHERE id = ?').get(participant_id);
+  const participant = await db.prepare('SELECT id, name FROM participants WHERE id = ?').get(participant_id);
   if (!participant) return res.status(400).send(htmlPage('❌ Error', '<p>participant_id ไม่ถูกต้อง</p>'));
 
   try {
@@ -49,7 +49,7 @@ router.get('/strava/callback', async (req, res) => {
     const stravaKey = makeStravaKey(tokenData.athlete.firstname, tokenData.athlete.lastname);
 
     // บันทึก token
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO strava_tokens (participant_id, athlete_id, access_token, refresh_token, expires_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(participant_id) DO UPDATE SET
@@ -58,7 +58,7 @@ router.get('/strava/callback', async (req, res) => {
     `).run(participant_id, tokenData.athlete.id, tokenData.access_token, tokenData.refresh_token, tokenData.expires_at);
 
     // บันทึก strava_key ใน participants (ใช้ match กับ Club activities)
-    db.prepare('UPDATE participants SET strava_key=? WHERE id=?').run(stravaKey, participant_id);
+    await db.prepare('UPDATE participants SET strava_key=? WHERE id=?').run(stravaKey, participant_id);
 
     const stravaName = `${tokenData.athlete.firstname} ${tokenData.athlete.lastname}`.trim();
     res.send(htmlPage('✅ เชื่อมต่อสำเร็จ!',
@@ -72,8 +72,8 @@ router.get('/strava/callback', async (req, res) => {
   }
 });
 
-router.get('/status', (_req, res) => {
-  const rows = db.prepare(`
+router.get('/status', async (_req, res) => {
+  const rows = await db.prepare(`
     SELECT p.id, p.name, p.initials, p.strava_key,
            CASE WHEN t.participant_id IS NOT NULL THEN 1 ELSE 0 END as connected
     FROM participants p
