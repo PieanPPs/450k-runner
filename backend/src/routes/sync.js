@@ -3,33 +3,10 @@ import { db } from '../db/connection.js';
 import { refreshAccessToken, getClubActivitiesByAthlete } from '../strava/client.js';
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { exceedsPaceCap } from '../lib/paceCap.js';
-import path from 'path';
-import fs from 'fs';
+import { autoBackup } from '../lib/backup.js';
+import { baselineFlagFor, isSeasonClosed } from '../lib/season.js';
 
 const router = Router();
-
-const DB_PATH      = process.env.DB_PATH || '/app/data/450k.sqlite';
-const BACKUP_DIR   = process.env.BACKUP_DIR || '/app/data/backups';
-const MAX_BACKUPS  = 60; // เก็บย้อนหลัง 60 ไฟล์ (daily = 2 เดือน, ถ้า sync วันละครั้ง)
-
-// helper: สำรองข้อมูลก่อน sync — คืน path ที่บันทึก
-async function autoBackup(label = 'sync') {
-  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const ts   = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' })
-                         .replace(/[: ]/g, '-').slice(0, 19);
-  const dest = path.join(BACKUP_DIR, `auto_${label}_${ts}.sqlite`);
-  await db.backup(dest);
-
-  // ลบไฟล์เก่าเกิน MAX_BACKUPS (เรียงตามชื่อ = เรียงตามเวลา)
-  const files = fs.readdirSync(BACKUP_DIR)
-    .filter(f => f.endsWith('.sqlite'))
-    .sort();
-  if (files.length > MAX_BACKUPS) {
-    files.slice(0, files.length - MAX_BACKUPS)
-         .forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
-  }
-  return dest;
-}
 
 // helper: อ่าน season_start จาก project_settings ก่อน fallback .env
 function getSeasonStart() {
@@ -74,9 +51,10 @@ router.post('/', async (_req, res) => {
   // upsert: ถ้า hash ซ้ำ → update first_seen ให้เป็นวันที่วิ่งจริง (ถ้าเร็วกว่า)
   const insActivity = db.prepare(`
     INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, moving_time, activity_name, first_seen, is_baseline)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
+  const seasonClosed = isSeasonClosed();
   const thaiNowActivity = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
@@ -139,7 +117,9 @@ router.post('/', async (_req, res) => {
       if (exceedsPaceCap(distKm, elapsed, moving)) continue;
 
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
-      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
+      // กิจกรรมก่อนวันเริ่ม season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
+      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate,
+        baselineFlagFor(actDate, SEASON_START, seasonClosed));
       if (!before) newCount++;
     }
 

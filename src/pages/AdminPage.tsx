@@ -1406,7 +1406,7 @@ function SeasonsPage() {
   // start-season modal state
   const [startModal, setStartModal] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [newSeasonForm, setNewSeasonForm] = useState({ season_start:'', season_name:'Season 2', subtitle:'' });
+  const [newSeasonForm, setNewSeasonForm] = useState({ season_start:'2027-04-01', season_end:'', season_name:'Season 2', subtitle:'' });
   const [csvUploadId, setCsvUploadId] = useState<number|null>(null);
   const [csvText, setCsvText] = useState('');
   const [csvMsg, setCsvMsg] = useState('');
@@ -1434,16 +1434,24 @@ function SeasonsPage() {
 
   const closeSeason = async () => {
     setClosing(true);
-    const res = await api('/close-season', { method:'POST', body:'{}' });
-    setCloseResult(res);
+    try {
+      const res = await api('/close-season', { method:'POST', body:'{}' });
+      if (!res.ok) { alert(res.message || 'ปิด Season ไม่สำเร็จ'); setClosing(false); return; }
+      setCloseResult(res);
+    } catch { alert('ปิด Season ไม่สำเร็จ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)'); }
     setClosing(false);
     load();
   };
 
   const startSeason = async () => {
     if (!newSeasonForm.season_start) return alert('กรุณาระบุวันเริ่ม Season ใหม่');
+    if (!newSeasonForm.season_end) return alert('กรุณาระบุวันสิ้นสุด Season ใหม่');
     setStarting(true);
-    await api('/start-season', { method:'POST', body:JSON.stringify(newSeasonForm) });
+    try {
+      const res = await api('/start-season', { method:'POST', body:JSON.stringify(newSeasonForm) });
+      if (!res.ok) { alert(res.message || 'เริ่ม Season ไม่สำเร็จ'); setStarting(false); return; }
+      alert(res.message);
+    } catch { alert('เริ่ม Season ไม่สำเร็จ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)'); setStarting(false); return; }
     setStarting(false);
     setStartModal(false);
     load();
@@ -1538,6 +1546,7 @@ function SeasonsPage() {
               <div style={{ color:'#f87171', fontWeight:700, fontSize:14, marginBottom:16 }}>⚠️ การกระทำนี้ไม่สามารถย้อนกลับได้</div>
               <div style={{ color:'#aaa', fontSize:13, lineHeight:1.7, marginBottom:24 }}>
                 ระบบจะ:<br/>
+                0️⃣ สำรองฐานข้อมูลก่อน (ถ้าสำรองไม่สำเร็จ จะไม่ปิด Season)<br/>
                 1️⃣ บันทึกสถิติสุดท้ายลงหน้า Seasons<br/>
                 2️⃣ Freeze กิจกรรมทั้งหมด (ป้องกัน Season ใหม่นับซ้ำ)<br/>
                 3️⃣ Reset km, สถิติของผู้เข้าร่วมทุกคนเป็น 0
@@ -1556,7 +1565,7 @@ function SeasonsPage() {
               <div style={{ fontSize:22, marginBottom:12 }}>✅ ปิด Season สำเร็จ!</div>
               <div style={{ color:'#4ade80', fontSize:13, marginBottom:8 }}>🏆 ผู้ชนะ: <strong>{closeResult.winner}</strong></div>
               <div style={{ color:'#a78bfa', fontSize:13, marginBottom:8 }}>📍 ระยะรวม: <strong>{closeResult.total_km} km</strong></div>
-              <div style={{ color:'#888', fontSize:12, marginBottom:20 }}>Freeze {closeResult.frozen} กิจกรรม | Reset ผู้เข้าร่วมทุกคนแล้ว</div>
+              <div style={{ color:'#888', fontSize:12, marginBottom:20 }}>Freeze {closeResult.frozen} กิจกรรม | Reset ผู้เข้าร่วมทุกคนแล้ว<br/>💾 Backup: {closeResult.backup}</div>
               <div style={{ color:'#fbbf24', fontSize:12, marginBottom:20 }}>
                 👉 กด "เริ่ม Season ใหม่" เพื่อตั้งวันเริ่ม Season 2 (1 เม.ย. 2027)
               </div>
@@ -1577,6 +1586,7 @@ function SeasonsPage() {
             {[
               { key:'season_name', label:'ชื่อ Season', placeholder:'Season 2' },
               { key:'season_start', label:'วันเริ่มต้น (YYYY-MM-DD)', placeholder:'2027-04-01', type:'date' },
+              { key:'season_end', label:'วันสิ้นสุด (YYYY-MM-DD)', placeholder:'2027-06-30', type:'date' },
               { key:'subtitle', label:'Subtitle (ไม่บังคับ)', placeholder:'กิจกรรมวิ่ง เมษา–มิถุนา 2027' },
             ].map(f=>(
               <div key={f.key} style={{ marginBottom:12 }}>

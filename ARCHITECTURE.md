@@ -212,6 +212,29 @@ docker start backend-450k
 4. weekly snapshot จะเริ่มนับ "สัปดาห์ 1" ใหม่
 ```
 
+## 🔁 วิธีปิด Season เก่า → เริ่ม Season ใหม่ (เช่น S1 → S2 วันที่ 1 เม.ย. 2027)
+
+```
+1. Admin → Seasons → "ปิด Season"
+   ├─ backup DB อัตโนมัติ (auto_close-season_*.sqlite — ไม่ถูกลบอัตโนมัติ) ถ้า backup ไม่ผ่านจะไม่ปิด
+   ├─ เก็บผลรายคนลง seasons.results_json, status='done'
+   ├─ freeze กิจกรรมทั้งหมด (is_baseline=1), reset km/streak ของทุกคน
+   └─ ตั้ง project_settings: season_closed=1, last_frozen_through=<วันสุดท้ายของกิจกรรม>
+2. ช่วงพัก: sync ยังทำงานตามปกติ แต่กิจกรรมใหม่ทุกอันเข้าเป็น baseline (ไม่นับ km)
+   และ cron weekly snapshot จะข้ามจนกว่าจะเริ่ม season ใหม่
+3. Admin → Seasons → "เริ่ม Season ใหม่" (ระบุ ชื่อ / วันเริ่ม / วันสิ้นสุด)
+   ├─ ต้องปิด season เดิมแล้ว และวันเริ่มต้องหลัง last_frozen_through
+   ├─ ตั้ง season_start, season_end, season_closed=0 + สร้างแถว seasons (status='active')
+   └─ ปลด baseline ให้กิจกรรมที่วิ่งตั้งแต่ season_start ที่ถูก sync เข้ามาระหว่างช่วงพัก
+4. กด Sync เพื่อคำนวณ km → "สัปดาห์ 1" ของ season ใหม่เริ่มนับจาก season_start
+```
+
+กฎ baseline ตอน sync (`lib/season.js → baselineFlagFor`): กิจกรรมที่วิ่ง **ก่อน** `season_start`
+หรือ sync เข้ามาตอน `season_closed=1` จะเป็น `is_baseline=1` เสมอ
+
+`weekly_snapshots.season_id` แยก snapshot ราย season (week_no ซ้ำข้าม season ได้ ไม่ทับกัน);
+`GET /api/weekly-snapshots` คืนของ season ปัจจุบัน หรือระบุ `?season_id=` เพื่อดูย้อนหลัง
+
 ---
 
 ## 🛠️ .env ที่ต้องตั้ง

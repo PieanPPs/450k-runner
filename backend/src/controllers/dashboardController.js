@@ -1,4 +1,5 @@
 import { db } from '../db/connection.js';
+import { currentSeasonId } from '../lib/season.js';
 
 /**
  * maskName — ซ่อนนามสกุลเพื่อ PDPA
@@ -86,13 +87,15 @@ export function getMilestones(_req, res) {
   res.json(out);
 }
 
-export function getWeeklySnapshots(_req, res) {
-  // คืนค่า snapshot ทุก week_no พร้อม array ของผู้เข้าร่วม เรียงตาม rank
+export function getWeeklySnapshots(req, res) {
+  // คืนค่า snapshot ทุก week_no ของ season ปัจจุบัน (หรือ ?season_id=) พร้อม array ของผู้เข้าร่วม เรียงตาม rank
+  const seasonId = req.query?.season_id ? Number(req.query.season_id) : currentSeasonId();
   const rows = db.prepare(`
     SELECT week_no, week_label, snapped_at, participant_id, name, initials, km, rank
     FROM weekly_snapshots
+    WHERE season_id IS ?
     ORDER BY week_no DESC, rank ASC
-  `).all();
+  `).all(seasonId);
 
   // group by week_no
   const weeks = [];

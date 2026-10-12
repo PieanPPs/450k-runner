@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { signToken, requireAdmin } from '../middleware/adminAuth.js';
 import { exceedsPaceCap } from '../lib/paceCap.js';
+import { autoBackup } from '../lib/backup.js';
+import { currentSeasonId, isSeasonClosed } from '../lib/season.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -544,17 +546,23 @@ router.post('/snapshot', requireAdmin, (req, res) => {
   const targetWeek = Number(req.body?.week_no) || weekNo;
   const weekLabel  = `สัปดาห์ ${targetWeek}`;
 
+  if (isSeasonClosed()) {
+    return res.status(409).json({ ok: false, message: 'Season ปิดแล้ว — เริ่ม Season ใหม่ก่อนจึงจะบันทึก snapshot ได้' });
+  }
+  const seasonId = currentSeasonId();
+
   const participants = db.prepare(
     'SELECT id,name,initials,weekly_km FROM participants ORDER BY weekly_km DESC'
   ).all();
 
   db.transaction(() => {
-    db.prepare('DELETE FROM weekly_snapshots WHERE week_no=?').run(targetWeek);
+    // ลบเฉพาะ snapshot ของ season เดียวกัน — week_no ซ้ำข้าม season ต้องไม่ทับกัน
+    db.prepare('DELETE FROM weekly_snapshots WHERE week_no=? AND season_id IS ?').run(targetWeek, seasonId);
     const ins = db.prepare(
-      'INSERT INTO weekly_snapshots (week_no,week_label,participant_id,name,initials,km,rank) VALUES (?,?,?,?,?,?,?)'
+      'INSERT INTO weekly_snapshots (week_no,week_label,participant_id,name,initials,km,rank,season_id) VALUES (?,?,?,?,?,?,?,?)'
     );
     participants.forEach((p, i) => {
-      ins.run(targetWeek, weekLabel, p.id, p.name, p.initials, p.weekly_km, i + 1);
+      ins.run(targetWeek, weekLabel, p.id, p.name, p.initials, p.weekly_km, i + 1, seasonId);
     });
   })();
 
@@ -585,7 +593,19 @@ router.post('/reset', requireAdmin, (_req, res) => {
 // 1) บันทึกสถิติสุดท้ายลง seasons table (status='done')
 // 2) Mark activities ทั้งหมด is_baseline=1 (freeze ข้อมูล season นี้)
 // 3) Reset participants ทุกคน km=0 พร้อมเริ่ม season ใหม่
-router.post('/close-season', requireAdmin, (req, res) => {
+// 4) Backup DB ก่อนทำอะไร (ถ้า backup ไม่สำเร็จ → ไม่ปิด season)
+// 5) ตั้ง season_closed=1 — กิจกรรมที่ sync เข้ามาหลังจากนี้เป็น baseline จนกว่าจะ start-season
+router.post('/close-season', requireAdmin, async (req, res) => {
+  if (isSeasonClosed()) {
+    return res.status(409).json({ ok: false, message: 'Season นี้ถูกปิดไปแล้ว — กด "เริ่ม Season ใหม่" ได้เลย' });
+  }
+
+  let backupFile;
+  try { backupFile = path.basename(await autoBackup('close-season')); }
+  catch (e) {
+    return res.status(500).json({ ok: false, message: `สำรองข้อมูลไม่สำเร็จ จึงยังไม่ปิด Season: ${e.message}` });
+  }
+
   // Compute final stats
   const totalKm      = Math.round(db.prepare('SELECT COALESCE(SUM(km),0) as v FROM participants').get().v * 100) / 100;
   const pCount       = db.prepare('SELECT COUNT(*) as c FROM participants').get().c;
@@ -599,34 +619,48 @@ router.post('/close-season', requireAdmin, (req, res) => {
   const allParticipants = db.prepare('SELECT name,initials,km,steps,streak,activity_count,age_group FROM participants ORDER BY km DESC').all();
   const resultsJson = JSON.stringify(allParticipants);
 
-  // Find or create the season record
-  const activeSeason = db.prepare(
-    "SELECT id FROM seasons WHERE status='active' OR status='pre-season' ORDER BY id DESC LIMIT 1"
-  ).get();
+  const upsertSetting = db.prepare(
+    "INSERT INTO project_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+  );
 
-  if (activeSeason) {
-    db.prepare(
-      'UPDATE seasons SET total_km=?,participants=?,top_km=?,winner=?,date_range=?,status=?,results_json=? WHERE id=?'
-    ).run(totalKm, pCount, top?.km || 0, top?.name || '—', dateRange, 'done', resultsJson, activeSeason.id);
-  } else {
-    const seasonName = req.body?.season_name || 'Season 1';
-    db.prepare(
-      'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner,results_json) VALUES (?,?,?,?,?,?,?,?,?)'
-    ).run(seasonName, `กิจกรรมวิ่ง ${SEASON_START}`, dateRange, 'done', top?.km || 0, totalKm, pCount, top?.name || '—', resultsJson);
-  }
+  const frozen = db.transaction(() => {
+    // Find or create the season record
+    const activeSeason = db.prepare(
+      "SELECT id FROM seasons WHERE status='active' OR status='pre-season' ORDER BY id DESC LIMIT 1"
+    ).get();
 
-  // Freeze all in-season activities
-  const frozen = db.prepare('UPDATE strava_activities SET is_baseline=1 WHERE is_baseline=0').run();
+    if (activeSeason) {
+      db.prepare(
+        'UPDATE seasons SET total_km=?,participants=?,top_km=?,winner=?,date_range=?,status=?,results_json=? WHERE id=?'
+      ).run(totalKm, pCount, top?.km || 0, top?.name || '—', dateRange, 'done', resultsJson, activeSeason.id);
+    } else {
+      const seasonName = req.body?.season_name || 'Season 1';
+      db.prepare(
+        'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner,results_json) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).run(seasonName, `กิจกรรมวิ่ง ${SEASON_START}`, dateRange, 'done', top?.km || 0, totalKm, pCount, top?.name || '—', resultsJson);
+    }
 
-  // Reset participants
-  db.prepare('UPDATE participants SET km=0,steps=0,weekly_km=0,streak=0,activity_count=0').run();
+    // วันที่ล่าสุดของกิจกรรมที่กำลังจะ freeze — start-season ห้ามเริ่มก่อนวันนี้ (กันปลด freeze ของ season เก่า)
+    const lastDay = db.prepare('SELECT MAX(substr(first_seen,1,10)) AS d FROM strava_activities WHERE is_baseline=0').get().d;
+    if (lastDay) upsertSetting.run('last_frozen_through', lastDay);
+
+    // Freeze all in-season activities
+    const f = db.prepare('UPDATE strava_activities SET is_baseline=1 WHERE is_baseline=0').run();
+
+    // Reset participants
+    db.prepare('UPDATE participants SET km=0,steps=0,weekly_km=0,streak=0,activity_count=0').run();
+
+    upsertSetting.run('season_closed', '1');
+    return f;
+  })();
 
   res.json({
     ok: true,
     frozen: frozen.changes,
     total_km: totalKm,
     winner: top?.name || '—',
-    message: `ปิด Season สำเร็จ! Freeze ${frozen.changes} กิจกรรม, Reset ${pCount} คน`,
+    backup: backupFile,
+    message: `ปิด Season สำเร็จ! Freeze ${frozen.changes} กิจกรรม, Reset ${pCount} คน (backup: ${backupFile})`,
   });
 });
 
@@ -645,23 +679,48 @@ router.post('/seasons/:id/results', requireAdmin, (req, res) => {
 });
 
 // POST /api/adminpp/start-season — อัพเดท season_start ใน project_settings + สร้าง seasons record ใหม่
+// body: { season_start, season_end, season_name?, subtitle? }
+// - ต้องปิด season เดิมก่อน (close-season) และห้ามเริ่มก่อนวันสุดท้ายของกิจกรรมที่ freeze ไว้
+// - ปลด baseline ให้กิจกรรมที่วิ่งตั้งแต่ season_start ขึ้นไปแต่ถูก sync เข้ามาระหว่างที่ season ปิดอยู่
 router.post('/start-season', requireAdmin, (req, res) => {
-  const { season_start, season_name, subtitle } = req.body;
-  if (!season_start) return res.status(400).json({ ok: false, message: 'season_start required' });
+  const { season_start, season_end, season_name, subtitle } = req.body;
+  const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !isNaN(new Date(s));
+  if (!isDate(season_start)) return res.status(400).json({ ok: false, message: 'season_start ต้องเป็น YYYY-MM-DD' });
+  if (!isDate(season_end))   return res.status(400).json({ ok: false, message: 'season_end ต้องเป็น YYYY-MM-DD' });
+  if (season_end < season_start) return res.status(400).json({ ok: false, message: 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม' });
 
-  // Update season_start setting
-  db.prepare(
-    "INSERT INTO project_settings (key,value) VALUES ('season_start',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-  ).run(season_start);
+  if (!isSeasonClosed()) {
+    return res.status(409).json({ ok: false, message: 'ยังไม่ได้ปิด Season เดิม — กด "ปิด Season" ก่อนเริ่ม Season ใหม่' });
+  }
+  const frozenThrough = db.prepare("SELECT value FROM project_settings WHERE key='last_frozen_through'").get()?.value;
+  if (frozenThrough && season_start <= frozenThrough) {
+    return res.status(400).json({ ok: false, message: `วันเริ่มต้องหลัง ${frozenThrough} (วันสุดท้ายของกิจกรรม Season เดิม)` });
+  }
 
-  // Create new active season record
   const name = season_name || 'Season 2';
   const sub  = subtitle || `กิจกรรมวิ่ง ${season_start}`;
-  db.prepare(
-    'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
-  ).run(name, sub, `${season_start} – …`, 'active', 0, 0, 0, '—');
+  const upsert = db.prepare(
+    "INSERT INTO project_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+  );
 
-  res.json({ ok: true, message: `เริ่ม ${name} วันที่ ${season_start} แล้ว` });
+  const unfrozen = db.transaction(() => {
+    upsert.run('season_start', season_start);
+    upsert.run('season_end', season_end);
+    upsert.run('season_closed', '0');
+
+    db.prepare(
+      'INSERT INTO seasons (name,subtitle,date_range,status,top_km,total_km,participants,winner) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(name, sub, `${season_start} – ${season_end}`, 'active', 0, 0, 0, '—');
+
+    return db.prepare('UPDATE strava_activities SET is_baseline=0 WHERE is_baseline=1 AND substr(first_seen,1,10) >= ?').run(season_start);
+  })();
+
+  res.json({
+    ok: true,
+    unfrozen: unfrozen.changes,
+    message: `เริ่ม ${name} วันที่ ${season_start} แล้ว` +
+      (unfrozen.changes ? ` (นับกิจกรรมที่วิ่งไว้แล้ว ${unfrozen.changes} รายการ — กด Sync เพื่อคำนวณ km)` : ''),
+  });
 });
 
 // ── Season auto-compute ───────────────────────────────────

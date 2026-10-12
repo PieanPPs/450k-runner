@@ -10,6 +10,7 @@ import adminRoutes      from './routes/admin.js';
 import calendarRoutes   from './routes/calendar.js';
 import { db } from './db/connection.js';
 import { exceedsPaceCap } from './lib/paceCap.js';
+import { getSeasonStart, isSeasonClosed, currentSeasonId, baselineFlagFor } from './lib/season.js';
 
 // node-cron (optional — skip gracefully if not installed)
 let cron;
@@ -108,6 +109,14 @@ try {
   console.log('[migration] added results_json column to seasons');
 } catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
 
+// Migration: weekly_snapshots.season_id — แยก snapshot ราย season (week_no เริ่มนับใหม่ทุก season)
+try {
+  db.prepare('ALTER TABLE weekly_snapshots ADD COLUMN season_id INTEGER REFERENCES seasons(id)').run();
+  // snapshot เดิมทั้งหมดเป็นของ season ปัจจุบัน ณ ตอน migrate (ต้อง deploy ก่อน start-season ใหม่)
+  const r = db.prepare('UPDATE weekly_snapshots SET season_id=? WHERE season_id IS NULL').run(currentSeasonId());
+  console.log(`[migration] added season_id to weekly_snapshots (backfilled ${r.changes} rows)`);
+} catch { /* column มีอยู่แล้ว — ข้ามได้ */ }
+
 // Migration: badges — badge definitions (manual + auto km milestone)
 try {
   db.prepare(`
@@ -170,15 +179,11 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/adminpp', adminRoutes);
 app.use('/api',         calendarRoutes);
 
-// ---- helpers ----
-function getSeasonStart() {
-  const row = db.prepare("SELECT value FROM project_settings WHERE key='season_start'").get();
-  return row?.value || process.env.SEASON_START || '2026-06-01';
-}
-
 // ---- weekly snapshot helper ----
 function takeWeeklySnapshot() {
+  if (isSeasonClosed()) { console.log('[snapshot] skip — season closed'); return; }
   const SEASON_START = getSeasonStart();
+  const seasonId = currentSeasonId();
   const start = new Date(SEASON_START);
   const now = new Date();
   const diffDays = Math.max(0, Math.floor((now - start) / 86400000));
@@ -186,13 +191,13 @@ function takeWeeklySnapshot() {
   const weekLabel = `สัปดาห์ ${weekNo}`;
 
   // ลบ snapshot ซ้ำของสัปดาห์นี้ก่อน (ถ้า sync หลายครั้งใน 1 อาทิตย์)
-  db.prepare('DELETE FROM weekly_snapshots WHERE week_no=?').run(weekNo);
-
+  // (เฉพาะ season เดียวกัน — week_no ของ season ก่อนหน้าต้องไม่ถูกทับ)
   const participants = db.prepare('SELECT id,name,initials,weekly_km FROM participants ORDER BY weekly_km DESC').all();
-  const ins = db.prepare('INSERT INTO weekly_snapshots (week_no,week_label,participant_id,name,initials,km,rank) VALUES (?,?,?,?,?,?,?)');
+  const ins = db.prepare('INSERT INTO weekly_snapshots (week_no,week_label,participant_id,name,initials,km,rank,season_id) VALUES (?,?,?,?,?,?,?,?)');
   db.transaction(() => {
+    db.prepare('DELETE FROM weekly_snapshots WHERE week_no=? AND season_id IS ?').run(weekNo, seasonId);
     participants.forEach((p, i) => {
-      ins.run(weekNo, weekLabel, p.id, p.name, p.initials, p.weekly_km, i + 1);
+      ins.run(weekNo, weekLabel, p.id, p.name, p.initials, p.weekly_km, i + 1, seasonId);
     });
   })();
   console.log(`[snapshot] week ${weekNo} saved — ${participants.length} participants`);
@@ -218,10 +223,12 @@ async function runAutoSync(label = 'cron') {
   const athleteMap = await getClubActivitiesByAthlete(access_token, CLUB_ID);
   const insActivity = db.prepare(`
     INSERT INTO strava_activities (strava_key,activity_hash,distance_km,elapsed_time,moving_time,activity_name,first_seen,is_baseline)
-    VALUES (?,?,?,?,?,?,?,0)
+    VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
-  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const SEASON_START = getSeasonStart();
+  const seasonClosed = isSeasonClosed();
+  const thaiNow =new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
     const { stravaName, firstname, lastname, activities } = data;
@@ -265,7 +272,9 @@ async function runAutoSync(label = 'cron') {
       // pace เกิน 20 นาที/กม. → ไม่ sync เข้าระบบเลย
       if (exceedsPaceCap(distKm, elapsed, moving)) continue;
 
-      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate);
+      // กิจกรรมก่อนวันเริ่ม season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
+      insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate,
+        baselineFlagFor(actDate, SEASON_START, seasonClosed));
     }
     // คำนวณ km, weekly_km
     const seasonRow = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
