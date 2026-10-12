@@ -19,8 +19,8 @@
     {
       "binding": "DB",
       "database_name": "450k-runner",
-      // ได้จากคำสั่ง: npx wrangler d1 create 450k-runner
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      // สร้างด้วย: npx wrangler d1 create 450k-runner (region APAC)
+      "database_id": "1df85302-2895-4a0b-bd80-bd1c8c9c33a2"
     }
   ],
 
