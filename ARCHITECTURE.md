@@ -15,6 +15,10 @@ backend/
 │   │   ├── schema.sql             ← สร้างตาราง DB ทั้งหมด (idempotent)
 │   │   ├── connection.js          ← เชื่อมต่อ SQLite (better-sqlite3)
 │   │   └── seed-data.js           ← ข้อมูลตัวอย่างสำหรับ dev
+│   ├── lib/
+│   │   ├── season.js              ← ช่วงวัน season, baselineFlagFor, currentSeasonId
+│   │   ├── seasonLifecycle.js     ← ปิด/เริ่ม/ตั้งเวลา season + cron lifecycle + weekly snapshot
+│   │   └── backup.js              ← autoBackup()
 │   ├── middleware/
 │   │   └── adminAuth.js           ← JWT สำหรับ admin (signToken, requireAdmin)
 │   ├── strava/
@@ -99,8 +103,12 @@ is_baseline   -- 0=season (นับ km), 1=pre-season (ไม่นับ km)
 | GET | `/api/adminpp/sync-logs` | ดู sync log |
 | GET | `/api/adminpp/daily?date=` | รายงานรายวัน (admin) |
 | GET | `/api/adminpp/export` | Export CSV |
-| POST | `/api/adminpp/reset` | รีเซ็ตข้อมูลวิ่ง |
+| POST | `/api/adminpp/reset` | รีเซ็ตข้อมูลวิ่ง (body `{confirm:'RESET'}`, backup ก่อน) |
 | GET | `/api/adminpp/seasons/compute` | คำนวณสถิติ season |
+| GET | `/api/adminpp/season-status` | สถานะ season ปัจจุบัน + season ถัดไป |
+| POST/DELETE | `/api/adminpp/schedule-season` | ตั้ง/แก้/ยกเลิกกำหนดการ season |
+| POST | `/api/adminpp/close-season` | ปิด season ทันที |
+| POST | `/api/adminpp/start-season` | เริ่ม season (เมื่อ season เดิมปิดแล้ว) |
 | POST | `/api/sync/baseline` | ตั้ง baseline (mark is_baseline=1) |
 | POST | `/api/sync/close-preseason` | ปิด pre-season |
 | GET | `/api/sync/debug` | debug Strava API |
@@ -110,13 +118,18 @@ is_baseline   -- 0=season (นับ km), 1=pre-season (ไม่นับ km)
 ## ⚙️ server.js — Cron Jobs
 
 ```
+ตอนเปิดเซิร์ฟเวอร์
+  ├─ migrateSeasonState()          (ครั้งแรกเท่านั้น)
+  └─ runSeasonLifecycle('startup')
+
 ทุก 6 ชั่วโมง (00:00, 06:00, 12:00, 18:00)
+  ├─ runSeasonLifecycle('cron-6h')  ← upcoming→active / ปิดอัตโนมัติ / เริ่ม season ถัดไป
   └─ runAutoSync('cron-6h')
 
 ทุกคืน 23:59
   ├─ runAutoSync('cron-daily')
   ├─ dailyBackup() → /app/data/backups/daily_YYYY-MM-DD.sqlite
-  └─ (วันอาทิตย์เท่านั้น) takeWeeklySnapshot()
+  └─ (วันอาทิตย์เท่านั้น) takeWeeklySnapshot()  ← ข้ามถ้า season ปิดอยู่หรือยังไม่เริ่ม
 ```
 
 ---
@@ -150,7 +163,11 @@ format: firstname_firstletter(lastname).toLowerCase()
 0 = กิจกรรม season (นับ km ในระบบ)
 1 = กิจกรรม pre-season (ไม่นับ km)
 
-ตั้งค่าโดย:
+ตั้งค่าโดย (อัตโนมัติ):
+- sync / cron              → ตามช่วงวัน season (ดู "ตั้งค่า Season" ด้านล่าง)
+- closeSeason()            → freeze ทุกกิจกรรมของ season ที่ปิด
+- startSeason()            → ปรับให้ตรงช่วงวันของ season ใหม่
+แบบเดิม (กดเอง):
 - POST /api/sync/baseline    → mark ทุก activity ปัจจุบันเป็น baseline
 - POST /api/sync/close-preseason → mark activity ก่อน season_start เป็น baseline
 ```
@@ -194,7 +211,7 @@ docker start backend-450k
 
 | เรื่อง | รายละเอียด |
 |-------|-----------|
-| **ห้าม Reset ระหว่าง season** | จะลบ activities ทั้งหมด ดึงคืนไม่ได้ถ้า Strava ลบแล้ว |
+| **ห้าม Reset ระหว่าง season** | จะลบ activities ทุก season ดึงคืนไม่ได้ถ้า Strava ลบแล้ว (ต้องพิมพ์ RESET + มี backup ก่อน) |
 | **Docker build vs restart** | แก้ code ต้อง `docker compose build` ไม่ใช่แค่ `restart` |
 | **season_start priority** | DB (Admin UI) > .env > hardcoded '2026-06-01' |
 | **strava_key collision** | ชื่อ firstname+initial ซ้ำกัน → activities รวมกัน |
@@ -203,37 +220,75 @@ docker start backend-450k
 
 ---
 
-## 📅 วิธีเริ่ม Season ใหม่ (1 มิ.ย. 2026)
+## 📅 ตั้งค่า Season (อัตโนมัติ — ไม่ต้องกด Baseline แล้ว)
+
+Admin → 📅 Seasons → กล่อง **"ตั้งค่า Season"**: กรอกชื่อ, วันเริ่ม, ระยะเวลา (ค่าเริ่มต้น 3 เดือน → วันสิ้นสุดคำนวณให้),
+ติ๊ก "ปิดอัตโนมัติ" + จำนวนวันรอหลังจบ (grace, ค่าเริ่มต้น 2 วัน) แล้วกด **บันทึกกำหนดการ** ครั้งเดียว
 
 ```
-1. Admin → ตั้งค่าโครงการ → season_start = 2026-06-01 → Save
-2. กด "Set Baseline" → mark ทุก activity ก่อนนี้เป็น pre-season
-3. กด Sync → ระบบเริ่มนับ km จาก 0
-4. weekly snapshot จะเริ่มนับ "สัปดาห์ 1" ใหม่
+upcoming ──(00:00 วันเริ่ม)──▶ active ──(วันสิ้นสุด + grace)──▶ ปิด (done) ──▶ season ถัดไปที่ตั้งไว้
 ```
 
-## 🔁 วิธีปิด Season เก่า → เริ่ม Season ใหม่ (เช่น S1 → S2 วันที่ 1 เม.ย. 2027)
+| สถานะตอนกดบันทึก | ระบบทำอะไร |
+|---|---|
+| Season ปิดอยู่ | สร้าง season ใหม่ทันที (status `upcoming` ถ้ายังไม่ถึงวันเริ่ม) |
+| Season ปัจจุบันยังไม่เริ่ม | แก้ชื่อ/วันที่ของ season นั้น |
+| Season ปัจจุบันกำลังแข่ง/ครบกำหนดแล้ว | เก็บเป็น `next_season` → เริ่มให้เองทันทีหลังปิด season ปัจจุบัน |
 
-```
-1. Admin → Seasons → "ปิด Season"
-   ├─ backup DB อัตโนมัติ (auto_close-season_*.sqlite — ไม่ถูกลบอัตโนมัติ) ถ้า backup ไม่ผ่านจะไม่ปิด
-   ├─ เก็บผลรายคนลง seasons.results_json, status='done'
-   ├─ freeze กิจกรรมทั้งหมด (is_baseline=1), reset km/streak ของทุกคน
-   └─ ตั้ง project_settings: season_closed=1, last_frozen_through=<วันสุดท้ายของกิจกรรม>
-2. ช่วงพัก: sync ยังทำงานตามปกติ แต่กิจกรรมใหม่ทุกอันเข้าเป็น baseline (ไม่นับ km)
-   และ cron weekly snapshot จะข้ามจนกว่าจะเริ่ม season ใหม่
-3. Admin → Seasons → "เริ่ม Season ใหม่" (ระบุ ชื่อ / วันเริ่ม / วันสิ้นสุด)
-   ├─ ต้องปิด season เดิมแล้ว และวันเริ่มต้องหลัง last_frozen_through
-   ├─ ตั้ง season_start, season_end, season_closed=0 + สร้างแถว seasons (status='active')
-   └─ ปลด baseline ให้กิจกรรมที่วิ่งตั้งแต่ season_start ที่ถูก sync เข้ามาระหว่างช่วงพัก
-4. กด Sync เพื่อคำนวณ km → "สัปดาห์ 1" ของ season ใหม่เริ่มนับจาก season_start
-```
+ตัวอย่าง S1 → S2: ตั้ง "Season 2 · 2027-04-01 · 3 เดือน" → ระบบปิด S1 ตามกำหนด (หรือกด "ปิด Season ตอนนี้"),
+สร้าง S2 เป็น `upcoming` (หน้าเว็บนับถอยหลัง) → 1 เม.ย. 2027 00:00 เปลี่ยนเป็น `active` → นับ km เฉพาะ 1 เม.ย.–30 มิ.ย. 2027
+→ ปิดและสรุปผลเอง 3 ก.ค. 2027
 
-กฎ baseline ตอน sync (`lib/season.js → baselineFlagFor`): กิจกรรมที่วิ่ง **ก่อน** `season_start`
-หรือ sync เข้ามาตอน `season_closed=1` จะเป็น `is_baseline=1` เสมอ
+**การปิด season** (`closeSeason` — ทั้งปิดเองและปิดอัตโนมัติ):
+backup (`auto_close-season_*.sqlite`, ไม่ถูกลบตามรอบ — backup ไม่ผ่านจะไม่ปิด) → snapshot สัปดาห์สุดท้าย →
+สรุปผลรายคนจาก **กิจกรรมในช่วงวันของ season เท่านั้น** ลง `seasons.results_json` → freeze กิจกรรม (`is_baseline=1`) →
+reset km ทุกคน → `season_closed=1` → เริ่ม `next_season` ถ้ามี
+
+**กฎ baseline ตอน sync** (`lib/season.js → baselineFlagFor`): กิจกรรมที่วิ่ง **ก่อน** `season_start`, **หลัง** `season_end`
+หรือ sync เข้ามาตอน `season_closed=1` จะเป็น `is_baseline=1` (ไม่นับ km) เสมอ
+ตอนเริ่ม season ใหม่ กิจกรรมที่อยู่ในช่วงวันแต่ sync เข้ามาระหว่างที่ปิดอยู่จะถูกปลดให้นับ
+
+**project_settings ที่ระบบจัดการเอง** (PUT `/settings` จะไม่ทับ): `season_closed`, `current_season_id`,
+`next_season`, `last_frozen_through` — ส่วน `season_auto_close`, `season_close_grace_days` ตั้งผ่านกล่องตั้งค่า Season
 
 `weekly_snapshots.season_id` แยก snapshot ราย season (week_no ซ้ำข้าม season ได้ ไม่ทับกัน);
 `GET /api/weekly-snapshots` คืนของ season ปัจจุบัน หรือระบุ `?season_id=` เพื่อดูย้อนหลัง
+
+**Deploy ครั้งแรกหลังอัปเดตนี้**: migration จะเดา `season_closed` จากตาราง seasons
+(ไม่มี season `active`/`pre-season` + มี season `done` = ปิดแล้ว) และผูก weekly snapshot เดิมกับ season ปัจจุบัน
+— Season ที่กำลังแข่งอยู่ก่อนอัปเดตจะ **ไม่ปิดอัตโนมัติ** จนกว่าจะบันทึกกำหนดการพร้อมติ๊กปิดอัตโนมัติ (หรือกดปิดเอง)
+
+เครื่องมือแบบเดิม (ตั้ง Baseline / ปิด Pre-Season) ยังอยู่ใต้ปุ่ม "⚙️ เครื่องมือแบบเดิม" ในหน้าภาพรวม;
+`POST /api/sync/reset-baseline` ถูกปิดเมื่อมี season ที่จบแล้ว (จะดึงกิจกรรม season เก่ากลับมานับ)
+
+---
+
+## ✨ Animation (หน้าเว็บสาธารณะ)
+
+เลือกจาก [Motion Reference](https://motion-reference.takayustudio.jp/) — ค่า duration/easing ตาม reference
+ไม่มี library เพิ่ม: `src/styles/motion.css` (keyframes + easing tokens) + `src/motion/Motion.tsx` (React helpers)
+
+| Motion (reference) | ใช้ที่ |
+|---|---|
+| ソフトライズ soft-rise | หัวข้อทุก section, ชื่อโครงการใน hero |
+| フェード＋スライド fade-slide | ข้อความรองใน hero |
+| スクロールリビール scroll-reveal | การ์ดความคืบหน้า hero, กล่องระยะเวลาโครงการ |
+| リスト順次表示 list-stagger | แถว leaderboard, ผลรายสัปดาห์ |
+| グリッドウェーブ grid-wave | การ์ด About / Milestones / Seasons |
+| カウントアップ count-up (easeOutExpo) | km รวม, %, ค่าใน leaderboard, km ของ milestone, วันที่เหลือก่อนเริ่ม season |
+| 進捗バー progress-fill | แถบความคืบหน้าทั้งหมด |
+| FLIP並べ替え flip-reorder | leaderboard ตอนสลับแท็บ/อันดับเปลี่ยน |
+| ポップスケール pop-scale | โลโก้, เหรียญ top 3, badge, ป้าย "ปลดล็อก" |
+| ハイライトスイープ / ライトスイープ | milestone ที่ปลดล็อก (ครั้งเดียว), แถบ hero + season ที่กำลังแข่ง (วนซ้ำ) |
+| グローパルス glow-pulse | โลโก้, avatar อันดับ 1, ป้าย "กำลังดำเนิน" |
+| スナップイン snap-in | ตัวเลขนับถอยหลังใน hero |
+| スケルトンシマー skeleton-shimmer | leaderboard ระหว่างโหลดครั้งแรก (แทนการโชว์ mock data) |
+| スクロール進捗 scroll-progress | แถบบางด้านบนสุด |
+| ホバーリフト hover-lift | การ์ดตอน hover |
+
+ระดับ animation: Admin → ตั้งค่าโครงการ → "Animation หน้าเว็บ" (`motion_level`: `full` / `subtle` / `off`)
+ผู้ใช้ที่ตั้ง *ลดการเคลื่อนไหว* (prefers-reduced-motion) ในเครื่องจะเห็นแบบ `off` เสมอ
+ถ้า IntersectionObserver ไม่ตอบใน 1.5 วินาที เนื้อหาจะแสดงทันที (กันเนื้อหาค้างที่ opacity 0)
 
 ---
 

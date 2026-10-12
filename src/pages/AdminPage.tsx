@@ -108,7 +108,8 @@ function Sidebar({ active, onSelect, onLogout }: { active:string; onSelect:(k:st
 }
 
 // ─── Dashboard ────────────────────────────────────────────
-function Dashboard() {
+function Dashboard({ onGoSeasons }: { onGoSeasons: () => void }) {
+  const [showLegacy, setShowLegacy] = useState(false);
   const [data, setData] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -236,8 +237,10 @@ function Dashboard() {
           </div>
         </div>
       )}
-      {/* Baseline status bar */}
-      {baselineStatus && (
+      <SeasonStatusStrip onGoSetup={onGoSeasons} />
+
+      {/* Baseline status bar — เครื่องมือแบบเดิม (ระบบตั้งเวลา season ทำให้อัตโนมัติแล้ว) */}
+      {showLegacy && baselineStatus && (
         <div style={{
           background: baselineStatus.hasBaseline ? '#0f2a1a' : '#1a1200',
           border: `1px solid ${baselineStatus.hasBaseline ? '#166534' : '#713f12'}`,
@@ -269,8 +272,8 @@ function Dashboard() {
           {syncing ? 'กำลัง Sync...' : '↻ Sync Strava'}
         </button>
 
-        {/* ปุ่มหลัก: ปิด Pre-Season (มีข้อมูล) หรือ ตั้ง Baseline (ยังไม่มีข้อมูล) */}
-        {(baselineStatus?.seasonCount ?? 0) > 0 ? (
+        {/* เครื่องมือแบบเดิม: ปิด Pre-Season / ตั้ง Baseline — ซ่อนไว้ เพราะ season เปิด/ปิดตามวันอัตโนมัติแล้ว */}
+        {!showLegacy ? null : (baselineStatus?.seasonCount ?? 0) > 0 ? (
           <button onClick={doClosePreseason} disabled={syncing || baselining}
             style={{ background:'linear-gradient(135deg,#065f46,#10b981)', border:'none', borderRadius:10, padding:'10px 24px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
             {baselining ? 'กำลังบันทึก...' : '🏁 ปิด Pre-Season & บันทึก'}
@@ -290,6 +293,10 @@ function Dashboard() {
         <button onClick={() => setShowTestPanel(p => !p)}
           style={{ background:'#1e2a3a', border:'1px solid #334155', borderRadius:10, padding:'10px 18px', color:'#94a3b8', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Sarabun' }}>
           🧪 {showTestPanel ? 'ซ่อนแผงทดสอบ' : 'แผงทดสอบ'}
+        </button>
+        <button onClick={() => setShowLegacy(v => !v)} title="ตั้ง Baseline / ปิด Pre-Season แบบกดเอง — ไม่จำเป็นแล้วถ้าใช้ตั้งค่า Season"
+          style={{ background:'none', border:'1px dashed #444', borderRadius:10, padding:'10px 14px', color:'#666', fontSize:12, cursor:'pointer', fontFamily:'Sarabun' }}>
+          {showLegacy ? 'ซ่อนเครื่องมือแบบเดิม' : '⚙️ เครื่องมือแบบเดิม (Baseline)'}
         </button>
         {syncMsg && <span style={{ color: syncMsg.startsWith('✅') ? '#4ade80' : '#f87171', fontSize:13 }}>{syncMsg}</span>}
       </div>
@@ -365,9 +372,21 @@ function Settings() {
       <div style={{ background:'#1e1e30', border:'1px solid #2a2a3e', borderRadius:14, padding:24 }}>
         {inp('project_name','ชื่อโครงการ','450K TEACHER\'S SPIRIT')}
         {inp('project_subtitle','คำอธิบายสั้น','ก้าวนี้เพื่อเด็ก ก้าวนี้เพื่อเรา')}
-        {inp('season_start','วันเริ่มต้น (YYYY-MM-DD)','2026-06-01')}
-        {inp('season_end','วันสิ้นสุด (YYYY-MM-DD)','2026-09-30')}
+        <div style={{ background:'#1a1530', border:'1px dashed #4c3a8a', borderRadius:8, padding:'8px 12px', color:'#a78bfa', fontSize:12, marginBottom:12 }}>
+          💡 วันเริ่ม/สิ้นสุด Season แนะนำให้ตั้งที่แท็บ "📅 Seasons → ตั้งค่า Season" (ระบบจะเปิด/ปิดให้อัตโนมัติ) — ช่องด้านล่างใช้แก้ season ที่กำลังแข่งอยู่เท่านั้น
+        </div>
+        {inp('season_start','วันเริ่มต้น Season ปัจจุบัน (YYYY-MM-DD)','2027-04-01')}
+        {inp('season_end','วันสิ้นสุด Season ปัจจุบัน (YYYY-MM-DD)','2027-06-30')}
         {inp('goal_km_per_person','เป้าหมาย km/คน','450')}
+        <div style={{ marginBottom:16 }}>
+          <label style={{ color:'#888', fontSize:12, display:'block', marginBottom:4 }}>Animation หน้าเว็บ</label>
+          <select value={form.motion_level || 'full'} onChange={e=>setForm(f=>({...f, motion_level:e.target.value}))}
+            style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, fontFamily:'Sarabun' }}>
+            <option value="full">เต็มรูปแบบ (แนะนำ)</option>
+            <option value="subtle">เบาลง — เฉพาะ fade/ตัวเลขนับขึ้น ไม่มีแสงวิ่ง/เด้ง</option>
+            <option value="off">ปิด animation</option>
+          </select>
+        </div>
         {inp('strava_club_id','Strava Club ID','2086686')}
         {inp('about_1_title','About การ์ด 1 หัวข้อ','วัตถุประสงค์')}
         {inp('about_1_body','About การ์ด 1 เนื้อหา','')}
@@ -1364,8 +1383,10 @@ function ExportPage() {
     URL.revokeObjectURL(url);
   };
   const doReset  = async () => {
-    if (!confirm('⚠️ รีเซ็ตข้อมูลการวิ่งทั้งหมด? (ผู้เข้าร่วมยังอยู่)')) return;
-    const res = await api('/reset', { method:'POST' });
+    const typed = prompt('⚠️ ลบกิจกรรมวิ่งของทุก Season ถาวร และรีเซ็ต km ทุกคน (ผู้เข้าร่วมยังอยู่)\nระบบจะ backup ก่อน\n\nพิมพ์ RESET เพื่อยืนยัน');
+    if (typed === null) return;
+    if (typed.trim() !== 'RESET') { alert('ยกเลิก — ต้องพิมพ์ RESET ให้ตรง'); return; }
+    const res = await api('/reset', { method:'POST', body: JSON.stringify({ confirm:'RESET' }) });
     alert(res.message);
   };
   return (
@@ -1378,6 +1399,240 @@ function ExportPage() {
         <button onClick={doReset} style={{ background:'#2a1010', border:'1px solid #7f1d1d', borderRadius:10, padding:'12px 24px', color:'#f87171', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', textAlign:'left' }}>
           ⚠️ Reset ข้อมูลการวิ่ง (ระวัง)
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Season Setup (ตั้งเวลา season — ระบบเปิด/ปิดตามวันเอง) ─────
+type SeasonStatus = {
+  today: string; phase: 'running'|'upcoming'|'ended'|'closed'; closed: boolean;
+  season_start: string; season_end: string|null; auto_close: boolean; grace_days: number;
+  auto_close_on: string|null; current: { id:number; name:string; status:string; subtitle:string }|null;
+  next: { season_name:string; season_start:string; season_end:string; subtitle:string; auto_close:boolean; grace_days:number }|null;
+  season_count: number; activities: { season:number; baseline:number };
+};
+
+const thDate = (d?: string|null) => d
+  ? new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' })
+  : '—';
+const daysBetween = (a: string, b: string) => Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000);
+const addDaysStr = (d: string, n: number) => {
+  const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n);
+  return x.toISOString().slice(0, 10);
+};
+
+// วันสิ้นสุดของ season ยาว n เดือน (ตรงกับ backend endAfterMonths) เช่น 2027-04-01 + 3 → 2027-06-30
+function endAfterMonths(start: string, months: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return '';
+  const [y, m, d] = start.split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay) - 1);
+  return target.toISOString().slice(0, 10);
+}
+
+function useSeasonStatus() {
+  const [status, setStatus] = useState<SeasonStatus|null>(null);
+  const reload = useCallback(() => api('/season-status').then(setStatus).catch(() => setStatus(null)), []);
+  useEffect(() => { reload(); }, [reload]);
+  return { status, reload };
+}
+
+const PHASE_META: Record<SeasonStatus['phase'], { label:string; color:string; bg:string }> = {
+  running:  { label:'🏃 กำลังแข่ง',      color:'#4ade80', bg:'#052e16' },
+  upcoming: { label:'⏳ รอเริ่ม',         color:'#fbbf24', bg:'#2a1f05' },
+  ended:    { label:'🏁 ครบกำหนดแล้ว',   color:'#fb923c', bg:'#2a1205' },
+  closed:   { label:'🔒 ปิดแล้ว',         color:'#94a3b8', bg:'#1a1f2a' },
+};
+
+function phaseDetail(s: SeasonStatus) {
+  switch (s.phase) {
+    case 'running':  return s.season_end ? `เหลืออีก ${daysBetween(s.today, s.season_end)} วัน (ถึง ${thDate(s.season_end)})` : 'ยังไม่ได้ตั้งวันสิ้นสุด';
+    case 'upcoming': return `เริ่มนับ km อัตโนมัติในอีก ${daysBetween(s.today, s.season_start)} วัน (${thDate(s.season_start)})`;
+    case 'ended':    return s.auto_close_on ? `ระบบจะปิดและสรุปผลอัตโนมัติ ${thDate(s.auto_close_on)}` : 'รอกด "ปิด Season ตอนนี้" (ไม่ได้เปิดปิดอัตโนมัติ)';
+    case 'closed':   return s.next ? `จะเริ่ม ${s.next.season_name} อัตโนมัติ` : 'ยังไม่มี Season ถัดไป — ตั้งค่าด้านล่างได้เลย';
+  }
+}
+
+/** แถบสถานะ season แบบย่อ (ใช้ในหน้าภาพรวม) */
+function SeasonStatusStrip({ onGoSetup }: { onGoSetup?: () => void }) {
+  const { status: s } = useSeasonStatus();
+  if (!s) return null;
+  const pm = PHASE_META[s.phase];
+  return (
+    <div style={{ background:pm.bg, border:`1px solid ${pm.color}55`, borderRadius:12, padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+      <span style={{ color:pm.color, fontWeight:700, fontSize:13 }}>{pm.label}</span>
+      <div style={{ color:'#cbd5e1', fontSize:13 }}>
+        <strong>{s.current?.name ?? 'Season'}</strong> · {thDate(s.season_start)} – {thDate(s.season_end)}
+        <div style={{ color:'#888', fontSize:12 }}>{phaseDetail(s)}</div>
+      </div>
+      {s.next && <span style={{ color:'#a78bfa', fontSize:12 }}>ถัดไป: {s.next.season_name} ({thDate(s.next.season_start)})</span>}
+      {onGoSetup && (
+        <button onClick={onGoSetup} style={{ marginLeft:'auto', background:'#2a1f4e', border:'1px solid #4c3a8a', borderRadius:8, padding:'6px 14px', color:'#c4b5fd', fontSize:12, cursor:'pointer', fontFamily:'Sarabun' }}>
+          ตั้งค่า Season →
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onCloseNow: () => void }) {
+  const { status: s, reload } = useSeasonStatus();
+  const [form, setForm] = useState({ season_name:'', season_start:'', duration_months:3, season_end:'', subtitle:'', auto_close:true, grace_days:2 });
+  const [endTouched, setEndTouched] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  // เติมฟอร์มจาก season ที่ยังไม่เริ่ม / season ถัดไปที่ตั้งไว้ / ค่าเริ่มต้น (Season ถัดไป 3 เดือน)
+  useEffect(() => {
+    if (!s) return;
+    if (s.phase === 'upcoming' && s.current) {
+      setForm(f => ({ ...f, season_name:s.current!.name, season_start:s.season_start, season_end:s.season_end || '', subtitle:s.current!.subtitle, auto_close:s.auto_close, grace_days:s.grace_days }));
+      setEndTouched(true);
+    } else if (s.next) {
+      setForm(f => ({ ...f, ...s.next!, duration_months:3 }));
+      setEndTouched(true);
+    } else {
+      const start = s.today < '2027-04-01' ? '2027-04-01' : '';
+      setForm(f => ({ ...f, season_name:`Season ${s.season_count + 1}`, season_start:start, season_end:endAfterMonths(start, 3), subtitle:'' }));
+      setEndTouched(false);
+    }
+  }, [s]);
+
+  const set = (patch: Partial<typeof form>) => setForm(f => {
+    const next = { ...f, ...patch };
+    // วันสิ้นสุดคำนวณตามระยะเวลาจนกว่าจะแก้เอง
+    if (!endTouched && ('season_start' in patch || 'duration_months' in patch)) {
+      next.season_end = endAfterMonths(next.season_start, Number(next.duration_months));
+    }
+    return next;
+  });
+
+  const save = async () => {
+    if (!form.season_start || !form.season_end) { setMsg('❌ กรุณาระบุวันเริ่มและวันสิ้นสุด'); return; }
+    setSaving(true); setMsg('');
+    try {
+      const res = await api('/schedule-season', { method:'POST', body:JSON.stringify(form) });
+      setMsg(res.ok ? `✅ ${res.message}` : `❌ ${res.message}`);
+      if (res.ok) { reload(); onChanged(); }
+    } catch { setMsg('❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'); }
+    setSaving(false);
+  };
+
+  const cancelNext = async () => {
+    if (!confirm('ยกเลิก Season ถัดไปที่ตั้งไว้?')) return;
+    const res = await api('/schedule-season', { method:'DELETE' });
+    setMsg(res.ok ? `✅ ${res.message}` : `❌ ${res.message}`);
+    reload();
+  };
+
+  if (!s) return <div style={{ color:'#666', fontSize:13, marginBottom:24 }}>กำลังโหลดสถานะ Season...</div>;
+
+  const pm = PHASE_META[s.phase];
+  const editingUpcoming = s.phase === 'upcoming';
+  const totalDays = s.season_end ? daysBetween(s.season_start, s.season_end) + 1 : 0;
+  const elapsed = Math.min(totalDays, Math.max(0, daysBetween(s.season_start, s.today) + 1));
+  const lbl: React.CSSProperties = { color:'#888', fontSize:12, display:'block', marginBottom:4 };
+  const inpStyle: React.CSSProperties = { width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box', fontFamily:'Sarabun' };
+  const formDays = form.season_start && form.season_end ? daysBetween(form.season_start, form.season_end) + 1 : 0;
+
+  return (
+    <div style={{ background:'linear-gradient(135deg,#1a0a2e,#0d1a2e)', border:'1px solid #3a1a5e', borderRadius:14, padding:'20px 24px', marginBottom:24 }}>
+      <div style={{ color:'#c4b5fd', fontSize:15, fontWeight:700, marginBottom:4 }}>📅 ตั้งค่า Season</div>
+      <div style={{ color:'#777', fontSize:12, marginBottom:16 }}>
+        ตั้งวันเริ่ม–สิ้นสุดครั้งเดียว ระบบจะนับเฉพาะกิจกรรมในช่วงนั้น เริ่มเองเมื่อถึงวัน และปิด/สรุปผลเองเมื่อครบกำหนด — ไม่ต้องกด Baseline แล้ว
+      </div>
+
+      {/* ── สถานะปัจจุบัน ── */}
+      <div style={{ background:'#0d0d1a', border:`1px solid ${pm.color}44`, borderRadius:12, padding:'14px 16px', marginBottom:18 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:8 }}>
+          <span style={{ background:pm.bg, color:pm.color, border:`1px solid ${pm.color}66`, borderRadius:999, padding:'3px 12px', fontSize:12, fontWeight:700 }}>{pm.label}</span>
+          <span style={{ color:'#e2e8f0', fontWeight:700 }}>{s.current?.name ?? 'Season ปัจจุบัน'}</span>
+          <span style={{ color:'#888', fontSize:12 }}>{thDate(s.season_start)} – {thDate(s.season_end)}</span>
+        </div>
+        <div style={{ color:'#aaa', fontSize:13, marginBottom: totalDays ? 10 : 0 }}>{phaseDetail(s)}</div>
+        {totalDays > 0 && s.phase !== 'closed' && (
+          <div title={`${elapsed}/${totalDays} วัน`} style={{ background:'#1e1e30', borderRadius:999, height:8, overflow:'hidden' }}>
+            <div style={{ height:'100%', width:`${(elapsed / totalDays) * 100}%`, background:`linear-gradient(90deg,#7c3aed,${pm.color})`, borderRadius:999, transition:'width .8s cubic-bezier(.33,1,.68,1)' }} />
+          </div>
+        )}
+        <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginTop:10, color:'#666', fontSize:11 }}>
+          <span>กิจกรรมที่นับ: <strong style={{ color:'#60a5fa' }}>{s.activities.season}</strong></span>
+          <span>ไม่นับ (นอกช่วง/season เก่า): <strong style={{ color:'#94a3b8' }}>{s.activities.baseline}</strong></span>
+          <span>ปิดอัตโนมัติ: <strong style={{ color: s.auto_close ? '#4ade80' : '#f87171' }}>{s.auto_close ? `เปิด (รอ ${s.grace_days} วันหลังจบ)` : 'ปิด'}</strong></span>
+        </div>
+        {s.next && (
+          <div style={{ marginTop:12, padding:'10px 12px', background:'#1a1530', border:'1px dashed #4c3a8a', borderRadius:10, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <span style={{ color:'#c4b5fd', fontSize:13 }}>⏭️ ถัดไป: <strong>{s.next.season_name}</strong> · {thDate(s.next.season_start)} – {thDate(s.next.season_end)}</span>
+            <button onClick={cancelNext} style={{ marginLeft:'auto', background:'none', border:'1px solid #555', borderRadius:8, padding:'4px 10px', color:'#aaa', fontSize:12, cursor:'pointer', fontFamily:'Sarabun' }}>ยกเลิก</button>
+          </div>
+        )}
+        {!s.closed && (
+          <button onClick={onCloseNow}
+            style={{ marginTop:12, background:'linear-gradient(135deg,#7f1d1d,#dc2626)', border:'none', borderRadius:8, padding:'7px 16px', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
+            🔒 ปิด Season ตอนนี้
+          </button>
+        )}
+      </div>
+
+      {/* ── ฟอร์มตั้งค่า ── */}
+      <div style={{ color:'#e2e8f0', fontSize:13, fontWeight:700, marginBottom:10 }}>
+        {editingUpcoming ? `✏️ แก้ไข ${s.current?.name} (ยังไม่เริ่ม)` : s.closed ? '🚀 ตั้งค่า Season ใหม่' : '⏭️ ตั้งค่า Season ถัดไปล่วงหน้า'}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:12 }}>
+        <div>
+          <label style={lbl}>ชื่อ Season</label>
+          <input value={form.season_name} onChange={e=>set({ season_name:e.target.value })} placeholder="Season 2" style={inpStyle} />
+        </div>
+        <div>
+          <label style={lbl}>วันเริ่ม</label>
+          <input type="date" value={form.season_start} onChange={e=>set({ season_start:e.target.value })} style={inpStyle} />
+        </div>
+        <div>
+          <label style={lbl}>ระยะเวลา</label>
+          <select value={form.duration_months} onChange={e=>{ setEndTouched(false); set({ duration_months:Number(e.target.value), season_end:endAfterMonths(form.season_start, Number(e.target.value)) }); }} style={inpStyle}>
+            {[1,2,3,4,6].map(n => <option key={n} value={n}>{n} เดือน</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>วันสิ้นสุด {formDays > 0 && <span style={{ color:'#666' }}>({formDays} วัน)</span>}</label>
+          <input type="date" value={form.season_end} onChange={e=>{ setEndTouched(true); set({ season_end:e.target.value }); }} style={inpStyle} />
+        </div>
+      </div>
+      <div style={{ marginTop:12 }}>
+        <label style={lbl}>คำอธิบาย (ไม่บังคับ)</label>
+        <input value={form.subtitle} onChange={e=>set({ subtitle:e.target.value })} placeholder="เช่น กิจกรรมวิ่ง เม.ย.–มิ.ย. 2570" style={inpStyle} />
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', marginTop:12, color:'#ccc', fontSize:13 }}>
+        <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}>
+          <input type="checkbox" checked={form.auto_close} onChange={e=>set({ auto_close:e.target.checked })} />
+          ปิด Season และสรุปผลอัตโนมัติเมื่อครบกำหนด
+        </label>
+        {form.auto_close && (<>
+          <span style={{ color:'#888' }}>โดยรอหลังวันสิ้นสุด</span>
+          <input type="number" min={0} max={14} value={form.grace_days} onChange={e=>set({ grace_days:Number(e.target.value) })}
+            style={{ ...inpStyle, width:64, textAlign:'center' }} />
+          <span style={{ color:'#888' }}>วัน (เผื่อคนอัปโหลด Strava ช้า)</span>
+        </>)}
+      </div>
+
+      {form.season_start && form.season_end && (
+        <div style={{ marginTop:14, background:'#0d0d1a', border:'1px solid #2a2a3e', borderRadius:10, padding:'10px 14px', color:'#aaa', fontSize:12, lineHeight:1.8 }}>
+          <div style={{ color:'#c4b5fd', fontWeight:700, marginBottom:2 }}>เมื่อกดบันทึก ระบบจะ:</div>
+          {!s.closed && !editingUpcoming && <div>1. {form.auto_close ? `ปิด ${s.current?.name ?? 'Season ปัจจุบัน'} อัตโนมัติ ${s.season_end ? thDate(addDaysStr(s.season_end, Number(form.grace_days) + 1)) : ''} (backup ก่อน แล้วเก็บผลลงหน้า Seasons)` : `รอให้กด "ปิด Season ตอนนี้" ก่อน`}</div>}
+          <div>{!s.closed && !editingUpcoming ? '2.' : '1.'} นับ km เฉพาะกิจกรรมวันที่ {thDate(form.season_start)} – {thDate(form.season_end)} ({formDays} วัน) — ก่อนหรือหลังช่วงนี้ไม่นับ</div>
+          <div>{!s.closed && !editingUpcoming ? '3.' : '2.'} หน้าเว็บนับถอยหลังสู่วันเริ่ม และเปลี่ยนเป็น "กำลังแข่ง" เองเมื่อถึงวัน</div>
+          {form.auto_close && <div>{!s.closed && !editingUpcoming ? '4.' : '3.'} ปิดและสรุปผล {form.season_name} อัตโนมัติหลังวันสิ้นสุด {form.grace_days} วัน</div>}
+        </div>
+      )}
+
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:14, flexWrap:'wrap' }}>
+        <button onClick={save} disabled={saving}
+          style={{ background:'linear-gradient(135deg,#064e3b,#059669)', border:'none', borderRadius:8, padding:'10px 22px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity:saving?0.6:1 }}>
+          {saving ? 'กำลังบันทึก...' : editingUpcoming ? '💾 บันทึกการแก้ไข' : '💾 บันทึกกำหนดการ'}
+        </button>
+        {msg && <span style={{ color: msg.startsWith('✅') ? '#4ade80' : '#f87171', fontSize:13 }}>{msg}</span>}
       </div>
     </div>
   );
@@ -1403,10 +1658,7 @@ function SeasonsPage() {
   const [closeModal, setCloseModal] = useState(false);
   const [closing, setClosing] = useState(false);
   const [closeResult, setCloseResult] = useState<any>(null);
-  // start-season modal state
-  const [startModal, setStartModal] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [newSeasonForm, setNewSeasonForm] = useState({ season_start:'2027-04-01', season_end:'', season_name:'Season 2', subtitle:'' });
+  const [setupKey, setSetupKey] = useState(0); // เปลี่ยนเพื่อให้ SeasonSetup โหลดสถานะใหม่หลังปิด season
   const [csvUploadId, setCsvUploadId] = useState<number|null>(null);
   const [csvText, setCsvText] = useState('');
   const [csvMsg, setCsvMsg] = useState('');
@@ -1440,20 +1692,7 @@ function SeasonsPage() {
       setCloseResult(res);
     } catch { alert('ปิด Season ไม่สำเร็จ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)'); }
     setClosing(false);
-    load();
-  };
-
-  const startSeason = async () => {
-    if (!newSeasonForm.season_start) return alert('กรุณาระบุวันเริ่ม Season ใหม่');
-    if (!newSeasonForm.season_end) return alert('กรุณาระบุวันสิ้นสุด Season ใหม่');
-    setStarting(true);
-    try {
-      const res = await api('/start-season', { method:'POST', body:JSON.stringify(newSeasonForm) });
-      if (!res.ok) { alert(res.message || 'เริ่ม Season ไม่สำเร็จ'); setStarting(false); return; }
-      alert(res.message);
-    } catch { alert('เริ่ม Season ไม่สำเร็จ (เชื่อมต่อเซิร์ฟเวอร์ไม่ได้)'); setStarting(false); return; }
-    setStarting(false);
-    setStartModal(false);
+    setSetupKey(k => k + 1);
     load();
   };
 
@@ -1488,21 +1727,8 @@ function SeasonsPage() {
 
   return (
     <div>
-      {/* ── Season Control Banner ── */}
-      <div style={{ background:'linear-gradient(135deg,#1a0a2e,#0d1a2e)', border:'1px solid #3a1a5e', borderRadius:14, padding:'20px 24px', marginBottom:24 }}>
-        <div style={{ color:'#c4b5fd', fontSize:13, fontWeight:700, marginBottom:4 }}>⚙️ Season Control</div>
-        <div style={{ color:'#666', fontSize:12, marginBottom:16 }}>ปิด Season ปัจจุบันเพื่อ archive ข้อมูล หรือเริ่ม Season ใหม่</div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-          <button onClick={()=>setCloseModal(true)}
-            style={{ background:'linear-gradient(135deg,#7f1d1d,#dc2626)', border:'none', borderRadius:8, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
-            🔒 ปิด Season & Archive
-          </button>
-          <button onClick={()=>{ const next=rows.length+1; setNewSeasonForm(f=>({...f,season_name:`Season ${next}`})); setStartModal(true); }}
-            style={{ background:'linear-gradient(135deg,#064e3b,#059669)', border:'none', borderRadius:8, padding:'9px 20px', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun' }}>
-            🚀 เริ่ม Season ใหม่
-          </button>
-        </div>
-      </div>
+      {/* ── ตั้งค่า Season (สถานะ + กำหนดการ) ── */}
+      <SeasonSetup key={setupKey} onChanged={load} onCloseNow={() => setCloseModal(true)} />
 
       {/* ── CSV Upload Panel ── */}
       <div style={{ background:'linear-gradient(135deg,#0a1a2e,#0d1a0e)', border:'1px solid #1a3a5e', borderRadius:14, padding:'20px 24px', marginBottom:24 }}>
@@ -1565,48 +1791,21 @@ function SeasonsPage() {
               <div style={{ fontSize:22, marginBottom:12 }}>✅ ปิด Season สำเร็จ!</div>
               <div style={{ color:'#4ade80', fontSize:13, marginBottom:8 }}>🏆 ผู้ชนะ: <strong>{closeResult.winner}</strong></div>
               <div style={{ color:'#a78bfa', fontSize:13, marginBottom:8 }}>📍 ระยะรวม: <strong>{closeResult.total_km} km</strong></div>
-              <div style={{ color:'#888', fontSize:12, marginBottom:20 }}>Freeze {closeResult.frozen} กิจกรรม | Reset ผู้เข้าร่วมทุกคนแล้ว<br/>💾 Backup: {closeResult.backup}</div>
+              <div style={{ color:'#888', fontSize:12, marginBottom:20 }}>
+                Freeze {closeResult.frozen} กิจกรรม | Reset ผู้เข้าร่วมทุกคนแล้ว
+                {closeResult.excluded > 0 && <><br/>ไม่นับ {closeResult.excluded} กิจกรรมที่อยู่นอกช่วงวันของ Season</>}
+                <br/>💾 Backup: {closeResult.backup}
+              </div>
               <div style={{ color:'#fbbf24', fontSize:12, marginBottom:20 }}>
-                👉 กด "เริ่ม Season ใหม่" เพื่อตั้งวันเริ่ม Season 2 (1 เม.ย. 2027)
+                {closeResult.next?.ok
+                  ? `🚀 ${closeResult.next.message}`
+                  : '👉 ตั้งค่า Season ถัดไปได้ที่กล่อง "ตั้งค่า Season" ด้านบน'}
               </div>
               <button onClick={()=>{ setCloseModal(false); setCloseResult(null); }}
                 style={{ width:'100%', background:'#2a2a3e', border:'none', borderRadius:8, padding:'10px', color:'#e2e8f0', cursor:'pointer', fontFamily:'Sarabun' }}>
                 ปิด
               </button>
             </>)}
-          </div>
-        </div>
-      )}
-
-      {/* ── เริ่ม Season ใหม่ Modal ── */}
-      {startModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div style={{ background:'#0a1a10', border:'2px solid #064e3b', borderRadius:16, padding:32, width:400, maxWidth:'90vw' }}>
-            <div style={{ fontSize:20, marginBottom:16 }}>🚀 เริ่ม Season ใหม่</div>
-            {[
-              { key:'season_name', label:'ชื่อ Season', placeholder:'Season 2' },
-              { key:'season_start', label:'วันเริ่มต้น (YYYY-MM-DD)', placeholder:'2027-04-01', type:'date' },
-              { key:'season_end', label:'วันสิ้นสุด (YYYY-MM-DD)', placeholder:'2027-06-30', type:'date' },
-              { key:'subtitle', label:'Subtitle (ไม่บังคับ)', placeholder:'กิจกรรมวิ่ง เมษา–มิถุนา 2027' },
-            ].map(f=>(
-              <div key={f.key} style={{ marginBottom:12 }}>
-                <label style={{ color:'#888', fontSize:12, display:'block', marginBottom:4 }}>{f.label}</label>
-                <input type={f.type||'text'} placeholder={f.placeholder}
-                  value={(newSeasonForm as any)[f.key]}
-                  onChange={e=>setNewSeasonForm((p:any)=>({...p,[f.key]:e.target.value}))}
-                  style={{ width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box' }} />
-              </div>
-            ))}
-            <div style={{ display:'flex', gap:10, marginTop:16 }}>
-              <button onClick={startSeason} disabled={starting}
-                style={{ flex:1, background:'#059669', border:'none', borderRadius:8, padding:'10px', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'Sarabun', opacity: starting ? 0.6 : 1 }}>
-                {starting ? 'กำลังเริ่ม...' : 'เริ่ม Season ใหม่'}
-              </button>
-              <button onClick={()=>setStartModal(false)}
-                style={{ flex:1, background:'#2a2a3e', border:'none', borderRadius:8, padding:'10px', color:'#888', cursor:'pointer', fontFamily:'Sarabun' }}>
-                ยกเลิก
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -2269,7 +2468,7 @@ export default function AdminPage() {
     { key:'gmap_url', label:'Google Maps URL' },
   ];
   const content: Record<string, React.ReactNode> = {
-    dashboard:    <Dashboard />,
+    dashboard:    <Dashboard onGoSeasons={() => setPage('seasons')} />,
     daily:        <DailyReport />,
     settings:     <Settings />,
     participants: <Participants />,

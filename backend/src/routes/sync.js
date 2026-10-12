@@ -4,7 +4,7 @@ import { refreshAccessToken, getClubActivitiesByAthlete } from '../strava/client
 import { requireAdmin } from '../middleware/adminAuth.js';
 import { exceedsPaceCap } from '../lib/paceCap.js';
 import { autoBackup } from '../lib/backup.js';
-import { baselineFlagFor, isSeasonClosed } from '../lib/season.js';
+import { baselineFlagFor, getSeasonWindow, currentSeasonId } from '../lib/season.js';
 
 const router = Router();
 
@@ -54,7 +54,7 @@ router.post('/', async (_req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
-  const seasonClosed = isSeasonClosed();
+  const seasonWindow = getSeasonWindow();
   const thaiNowActivity = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
@@ -117,9 +117,9 @@ router.post('/', async (_req, res) => {
       if (exceedsPaceCap(distKm, elapsed, moving)) continue;
 
       const before = db.prepare('SELECT id FROM strava_activities WHERE activity_hash=?').get(hash);
-      // กิจกรรมก่อนวันเริ่ม season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
+      // กิจกรรมนอกช่วงวันของ season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
       insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate,
-        baselineFlagFor(actDate, SEASON_START, seasonClosed));
+        baselineFlagFor(actDate, seasonWindow));
       if (!before) newCount++;
     }
 
@@ -175,10 +175,9 @@ router.post('/', async (_req, res) => {
   try { rebuildWeeklyData(SEASON_START); } catch(e) { console.error('[sync] rebuildWeeklyData:', e.message); }
 
   // ── Auto-award badges (km, streak, activity_count, single-activity) ──────
-  try {
-    const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
-      || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
-    const seasonId = season?.id ?? null;
+  // ช่วงที่ season ปิดอยู่ไม่มีอะไรนับ km → ไม่แจก badge (กัน badge ไปลง season ที่จบแล้ว)
+  if (!seasonWindow.closed) try {
+    const seasonId = currentSeasonId();
     const insert = db.prepare('INSERT OR IGNORE INTO participant_badges (participant_name, badge_id, season_id, source) VALUES (?,?,?,?)');
     let autoAwarded = 0;
 
@@ -358,6 +357,10 @@ router.get('/baseline-status', (_req, res) => {
 // เปลี่ยนใจ: reset is_baseline=0 ทั้งหมด → นับกิจกรรมทุกรายการเป็น season
 // แล้วคำนวณ km ใหม่ให้ทุก participant
 router.post('/reset-baseline', requireAdmin, (_req, res) => {
+  // มี season ที่ปิดไปแล้ว → กิจกรรม baseline รวมกิจกรรมของ season เก่าด้วย ห้ามปลดทั้งหมด
+  if (db.prepare("SELECT 1 FROM seasons WHERE status='done' LIMIT 1").get()) {
+    return res.status(409).json({ ok:false, message:'มี Season ที่ปิดไปแล้ว — reset baseline จะดึงกิจกรรม season เก่ากลับมานับ จึงปิดการใช้งาน' });
+  }
   // 1. Reset ทุก activity ให้ is_baseline=0
   const reset = db.prepare('UPDATE strava_activities SET is_baseline=0').run();
 

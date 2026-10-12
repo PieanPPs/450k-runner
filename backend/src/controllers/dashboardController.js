@@ -189,10 +189,8 @@ export function getDailyLog(req, res) {
 export function getBadges(_req, res) {
   const badges = db.prepare('SELECT * FROM badges ORDER BY auto_km ASC NULLS LAST, created_at ASC').all();
 
-  // หา season ปัจจุบัน (active หรือล่าสุด)
-  const season = db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get()
-    || db.prepare('SELECT id FROM seasons ORDER BY id DESC LIMIT 1').get();
-  const seasonId = season?.id ?? null;
+  // season ปัจจุบัน — ตัวเดียวกับที่ sync ใช้แจก badge
+  const seasonId = currentSeasonId();
 
   // assignments ของ season นี้ — keyed by participant.id (integer) เพื่อ match ง่ายใน frontend
   const rows = seasonId

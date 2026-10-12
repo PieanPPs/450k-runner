@@ -10,7 +10,8 @@ import adminRoutes      from './routes/admin.js';
 import calendarRoutes   from './routes/calendar.js';
 import { db } from './db/connection.js';
 import { exceedsPaceCap } from './lib/paceCap.js';
-import { getSeasonStart, isSeasonClosed, currentSeasonId, baselineFlagFor } from './lib/season.js';
+import { currentSeasonId, getSeasonWindow, baselineFlagFor } from './lib/season.js';
+import { takeWeeklySnapshot, runSeasonLifecycle, migrateSeasonState } from './lib/seasonLifecycle.js';
 
 // node-cron (optional — skip gracefully if not installed)
 let cron;
@@ -179,29 +180,9 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/adminpp', adminRoutes);
 app.use('/api',         calendarRoutes);
 
-// ---- weekly snapshot helper ----
-function takeWeeklySnapshot() {
-  if (isSeasonClosed()) { console.log('[snapshot] skip — season closed'); return; }
-  const SEASON_START = getSeasonStart();
-  const seasonId = currentSeasonId();
-  const start = new Date(SEASON_START);
-  const now = new Date();
-  const diffDays = Math.max(0, Math.floor((now - start) / 86400000));
-  const weekNo = Math.max(1, Math.ceil(diffDays / 7));
-  const weekLabel = `สัปดาห์ ${weekNo}`;
-
-  // ลบ snapshot ซ้ำของสัปดาห์นี้ก่อน (ถ้า sync หลายครั้งใน 1 อาทิตย์)
-  // (เฉพาะ season เดียวกัน — week_no ของ season ก่อนหน้าต้องไม่ถูกทับ)
-  const participants = db.prepare('SELECT id,name,initials,weekly_km FROM participants ORDER BY weekly_km DESC').all();
-  const ins = db.prepare('INSERT INTO weekly_snapshots (week_no,week_label,participant_id,name,initials,km,rank,season_id) VALUES (?,?,?,?,?,?,?,?)');
-  db.transaction(() => {
-    db.prepare('DELETE FROM weekly_snapshots WHERE week_no=? AND season_id IS ?').run(weekNo, seasonId);
-    participants.forEach((p, i) => {
-      ins.run(weekNo, weekLabel, p.id, p.name, p.initials, p.weekly_km, i + 1, seasonId);
-    });
-  })();
-  console.log(`[snapshot] week ${weekNo} saved — ${participants.length} participants`);
-}
+// ระบบเดิมยังไม่มี season_closed → เดาสถานะครั้งแรก แล้วขยับ season ตามวันที่ทันทีตอนเปิดเซิร์ฟเวอร์
+migrateSeasonState();
+runSeasonLifecycle('startup').catch(err => console.error('[season:startup] error:', err.message));
 
 // ---- shared cron sync logic ----
 async function runAutoSync(label = 'cron') {
@@ -226,9 +207,8 @@ async function runAutoSync(label = 'cron') {
     VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(activity_hash) DO UPDATE SET first_seen = MIN(first_seen, excluded.first_seen)
   `);
-  const SEASON_START = getSeasonStart();
-  const seasonClosed = isSeasonClosed();
-  const thaiNow =new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
+  const seasonWindow = getSeasonWindow();
+  const thaiNow = new Date().toLocaleString('sv-SE', { timeZone:'Asia/Bangkok' }).replace('T',' ');
 
   for (const [stravaKey, data] of Object.entries(athleteMap)) {
     const { stravaName, firstname, lastname, activities } = data;
@@ -272,9 +252,9 @@ async function runAutoSync(label = 'cron') {
       // pace เกิน 20 นาที/กม. → ไม่ sync เข้าระบบเลย
       if (exceedsPaceCap(distKm, elapsed, moving)) continue;
 
-      // กิจกรรมก่อนวันเริ่ม season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
+      // กิจกรรมนอกช่วงวันของ season (หรือช่วงที่ season ถูกปิด) ไม่นับ km
       insActivity.run(stravaKey, hash, distKm, elapsed, moving, act.name||'', actDate,
-        baselineFlagFor(actDate, SEASON_START, seasonClosed));
+        baselineFlagFor(actDate, seasonWindow));
     }
     // คำนวณ km, weekly_km
     const seasonRow = db.prepare('SELECT COALESCE(SUM(COALESCE(credited_km, distance_km)),0) as km, COUNT(*) as cnt FROM strava_activities WHERE strava_key=? AND is_baseline=0').get(stravaKey);
@@ -330,7 +310,11 @@ async function dailyBackup() {
 // ---- cron schedule ----
 if (cron) {
   // sync ทุก 6 ชั่วโมง: 00:00, 06:00, 12:00, 18:00
+  // ขยับสถานะ season ก่อน sync เสมอ — sync จะได้คำนวณ km ตามช่วงวันของ season ล่าสุด
+  // (00:00 ของวันเริ่ม season → upcoming เป็น active, เลยวันสิ้นสุด+grace → ปิดอัตโนมัติ)
   cron.schedule('0 */6 * * *', async () => {
+    try { await runSeasonLifecycle('cron-6h'); }
+    catch (err) { console.error('[season:cron-6h] error:', err.message); }
     try { await runAutoSync('cron-6h'); }
     catch (err) { console.error('[cron-6h] error:', err.message); }
   }, { timezone: 'Asia/Bangkok' });
@@ -341,15 +325,15 @@ if (cron) {
     try {
       await runAutoSync('cron-daily');
       await dailyBackup();
-      // วันอาทิตย์ → เพิ่ม weekly snapshot
+      // วันอาทิตย์ → เพิ่ม weekly snapshot (ข้ามเองถ้า season ปิดอยู่หรือยังไม่เริ่ม)
       if (new Date().getDay() === 0) {
-        takeWeeklySnapshot();
-        console.log('[cron] Sunday weekly snapshot done');
+        const r = takeWeeklySnapshot({ label: 'cron-sunday' });
+        console.log('[cron] Sunday weekly snapshot:', r.ok ? `week ${r.weekNo}` : `skip (${r.message})`);
       }
     } catch (err) { console.error('[cron-daily] error:', err.message); }
   }, { timezone: 'Asia/Bangkok' });
 
-  console.log('Cron: sync every 6h | daily sync+backup at 23:59 | weekly snapshot on Sunday (Bangkok)');
+  console.log('Cron: season lifecycle + sync every 6h | daily sync+backup at 23:59 | weekly snapshot on Sunday (Bangkok)');
 } else {
   console.log('node-cron not installed — run: npm install node-cron (in backend folder)');
 }
