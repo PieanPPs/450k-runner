@@ -4,6 +4,7 @@ import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
 import { api } from '@/api/client';
 import { fmtKm } from '@/utils/fmt';
+import { Reveal, stagger } from '@/motion/Motion';
 import type { WeeklySnapshot } from '@/types';
 
 // ---- medal colors ----
@@ -60,7 +61,7 @@ export default function WeeklyGraph() {
 
         {/* ---- current week ---- */}
         {tab === 'current' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Reveal variant="group" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {current.length === 0 && (
               <div style={{ color: t.textMuted, textAlign: 'center', padding: 40, fontSize: 14 }}>
                 ยังไม่มีข้อมูล — กด Sync Strava เพื่อโหลดข้อมูล
@@ -70,13 +71,12 @@ export default function WeeklyGraph() {
               const pct = maxKm > 0 ? (p.weeklyKm / maxKm) * 100 : 0;
               const isTop3 = i < 3;
               return (
-                <div key={p.id} style={{
+                <div key={p.id} className="m-item" style={stagger(i, {
                   background: t.card, border: `1px solid ${isTop3 ? t.accent1 + '44' : t.cardBorder}`,
                   borderRadius: 14, padding: '14px 18px',
                   display: 'flex', alignItems: 'center', gap: 14,
                   boxShadow: isTop3 ? `0 0 12px ${t.accent1}22` : 'none',
-                  transition: 'transform 0.15s',
-                }}>
+                })}>
                   {/* rank */}
                   <div style={{ minWidth: 32, textAlign: 'center', fontFamily: 'Bebas Neue', fontSize: 22, color: isTop3 ? t.accent1 : t.textSub, lineHeight: 1 }}>
                     {MEDAL[i + 1] ?? <span style={{ fontSize: 16 }}>{i + 1}</span>}
@@ -97,9 +97,9 @@ export default function WeeklyGraph() {
                       </span>
                     </div>
                     <div style={{ background: t.progressBg, borderRadius: 999, height: 7, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 999, transition: 'width 1s ease',
-                        width: `${pct}%`,
+                      <div className="m-fill" style={{
+                        height: '100%', borderRadius: 999, transition: 'width 1s cubic-bezier(.33,1,.68,1)',
+                        width: `${pct}%`, ['--i' as string]: i,
                         background: isTop3
                           ? `linear-gradient(90deg,${t.accent1},${t.accent2})`
                           : `linear-gradient(90deg,${t.accent2},${t.accent3})`,
@@ -113,7 +113,7 @@ export default function WeeklyGraph() {
             <div style={{ marginTop: 12, color: t.textSub, fontSize: 11, textAlign: 'center' }}>
               * ผลรายสัปดาห์จะถูกบันทึกอัตโนมัติทุกวันอาทิตย์ 23:59 เพื่อเก็บเป็นประวัติ
             </div>
-          </div>
+          </Reveal>
         )}
 
         {/* ---- history ---- */}
@@ -156,16 +156,16 @@ export default function WeeklyGraph() {
 
                 {/* snapshot table */}
                 {selectedSnap && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Reveal variant="group" key={selectedSnap.weekNo} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ color: t.textSub, fontSize: 11, marginBottom: 4 }}>
                       บันทึกเมื่อ {new Date(selectedSnap.snappedAt).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
                     </div>
-                    {selectedSnap.participants.map(p => (
-                      <div key={p.id} style={{
+                    {selectedSnap.participants.map((p, i) => (
+                      <div key={p.id} className="m-item" style={stagger(i, {
                         background: t.card, border: `1px solid ${p.rank <= 3 ? t.accent1 + '44' : t.cardBorder}`,
                         borderRadius: 12, padding: '12px 16px',
                         display: 'flex', alignItems: 'center', gap: 12,
-                      }}>
+                      })}>
                         <div style={{ minWidth: 28, textAlign: 'center', fontFamily: 'Bebas Neue', fontSize: 20, color: p.rank <= 3 ? t.accent1 : t.textSub }}>
                           {MEDAL[p.rank] ?? p.rank}
                         </div>
@@ -183,7 +183,7 @@ export default function WeeklyGraph() {
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </Reveal>
                 )}
               </>
             )}

@@ -1,8 +1,9 @@
 import { useContext, useMemo, useState } from 'react';
 import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
-import { SectionHeader } from '@/components/UI';
+import { SectionHeader, SkeletonRows } from '@/components/UI';
 import { fmtKm } from '@/utils/fmt';
+import { Reveal, CountUp, stagger, useFlip } from '@/motion/Motion';
 import type { Participant, Badge } from '@/types';
 
 // ── Badge Collection Modal ────────────────────────────────────────────────────
@@ -113,9 +114,10 @@ function BadgeModal({
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 export default function Leaderboard() {
   const { theme: t } = useContext(ThemeCtx);
-  const { data } = useAppData();
+  const { data, loading } = useAppData();
   const { participants, improvement, badges, badgeAssignments } = data;
   const [tab, setTab] = useState(0);
+  const firstLoad = loading && data.isMockData; // ยังไม่ได้ข้อมูลจริง → แสดง skeleton แทน mock
   const [selectedP, setSelectedP] = useState<Participant | null>(null);
 
   const hasImprovement = improvement && improvement.some(p => p.diff > 0);
@@ -130,6 +132,9 @@ export default function Leaderboard() {
 
   const cur = tabs[tab];
   const medals = ['🥇','🥈','🥉'];
+  // FLIP並べ替え — เปลี่ยนแท็บ/อันดับเปลี่ยน แถวเลื่อนไปตำแหน่งใหม่
+  const order = cur.isImprove ? improvement.map(p => p.initials).join(',') : cur.data.map(p => p.id).join(',');
+  const flipRef = useFlip<HTMLDivElement>([tab, order]);
 
   const renderRegular = () => {
     const max = cur.data.length > 0 ? Number(cur.data[0][cur.key]) : 1;
@@ -137,32 +142,35 @@ export default function Leaderboard() {
       const val = Number(p[cur.key]);
       const earnedBadges = (badgeAssignments?.[String(p.id)] ?? []);
       return (
-        <div key={p.id}
+        <div key={p.id} data-flip-key={p.id} className="m-item m-lift"
           onClick={() => setSelectedP(p)}
-          style={{ display:'flex', alignItems:'center', gap:14, background:t.card, border:`1px solid ${i<3?t.accent1+'44':t.cardBorder}`, borderRadius:14, padding:'12px 16px', transition:'transform 0.15s', boxShadow:i===0?`0 4px 20px ${t.accent1}30`:'none', cursor:'pointer' }}
+          style={stagger(i, { display:'flex', alignItems:'center', gap:14, background:t.card, border:`1px solid ${i<3?t.accent1+'44':t.cardBorder}`, borderRadius:14, padding:'12px 16px', boxShadow:i===0?`0 4px 20px ${t.accent1}30`:'none', cursor:'pointer' })}
           onMouseEnter={e=>e.currentTarget.style.transform='translateX(4px)'}
           onMouseLeave={e=>e.currentTarget.style.transform='translateX(0)'}>
           <div style={{ width:32, textAlign:'center', fontSize:i<3?20:14, fontWeight:700, color:i<3?t.text:t.textSub, fontFamily:'Bebas Neue' }}>
-            {i<3?medals[i]:i+1}
+            {i<3 ? <span className="m-pop" style={{ display:'inline-block', ['--i' as string]: i }}>{medals[i]}</span> : i+1}
           </div>
-          <div style={{ width:40, height:40, borderRadius:'50%', background:`linear-gradient(135deg,${t.accent1},${t.accent2})`, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14, flexShrink:0 }}>
+          <div className={i===0 ? 'm-glow' : undefined}
+            style={{ width:40, height:40, borderRadius:'50%', background:`linear-gradient(135deg,${t.accent1},${t.accent2})`, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:14, flexShrink:0, ['--m-glow' as string]:`${t.accent1}66` }}>
             {p.initials}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:4, flexWrap:'wrap' }}>
               <span style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</span>
-              {earnedBadges.map(bid => {
+              {earnedBadges.map((bid, bi) => {
                 const b = (badges ?? []).find(x => x.id === bid);
                 if (!b) return null;
-                return <span key={bid} title={b.label} style={{ fontSize:14, cursor:'default', lineHeight:1 }}>{b.icon}</span>;
+                return <span key={bid} title={b.label} className="m-pop" style={{ fontSize:14, cursor:'default', lineHeight:1, display:'inline-block', ['--i' as string]: i + bi + 2 }}>{b.icon}</span>;
               })}
             </div>
             <div style={{ background:t.progressBg, borderRadius:999, height:5, marginTop:6, overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${max>0?(val/max)*100:0}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius:999 }} />
+              <div className="m-fill" style={{ height:'100%', width:`${max>0?(val/max)*100:0}%`, background:`linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius:999, transition:'width .8s cubic-bezier(.33,1,.68,1)', ['--i' as string]: i }} />
             </div>
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
-            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:t.accent1, letterSpacing:1 }}>{cur.fmt(val)}</div>
+            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:t.accent1, letterSpacing:1 }}>
+              <CountUp value={val} format={cur.fmt} duration={900} />
+            </div>
             <div style={{ color:t.textSub, fontSize:11 }}>{cur.unit}</div>
           </div>
         </div>
@@ -178,9 +186,9 @@ export default function Leaderboard() {
       // หา participant ตัวเต็มเพื่อใช้กับ modal
       const fullP = participants.find(pp => pp.initials === p.initials);
       return (
-        <div key={p.initials + i}
+        <div key={p.initials + i} data-flip-key={p.initials} className="m-item m-lift"
           onClick={() => { if (fullP) setSelectedP(fullP); }}
-          style={{ display:'flex', alignItems:'center', gap:14, background:t.card, border:`1px solid ${i<3?t.accent2+'55':t.cardBorder}`, borderRadius:14, padding:'12px 16px', transition:'transform 0.15s', boxShadow:i===0?`0 4px 20px ${t.accent2}30`:'none', cursor: fullP ? 'pointer' : 'default' }}
+          style={stagger(i, { display:'flex', alignItems:'center', gap:14, background:t.card, border:`1px solid ${i<3?t.accent2+'55':t.cardBorder}`, borderRadius:14, padding:'12px 16px', boxShadow:i===0?`0 4px 20px ${t.accent2}30`:'none', cursor: fullP ? 'pointer' : 'default' })}
           onMouseEnter={e=>e.currentTarget.style.transform='translateX(4px)'}
           onMouseLeave={e=>e.currentTarget.style.transform='translateX(0)'}>
           <div style={{ width:32, textAlign:'center', fontSize:i<3?20:14, fontWeight:700, color:i<3?t.text:t.textSub, fontFamily:'Bebas Neue' }}>
@@ -193,11 +201,13 @@ export default function Leaderboard() {
             <div style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
             <div style={{ color:t.textSub, fontSize:11, marginTop:2 }}>{fmtKm(p.prevKm)} km → {fmtKm(p.currentKm)} km</div>
             <div style={{ background:t.progressBg, borderRadius:999, height:5, marginTop:4, overflow:'hidden' }}>
-              <div style={{ height:'100%', width:`${maxDiff>0?(Math.max(0,p.diff)/maxDiff)*100:0}%`, background:`linear-gradient(90deg,${t.accent2},${t.accent1})`, borderRadius:999 }} />
+              <div className="m-fill" style={{ height:'100%', width:`${maxDiff>0?(Math.max(0,p.diff)/maxDiff)*100:0}%`, background:`linear-gradient(90deg,${t.accent2},${t.accent1})`, borderRadius:999, ['--i' as string]: i }} />
             </div>
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
-            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:diffColor, letterSpacing:1 }}>{isPositive?'+':''}{fmtKm(p.diff)}</div>
+            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:diffColor, letterSpacing:1 }}>
+              {isPositive?'+':''}<CountUp value={p.diff} format={fmtKm} duration={900} />
+            </div>
             <div style={{ color:t.textSub, fontSize:11 }}>km เพิ่ม</div>
           </div>
         </div>
@@ -220,9 +230,13 @@ export default function Leaderboard() {
             }}>{tb.label}</button>
           ))}
         </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {cur.isImprove ? renderImprovement() : renderRegular()}
-        </div>
+        {firstLoad ? <SkeletonRows count={6} /> : (
+          <Reveal variant="group">
+            <div ref={flipRef} style={{ display:'flex', flexDirection:'column', gap:8, position:'relative' }}>
+              {cur.isImprove ? renderImprovement() : renderRegular()}
+            </div>
+          </Reveal>
+        )}
         {(badges ?? []).length > 0 && (
           <div style={{ textAlign:'center', marginTop:16, color:t.textMuted, fontSize:12 }}>
             กดที่ชื่อเพื่อดู badge collection

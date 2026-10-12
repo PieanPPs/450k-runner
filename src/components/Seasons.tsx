@@ -3,6 +3,7 @@ import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
 import { fmtKm } from '@/utils/fmt';
+import { Reveal, CountUp, stagger } from '@/motion/Motion';
 import type { Season, SeasonResult } from '@/types';
 
 function SeasonResultsModal({ season, onClose }: { season: Season; onClose: () => void }) {
@@ -44,6 +45,28 @@ function SeasonResultsModal({ season, onClose }: { season: Season; onClose: () =
   );
 }
 
+// season ที่ระบบสร้างมี date_range = 'YYYY-MM-DD – YYYY-MM-DD'
+const startOf = (dateRange: string) => /^(\d{4}-\d{2}-\d{2})/.exec(dateRange || '')?.[1] ?? null;
+
+function UpcomingTeaser({ start }: { start: string | null }) {
+  const { theme: t } = useContext(ThemeCtx);
+  const days = start ? Math.ceil((new Date(start + 'T00:00:00').getTime() - Date.now()) / 86400000) : null;
+  if (days == null || days <= 0) {
+    return <div style={{ color:t.textSub, fontSize:14, textAlign:'center', padding:'20px 0' }}>เตรียมเปิด Season นี้เร็วๆ นี้! 🔥</div>;
+  }
+  return (
+    <div style={{ textAlign:'center', padding:'12px 0' }}>
+      <div style={{ color:t.textSub, fontSize:12, marginBottom:4 }}>เริ่มนับ km ในอีก</div>
+      <div style={{ fontFamily:'Bebas Neue', fontSize:44, color:t.accent1, lineHeight:1 }}>
+        <CountUp value={days} duration={1200} /> <span style={{ fontSize:18 }}>วัน</span>
+      </div>
+      <div style={{ color:t.textMuted, fontSize:12, marginTop:4 }}>
+        {new Date(start + 'T00:00:00').toLocaleDateString('th-TH', { day:'numeric', month:'long', year:'numeric' })} 🔥
+      </div>
+    </div>
+  );
+}
+
 export default function Seasons() {
   const { theme: t } = useContext(ThemeCtx);
   const { data } = useAppData();
@@ -61,13 +84,13 @@ export default function Seasons() {
     <section id="seasons" style={{ padding:'80px 24px' }}>
       <div style={{ maxWidth:900, margin:'0 auto' }}>
         <SectionHeader tag="Season" title="สรุปผลแต่ละ Season" />
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:20 }}>
+        <Reveal variant="group" grid style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:20 }}>
           {seasons.map((s, i) => {
-            const sm = statusMeta[s.status];
+            const sm = statusMeta[s.status] ?? statusMeta.upcoming;
             const hasFull = s.results && s.results.length > 0;
             return (
-              <div key={i} style={{ background:t.card, border:`1px solid ${s.status==='active'?t.accent1+'60':s.status==='pre-season'?'#06b6d430':t.cardBorder}`, borderRadius:20, padding:28, position:'relative', overflow:'hidden' }}>
-                {s.status==='active' && <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${t.accent1},${t.accent2})` }} />}
+              <div key={i} className="m-item m-lift" style={stagger(i, { background:t.card, border:`1px solid ${s.status==='active'?t.accent1+'60':s.status==='pre-season'?'#06b6d430':t.cardBorder}`, borderRadius:20, padding:28, position:'relative', overflow:'hidden' })}>
+                {s.status==='active' && <div className="m-light-sweep" style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${t.accent1},${t.accent2})` }} />}
                 {s.status==='pre-season' && <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:'linear-gradient(90deg,#06b6d4,#818cf8)' }} />}
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
                   <div>
@@ -75,7 +98,8 @@ export default function Seasons() {
                     <div style={{ color:t.textMuted, fontSize:13 }}>{s.subtitle}</div>
                     <div style={{ color:t.textSub, fontSize:12 }}>{s.dateRange}</div>
                   </div>
-                  <div style={{ background:sm.color+'22', border:`1px solid ${sm.color}60`, borderRadius:999, padding:'4px 12px', color:sm.color, fontSize:12, fontWeight:700 }}>{sm.label}</div>
+                  <div className={s.status==='active' ? 'm-glow' : undefined}
+                    style={{ background:sm.color+'22', border:`1px solid ${sm.color}60`, borderRadius:999, padding:'4px 12px', color:sm.color, fontSize:12, fontWeight:700, whiteSpace:'nowrap', ['--m-glow' as string]:`${sm.color}44` }}>{sm.label}</div>
                 </div>
                 {s.status !== 'upcoming' ? (
                   <>
@@ -102,12 +126,12 @@ export default function Seasons() {
                     )}
                   </>
                 ) : (
-                  <div style={{ color:t.textSub, fontSize:14, textAlign:'center', padding:'20px 0' }}>เตรียมเปิด Season นี้เร็วๆ นี้! 🔥</div>
+                  <UpcomingTeaser start={startOf(s.dateRange)} />
                 )}
               </div>
             );
           })}
-        </div>
+        </Reveal>
       </div>
       {viewSeason && <SeasonResultsModal season={viewSeason} onClose={() => setViewSeason(null)} />}
     </section>

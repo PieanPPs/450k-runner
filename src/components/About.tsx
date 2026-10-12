@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { ThemeCtx } from '@/themes/context';
 import { useAppData } from '@/context/DataContext';
 import { SectionHeader } from '@/components/UI';
+import { Reveal, stagger } from '@/motion/Motion';
 
 // Default card content หากยังไม่ได้ตั้งค่าใน admin
 const DEFAULT_CARDS = [
@@ -27,19 +28,19 @@ export default function About() {
     <section id="about" style={{ padding:'80px 24px', background:t.altBg }}>
       <div style={{ maxWidth:900, margin:'0 auto' }}>
         <SectionHeader tag="โครงการ" title="จุดประสงค์ & รายละเอียด" />
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:20, marginBottom:48 }}>
+        <Reveal variant="group" grid style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:20, marginBottom:48 }}>
           {cards.map((c,i)=>(
-            <div key={i} style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:16, padding:24, transition:'transform 0.2s,box-shadow 0.2s' }}
-              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-4px)';e.currentTarget.style.boxShadow=`0 12px 32px ${t.accent1}30`;}}
+            <div key={i} className="m-item m-lift" style={stagger(i, { background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:16, padding:24 })}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-6px)';e.currentTarget.style.boxShadow=`0 12px 32px ${t.accent1}30`;}}
               onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.boxShadow='none';}}>
               <div style={{ fontSize:32, marginBottom:12 }}>{c.icon}</div>
               <div style={{ color:t.text, fontWeight:700, marginBottom:8, fontSize:16 }}>{c.title}</div>
               <div style={{ color:t.textMuted, fontSize:13, lineHeight:1.7 }}>{c.body}</div>
             </div>
           ))}
-        </div>
+        </Reveal>
 
-        <div style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:32 }}>
+        <Reveal style={{ background:t.card, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:32 }}>
           <div style={{ color:t.text, fontWeight:700, fontSize:18, marginBottom:24, display:'flex', alignItems:'center', gap:8 }}>
             <span>📅</span> ระยะเวลาโครงการ
           </div>
@@ -65,7 +66,7 @@ export default function About() {
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

@@ -16,6 +16,7 @@ import AdminPage from '@/pages/AdminPage';
 import HealthTips from '@/components/HealthTips';
 import { ThemeProvider, ThemeCtx } from '@/themes/context';
 import { DataProvider } from '@/context/DataContext';
+import { MotionRoot, ScrollProgress } from '@/motion/Motion';
 
 function AppBody() {
   const { theme: t } = useContext(ThemeCtx);
@@ -27,7 +28,8 @@ function AppBody() {
   }, [data.settings.project_name]);
 
   return (
-    <div style={{ background:t.bg, minHeight:'100vh', color:t.text, fontFamily:'Sarabun, sans-serif' }}>
+    <MotionRoot level={data.settings.motion_level} style={{ background:t.bg, minHeight:'100vh', color:t.text, fontFamily:'Sarabun, sans-serif' }}>
+      <ScrollProgress color={`linear-gradient(90deg,${t.accent1},${t.accent2},${t.accent3})`} />
       <Nav />
       <Hero />
       <About />
@@ -41,7 +43,7 @@ function AppBody() {
       <Certificate />
       <Gallery />
       <Footer />
-    </div>
+    </MotionRoot>
   );
 }
 

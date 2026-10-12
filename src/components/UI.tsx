@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import { ThemeCtx } from '@/themes/context';
+import { Reveal } from '@/motion/Motion';
 
 /* ── Progress Bar ── */
 export function ProgressBar({ value, color1, color2 }: { value: number; color1: string; color2: string }) {
@@ -32,11 +33,11 @@ export function ProgressRing({ pct, size = 80, stroke = 8 }: { pct: number; size
   );
 }
 
-/* ── Section Header ── */
+/* ── Section Header ── (soft-rise + เส้นใต้ยืดออก) */
 export function SectionHeader({ tag, title }: { tag?: string; title: string }) {
   const { theme: t } = useContext(ThemeCtx);
   return (
-    <div style={{ textAlign: 'center', marginBottom: 40 }}>
+    <Reveal variant="soft-rise" style={{ textAlign: 'center', marginBottom: 40 }}>
       {tag && (
         <div style={{ fontFamily: 'Bebas Neue', fontSize: 13, letterSpacing: 4, color: t.accent2, marginBottom: 6 }}>
           {tag.toUpperCase()}
@@ -45,7 +46,19 @@ export function SectionHeader({ tag, title }: { tag?: string; title: string }) {
       <div style={{ fontFamily: 'Bebas Neue', fontSize: 'clamp(28px,5vw,48px)', color: t.text, letterSpacing: 2 }}>
         {title}
       </div>
-      <div style={{ width: 60, height: 3, background: `linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius: 999, margin: '12px auto 0' }} />
+      <div className="m-underline" style={{ width: 60, height: 3, background: `linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius: 999, margin: '12px auto 0' }} />
+    </Reveal>
+  );
+}
+
+/* ── Skeleton rows (スケルトンシマー) ระหว่างโหลดข้อมูลครั้งแรก ── */
+export function SkeletonRows({ count = 5, height = 64 }: { count?: number; height?: number }) {
+  const { theme: t } = useContext(ThemeCtx);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} aria-busy="true" aria-label="กำลังโหลด">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="m-skeleton" style={{ height, borderRadius: 14, border: `1px solid ${t.cardBorder}`, opacity: 1 - i * 0.12 }} />
+      ))}
     </div>
   );
 }
@@ -82,13 +95,13 @@ export function Card({ children, style, onClick, hoverEffect = true }: {
    children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void, hoverEffect?: boolean; }) {
   const { theme: t } = useContext(ThemeCtx);
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick} className="m-lift" style={{
       background: t.card, border: `1px solid ${t.cardBorder}`, borderRadius: 20, padding: 28,
-      transition: 'transform 0.2s, box-shadow 0.2s', cursor: onClick ? 'pointer' : 'default',
+      cursor: onClick ? 'pointer' : 'default',
       ...style,
     }}
       onMouseEnter={hoverEffect ? (e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
+        e.currentTarget.style.transform = 'translateY(-6px) scale(1.01)';
         e.currentTarget.style.boxShadow = `0 12px 32px ${t.accent1}30`;
       } : undefined}
       onMouseLeave={hoverEffect ? (e) => {

@@ -1,0 +1,184 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Motion — เลือกจาก Motion Reference (motion-reference.takayustudio.jp)
+   ค่า duration / easing ตามที่ reference แนะนำ
+
+   soft-rise        ソフトライズ        900ms  easeOutSine   หัวข้อ section, ชื่อโครงการ
+   fade-slide       フェード＋スライド   600ms  easeOutCubic  ข้อความรอง
+   scroll-reveal    スクロールリビール   900ms  easeOutCubic  การ์ดตอนเลื่อนถึง
+   list-stagger     リスト順次表示      760ms  easeOutCubic  แถว leaderboard / รายสัปดาห์
+   grid-wave        グリッドウェーブ    900ms  easeOutCubic  grid การ์ด milestone / season
+   progress-fill    進捗バー           1200ms easeOutCubic  แถบความคืบหน้า
+   pop-scale        ポップスケール      520ms  easeOutBack   เหรียญ / ป้ายปลดล็อก
+   highlight-sweep  ハイライトスイープ  820ms  easeInOutCubic milestone ที่ปลดล็อกแล้ว
+   light-sweep      ライトスイープ      950ms  linear-ish    แสงวิ่งบนแถบความคืบหน้า hero
+   glow-pulse       グローパルス       1100ms easeInOutSine โลโก้ / season ที่กำลังแข่ง / อันดับ 1
+   snap-in          スナップイン        380ms  easeOutCubic  ตัวเลขนับถอยหลัง
+   skeleton-shimmer スケルトンシマー   1200ms linear        ระหว่างโหลดข้อมูล
+   hover-lift       ホバーリフト        180ms  easeOutCubic  การ์ดตอน hover
+   count-up / flip-reorder / scroll-progress → ทำใน src/motion/Motion.tsx
+
+   ระดับ animation: <div data-motion="full|subtle|off"> (ตั้งในแอดมิน → ตั้งค่าโครงการ)
+   - subtle: ไม่มี loop / แสงวิ่ง / เด้ง
+   - off หรือผู้ใช้ตั้ง prefers-reduced-motion: แสดงผลทันที ไม่มีการเคลื่อนไหว
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --ease-out-cubic:    cubic-bezier(.33, 1, .68, 1);
+  --ease-out-sine:     cubic-bezier(.61, 1, .88, 1);
+  --ease-out-back:     cubic-bezier(.34, 1.56, .64, 1);
+  --ease-in-out-cubic: cubic-bezier(.65, 0, .35, 1);
+  --ease-in-out-sine:  cubic-bezier(.37, 0, .63, 1);
+  --m-step: 55ms;   /* ระยะห่างของ stagger */
+}
+
+/* ── Keyframes ─────────────────────────────────────────── */
+@keyframes m-soft-rise {
+  from { opacity: 0; transform: translateY(28px); filter: blur(10px); }
+  to   { opacity: 1; transform: none;             filter: blur(0); }
+}
+@keyframes m-fade-slide {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-scroll-reveal {
+  from { opacity: 0; transform: translateY(40px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-list-stagger {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-grid-wave {
+  from { opacity: 0; transform: translateY(24px) scale(.94); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes m-progress-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes m-width-reveal {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes m-pop-scale {
+  0%   { opacity: 0; transform: scale(.4); }
+  70%  { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes m-highlight-sweep {
+  from { transform: translateX(-120%) skewX(-18deg); }
+  to   { transform: translateX(220%)  skewX(-18deg); }
+}
+@keyframes m-light-sweep {
+  0%       { transform: translateX(-100%); }
+  35%, 100% { transform: translateX(100%); }
+}
+@keyframes m-glow-pulse {
+  from { box-shadow: 0 0 18px 0 var(--m-glow, rgba(255, 0, 102, .35)); }
+  to   { box-shadow: 0 0 44px 6px var(--m-glow, rgba(255, 0, 102, .35)); }
+}
+@keyframes m-snap-in {
+  from { opacity: 0; transform: translateY(-45%); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes m-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ── Reveal (เล่นเมื่อเลื่อนมาถึง — Motion.tsx ใส่ .is-in) ─── */
+.m-reveal:not(.is-in) { opacity: 0; }
+.m-reveal.is-in { animation: m-scroll-reveal 900ms var(--ease-out-cubic) var(--m-delay, 0ms) backwards; }
+.m-reveal.m-soft-rise.is-in  { animation-name: m-soft-rise; animation-timing-function: var(--ease-out-sine); }
+.m-reveal.m-fade-slide.is-in { animation-name: m-fade-slide; animation-duration: 600ms; }
+
+/* กลุ่มที่ลูกเล่น stagger ต่อกัน: ลูกแต่ละตัวใส่ class m-item + style --i */
+.m-group:not(.is-in) .m-item { opacity: 0; }
+.m-group.is-in .m-item {
+  animation: m-list-stagger 760ms var(--ease-out-cubic) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * var(--m-step));
+}
+.m-group.m-grid.is-in .m-item {
+  animation-name: m-grid-wave;
+  animation-duration: 900ms;
+  animation-delay: calc(min(var(--i, 0), 12) * 70ms);
+}
+
+/* แถบความคืบหน้าเติมจากซ้ายเมื่อกลุ่มเข้า viewport */
+.m-group:not(.is-in) .m-fill { transform: scaleX(0); }
+.m-group.is-in .m-fill {
+  transform-origin: left center;
+  animation: m-progress-fill 1200ms var(--ease-out-cubic) backwards;
+  animation-delay: calc(200ms + min(var(--i, 0), 14) * var(--m-step));
+}
+
+/* เส้นใต้หัวข้อ section ยืดจากกลาง */
+.m-group:not(.is-in) .m-underline { transform: scaleX(0); }
+.m-group.is-in .m-underline { animation: m-width-reveal 650ms var(--ease-out-cubic) 350ms backwards; }
+
+/* ── เอฟเฟกต์เฉพาะจุด ──────────────────────────────────── */
+.m-group.is-in .m-pop { animation: m-pop-scale 520ms var(--ease-out-back) calc(300ms + min(var(--i, 0), 14) * var(--m-step)) backwards; }
+
+.m-sweep-once { position: relative; overflow: hidden; }
+.m-sweep-once::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .45), transparent);
+  transform: translateX(-120%) skewX(-18deg); pointer-events: none;
+}
+.m-group.is-in .m-sweep-once::after { animation: m-highlight-sweep 820ms var(--ease-in-out-cubic) calc(700ms + min(var(--i, 0), 12) * 70ms) 1 both; }
+
+.m-light-sweep { position: relative; overflow: hidden; }
+.m-light-sweep::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 25%, rgba(255, 255, 255, .55) 50%, transparent 75%);
+  transform: translateX(-100%); pointer-events: none;
+  animation: m-light-sweep 2700ms var(--ease-in-out-cubic) 1600ms infinite;
+}
+
+.m-glow { animation: m-glow-pulse 1100ms var(--ease-in-out-sine) infinite alternate; }
+
+.m-tick { display: inline-block; animation: m-snap-in 380ms var(--ease-out-cubic); }
+
+.m-skeleton {
+  background: linear-gradient(90deg, var(--m-sk-a, rgba(128,128,128,.12)) 25%, var(--m-sk-b, rgba(128,128,128,.24)) 50%, var(--m-sk-a, rgba(128,128,128,.12)) 75%);
+  background-size: 200% 100%;
+  animation: m-shimmer 1200ms linear infinite;
+  border-radius: 8px;
+}
+
+.m-num { font-variant-numeric: tabular-nums; }
+
+.m-lift { transition: transform 180ms var(--ease-out-cubic), box-shadow 180ms var(--ease-out-cubic), border-color 180ms var(--ease-out-cubic); }
+
+/* scroll progress (ใต้ nav) */
+.m-scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 101;
+  transform-origin: left center; transform: scaleX(0); pointer-events: none;
+}
+
+/* ── ระดับ animation ───────────────────────────────────── */
+[data-motion="subtle"] .m-reveal.is-in,
+[data-motion="subtle"] .m-group.is-in .m-item { animation-name: m-fade; animation-duration: 500ms; }
+[data-motion="subtle"] .m-glow,
+[data-motion="subtle"] .m-light-sweep::after,
+[data-motion="subtle"] .m-sweep-once::after,
+[data-motion="subtle"] .m-tick { animation: none; }
+[data-motion="subtle"] .m-group.is-in .m-pop { animation-name: m-fade; animation-timing-function: ease-out; }
+
+[data-motion="off"] *,
+[data-motion="off"] *::before,
+[data-motion="off"] *::after { animation: none !important; transition: none !important; }
+[data-motion="off"] .m-reveal,
+[data-motion="off"] .m-item,
+[data-motion="off"] .m-fill,
+[data-motion="off"] .m-underline { opacity: 1 !important; transform: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .m-reveal, .m-item, .m-fill, .m-underline { opacity: 1 !important; transform: none !important; }
+  html { scroll-behavior: auto; }
+}
