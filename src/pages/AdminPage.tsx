@@ -1410,7 +1410,7 @@ type SeasonStatus = {
   season_start: string; season_end: string|null; auto_close: boolean; grace_days: number;
   auto_close_on: string|null; current: { id:number; name:string; status:string; subtitle:string }|null;
   next: { season_name:string; season_start:string; season_end:string; subtitle:string; auto_close:boolean; grace_days:number }|null;
-  season_count: number; activities: { season:number; baseline:number };
+  season_count: number; suggested_name: string; activities: { season:number; baseline:number };
 };
 
 const thDate = (d?: string|null) => d
@@ -1495,7 +1495,7 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
       setEndTouched(true);
     } else {
       const start = s.today < '2027-04-01' ? '2027-04-01' : '';
-      setForm(f => ({ ...f, season_name:`Season ${s.season_count + 1}`, season_start:start, season_end:endAfterMonths(start, 3), subtitle:'' }));
+      setForm(f => ({ ...f, season_name:s.suggested_name, season_start:start, season_end:endAfterMonths(start, 3), subtitle:'' }));
       setEndTouched(false);
     }
   }, [s]);
@@ -1534,6 +1534,7 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
   const totalDays = s.season_end ? daysBetween(s.season_start, s.season_end) + 1 : 0;
   const elapsed = Math.min(totalDays, Math.max(0, daysBetween(s.season_start, s.today) + 1));
   const lbl: React.CSSProperties = { color:'#888', fontSize:12, display:'block', marginBottom:4 };
+  const beHint: React.CSSProperties = { color:'#a78bfa', fontSize:11, marginTop:4 };
   const inpStyle: React.CSSProperties = { width:'100%', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 12px', color:'#e2e8f0', fontSize:13, boxSizing:'border-box', fontFamily:'Sarabun' };
   const formDays = form.season_start && form.season_end ? daysBetween(form.season_start, form.season_end) + 1 : 0;
 
@@ -1588,6 +1589,7 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
         <div>
           <label style={lbl}>วันเริ่ม</label>
           <input type="date" value={form.season_start} onChange={e=>set({ season_start:e.target.value })} style={inpStyle} />
+          {form.season_start && <div style={beHint}>= {thDate(form.season_start)}</div>}
         </div>
         <div>
           <label style={lbl}>ระยะเวลา</label>
@@ -1598,6 +1600,7 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
         <div>
           <label style={lbl}>วันสิ้นสุด {formDays > 0 && <span style={{ color:'#666' }}>({formDays} วัน)</span>}</label>
           <input type="date" value={form.season_end} onChange={e=>{ setEndTouched(true); set({ season_end:e.target.value }); }} style={inpStyle} />
+          {form.season_end && <div style={beHint}>= {thDate(form.season_end)}</div>}
         </div>
       </div>
       <div style={{ marginTop:12 }}>
@@ -1620,7 +1623,11 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
       {form.season_start && form.season_end && (
         <div style={{ marginTop:14, background:'#0d0d1a', border:'1px solid #2a2a3e', borderRadius:10, padding:'10px 14px', color:'#aaa', fontSize:12, lineHeight:1.8 }}>
           <div style={{ color:'#c4b5fd', fontWeight:700, marginBottom:2 }}>เมื่อกดบันทึก ระบบจะ:</div>
-          {!s.closed && !editingUpcoming && <div>1. {form.auto_close ? `ปิด ${s.current?.name ?? 'Season ปัจจุบัน'} อัตโนมัติ ${s.season_end ? thDate(addDaysStr(s.season_end, Number(form.grace_days) + 1)) : ''} (backup ก่อน แล้วเก็บผลลงหน้า Seasons)` : `รอให้กด "ปิด Season ตอนนี้" ก่อน`}</div>}
+          {!s.closed && !editingUpcoming && (() => {
+            const closeOn = s.season_end ? addDaysStr(s.season_end, Number(form.grace_days) + 1) : null;
+            const when = !closeOn ? '' : closeOn <= s.today ? 'ภายใน 6 ชั่วโมง (ครบกำหนดแล้ว)' : thDate(closeOn);
+            return <div>1. {form.auto_close ? `ปิด ${s.current?.name ?? 'Season ปัจจุบัน'} อัตโนมัติ ${when} (backup ก่อน แล้วเก็บผลลงหน้า Seasons)` : `รอให้กด "ปิด Season ตอนนี้" ก่อน`}</div>;
+          })()}
           <div>{!s.closed && !editingUpcoming ? '2.' : '1.'} นับ km เฉพาะกิจกรรมวันที่ {thDate(form.season_start)} – {thDate(form.season_end)} ({formDays} วัน) — ก่อนหรือหลังช่วงนี้ไม่นับ</div>
           <div>{!s.closed && !editingUpcoming ? '3.' : '2.'} หน้าเว็บนับถอยหลังสู่วันเริ่ม และเปลี่ยนเป็น "กำลังแข่ง" เองเมื่อถึงวัน</div>
           {form.auto_close && <div>{!s.closed && !editingUpcoming ? '4.' : '3.'} ปิดและสรุปผล {form.season_name} อัตโนมัติหลังวันสิ้นสุด {form.grace_days} วัน</div>}

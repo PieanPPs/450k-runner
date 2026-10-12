@@ -42,6 +42,28 @@ export function endAfterMonths(start, months) {
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !isNaN(new Date(s));
 const fail = (status, message) => ({ ok: false, status, message });
 
+// '2027-04-01' → '1 เม.ย. 2570' (ข้อความที่แอดมินอ่าน ใช้ พ.ศ.)
+export function thaiDate(day) {
+  if (!isDate(day)) return day || '—';
+  return new Date(day + 'T00:00:00Z').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+// '2027-04-01','2027-06-30' → 'เม.ย.–มิ.ย. 2570' (คำอธิบายเริ่มต้นของ season)
+function thaiMonthRange(start, end) {
+  const part = (d, opt) => new Date(d + 'T00:00:00Z').toLocaleDateString('th-TH', { ...opt, timeZone: 'UTC' });
+  const [m1, m2] = [part(start, { month: 'short' }), part(end, { month: 'short' })];
+  const year = (d) => part(d, { year: 'numeric' }).replace(/^พ\.ศ\.\s*/, '');   // 'พ.ศ. 2570' → '2570'
+  const [y1, y2] = [year(start), year(end)];
+  return y1 === y2 ? `${m1}–${m2} ${y2}` : `${m1} ${y1} – ${m2} ${y2}`;
+}
+
+// ชื่อ season ถัดไป: เลขต่อจาก "Season N" ที่มากที่สุด (ไม่นับ Pre-Season)
+function suggestedSeasonName() {
+  const names = db.prepare("SELECT name FROM seasons WHERE status != 'pre-season'").all().map(r => r.name);
+  const nums = names.map(n => Number(/season\s*(\d+)/i.exec(n || '')?.[1])).filter(Boolean);
+  return `Season ${(nums.length ? Math.max(...nums) : names.length) + 1}`;
+}
+
 function thaiNow() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' }).replace('T', ' ');
 }
@@ -69,7 +91,7 @@ function seasonRow(id) {
 export function takeWeeklySnapshot({ asOf = todayBkk(), label = 'cron', weekOverride } = {}) {
   if (isSeasonClosed()) return { ok: false, message: 'Season ปิดอยู่ — ยังไม่มี season ให้บันทึกผล' };
   const start = getSeasonStart();
-  if (asOf < start) return { ok: false, message: `Season ยังไม่เริ่ม (เริ่ม ${start})` };
+  if (asOf < start) return { ok: false, message: `Season ยังไม่เริ่ม (เริ่ม ${thaiDate(start)})` };
 
   const diffDays = Math.max(0, Math.floor((new Date(asOf) - new Date(start)) / 86400000));
   const weekNo = Number(weekOverride) || Math.max(1, Math.ceil(diffDays / 7));
@@ -144,9 +166,10 @@ export async function closeSeason({ reason = 'manual', seasonName } = {}) {
 
   const frozen = db.transaction(() => {
     const cur = seasonRow(currentSeasonId());
-    const target = cur && cur.status !== 'done'
+    // แถว Pre-Season (สถานะ 'pre-season') เป็นแค่บันทึกผลช่วงก่อนแข่ง — ไม่ใช่ season ที่จะปิด
+    const target = cur && cur.status !== 'done' && cur.status !== 'pre-season'
       ? cur
-      : db.prepare("SELECT id FROM seasons WHERE status IN ('active','pre-season') ORDER BY id DESC LIMIT 1").get();
+      : db.prepare("SELECT id FROM seasons WHERE status='active' ORDER BY id DESC LIMIT 1").get();
 
     if (target) {
       db.prepare(
@@ -178,7 +201,7 @@ export async function closeSeason({ reason = 'manual', seasonName } = {}) {
     winner: top?.name || '—',
     backup: backupFile,
     message: `ปิด Season สำเร็จ! Freeze ${frozen.changes} กิจกรรม, Reset ${pCount} คน` +
-      (outside ? `, ไม่นับ ${outside} กิจกรรมที่อยู่นอกช่วง ${start} – ${lastDay}` : '') +
+      (outside ? `, ไม่นับ ${outside} กิจกรรมที่อยู่นอกช่วง ${thaiDate(start)} – ${thaiDate(lastDay)}` : '') +
       ` (backup: ${backupFile})`,
   };
 
@@ -210,10 +233,10 @@ function normalizeForm(form = {}) {
   const grace = Number(form.grace_days);
   return {
     ok: true,
-    season_name: (form.season_name || '').trim() || 'Season ใหม่',
+    season_name: (form.season_name || '').trim() || suggestedSeasonName(),
     season_start,
     season_end,
-    subtitle: (form.subtitle || '').trim() || `กิจกรรมวิ่ง ${season_start} – ${season_end}`,
+    subtitle: (form.subtitle || '').trim() || thaiMonthRange(season_start, season_end),
     auto_close: form.auto_close === undefined ? true : !!form.auto_close,
     grace_days: Number.isFinite(grace) && grace >= 0 ? Math.min(grace, 14) : DEFAULT_GRACE_DAYS,
   };
@@ -222,7 +245,7 @@ function normalizeForm(form = {}) {
 function checkAfterFrozen(season_start) {
   const frozenThrough = getSetting('last_frozen_through');
   if (frozenThrough && season_start <= frozenThrough) {
-    return fail(400, `วันเริ่มต้องหลัง ${frozenThrough} (วันสุดท้ายของกิจกรรม Season ก่อนหน้า)`);
+    return fail(400, `วันเริ่มต้องหลัง ${thaiDate(frozenThrough)} (วันสุดท้ายของกิจกรรม Season ก่อนหน้า)`);
   }
   return null;
 }
@@ -259,15 +282,15 @@ export function startSeason(form) {
     return applySeasonWindow(f);
   })();
 
-  log('start-season', `ตั้ง ${f.season_name} ${f.season_start} – ${f.season_end} (${status})`);
+  log('start-season', `ตั้ง ${f.season_name} ${thaiDate(f.season_start)} – ${thaiDate(f.season_end)} (${status})`);
   return {
     ok: true,
     status,
     unfrozen,
     message: status === 'active'
-      ? `เริ่ม ${f.season_name} แล้ว (${f.season_start} – ${f.season_end})` +
+      ? `เริ่ม ${f.season_name} แล้ว (${thaiDate(f.season_start)} – ${thaiDate(f.season_end)})` +
         (unfrozen ? ` · นับกิจกรรมที่วิ่งไว้แล้ว ${unfrozen} รายการ — กด Sync เพื่อคำนวณ km` : '')
-      : `ตั้ง ${f.season_name} แล้ว — ระบบจะเริ่มนับ km อัตโนมัติวันที่ ${f.season_start} ถึง ${f.season_end}`,
+      : `ตั้ง ${f.season_name} แล้ว — ระบบจะเริ่มนับ km อัตโนมัติวันที่ ${thaiDate(f.season_start)} ถึง ${thaiDate(f.season_end)}`,
   };
 }
 
@@ -292,24 +315,25 @@ export function scheduleSeason(form) {
         .run(f.season_name, f.subtitle, `${f.season_start} – ${f.season_end}`, cur.id);
       applySeasonWindow(f);
     })();
-    log('schedule-season', `แก้ ${f.season_name} เป็น ${f.season_start} – ${f.season_end}`);
-    return { ok: true, status: 'upcoming', message: `แก้ ${f.season_name} แล้ว — เริ่มนับ km วันที่ ${f.season_start} ถึง ${f.season_end}` };
+    log('schedule-season', `แก้ ${f.season_name} เป็น ${thaiDate(f.season_start)} – ${thaiDate(f.season_end)}`);
+    return { ok: true, status: 'upcoming', message: `แก้ ${f.season_name} แล้ว — เริ่มนับ km วันที่ ${thaiDate(f.season_start)} ถึง ${thaiDate(f.season_end)}` };
   }
 
   const curEnd = getSeasonEnd();
   if (!curEnd) return fail(400, 'Season ปัจจุบันยังไม่มีวันสิ้นสุด — ตั้ง season_end ในหน้าตั้งค่าโครงการก่อน หรือปิด Season ปัจจุบันก่อน');
-  if (f.season_start <= curEnd) return fail(400, `Season ถัดไปต้องเริ่มหลัง ${curEnd} (วันสิ้นสุด Season ปัจจุบัน)`);
+  if (f.season_start <= curEnd) return fail(400, `Season ถัดไปต้องเริ่มหลัง ${thaiDate(curEnd)} (วันสิ้นสุด Season ปัจจุบัน)`);
 
   setSetting('next_season', JSON.stringify(f));
   setSetting('season_auto_close', f.auto_close ? '1' : '0');
   setSetting('season_close_grace_days', f.grace_days);
-  log('schedule-season', `ตั้ง season ถัดไป ${f.season_name} ${f.season_start} – ${f.season_end}`);
-  const closeOn = addDays(curEnd, f.grace_days + 1);
+  log('schedule-season', `ตั้ง season ถัดไป ${f.season_name} ${thaiDate(f.season_start)} – ${thaiDate(f.season_end)}`);
+  const closeOnDay = addDays(curEnd, f.grace_days + 1);
+  const closeOn = closeOnDay <= today ? 'ภายใน 6 ชั่วโมง (ครบกำหนดแล้ว)' : `วันที่ ${thaiDate(closeOnDay)}`;
   return {
     ok: true,
     status: 'scheduled',
     message: f.auto_close
-      ? `ตั้ง ${f.season_name} แล้ว — ระบบจะปิด Season ปัจจุบันอัตโนมัติวันที่ ${closeOn} แล้วเริ่มนับ ${f.season_start} – ${f.season_end}`
+      ? `ตั้ง ${f.season_name} แล้ว — ระบบจะปิด Season ปัจจุบันอัตโนมัติ ${closeOn} แล้วเริ่มนับ ${thaiDate(f.season_start)} – ${thaiDate(f.season_end)}`
       : `ตั้ง ${f.season_name} แล้ว — จะเริ่มหลังจากกดปิด Season ปัจจุบัน`,
   };
 }
@@ -354,6 +378,7 @@ export function getSeasonStatus() {
     next: getNextSeason(),
     last_frozen_through: getSetting('last_frozen_through') || null,
     season_count: db.prepare('SELECT COUNT(*) AS c FROM seasons').get().c,
+    suggested_name: suggestedSeasonName(),
     activities: { season: counts.season || 0, baseline: counts.baseline || 0 },
   };
 }
@@ -389,7 +414,7 @@ export async function runSeasonLifecycle(label = 'cron') {
 // เดาสถานะจากตาราง seasons: ไม่มี season ที่เปิดอยู่ + มี season ที่จบแล้ว = ปิดอยู่
 export function migrateSeasonState() {
   if (getSetting('season_closed') !== undefined) return;
-  const hasOpen = db.prepare("SELECT 1 FROM seasons WHERE status IN ('active','pre-season') LIMIT 1").get();
+  const hasOpen = db.prepare("SELECT 1 FROM seasons WHERE status='active' LIMIT 1").get();
   const hasDone = db.prepare("SELECT 1 FROM seasons WHERE status='done' LIMIT 1").get();
   const closed = !hasOpen && hasDone;
   setSetting('season_closed', closed ? '1' : '0');

@@ -17,7 +17,7 @@ function SeasonResultsModal({ season, onClose }: { season: Season; onClose: () =
         <div style={{ padding:'20px 24px', borderBottom:`1px solid ${t.cardBorder}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
             <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:t.text, letterSpacing:2 }}>{season.name} — ผลการแข่งขัน</div>
-            <div style={{ color:t.textMuted, fontSize:12 }}>{season.dateRange}</div>
+            <div style={{ color:t.textMuted, fontSize:12 }}>{fmtRange(season.dateRange)}</div>
           </div>
           <button onClick={onClose} style={{ background:'none', border:`1px solid ${t.cardBorder}`, borderRadius:8, padding:'4px 12px', color:t.textMuted, cursor:'pointer', fontFamily:'Sarabun', fontSize:13 }}>✕ ปิด</button>
         </div>
@@ -47,6 +47,13 @@ function SeasonResultsModal({ season, onClose }: { season: Season; onClose: () =
 
 // season ที่ระบบสร้างมี date_range = 'YYYY-MM-DD – YYYY-MM-DD'
 const startOf = (dateRange: string) => /^(\d{4}-\d{2}-\d{2})/.exec(dateRange || '')?.[1] ?? null;
+
+// '2027-04-01 – 2027-06-30' → '1 เม.ย. 2570 – 30 มิ.ย. 2570' (ข้อความแบบอื่นแสดงตามเดิม)
+const thDay = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
+function fmtRange(dateRange: string) {
+  const m = /^(\d{4}-\d{2}-\d{2})\s*–\s*(\d{4}-\d{2}-\d{2})$/.exec(dateRange || '');
+  return m ? `${thDay(m[1])} – ${thDay(m[2])}` : dateRange;
+}
 
 function UpcomingTeaser({ start }: { start: string | null }) {
   const { theme: t } = useContext(ThemeCtx);
@@ -96,7 +103,7 @@ export default function Seasons() {
                   <div>
                     <div style={{ fontFamily:'Bebas Neue', fontSize:28, color:t.text, letterSpacing:2 }}>{s.name}</div>
                     <div style={{ color:t.textMuted, fontSize:13 }}>{s.subtitle}</div>
-                    <div style={{ color:t.textSub, fontSize:12 }}>{s.dateRange}</div>
+                    <div style={{ color:t.textSub, fontSize:12 }}>{fmtRange(s.dateRange)}</div>
                   </div>
                   <div className={s.status==='active' ? 'm-glow' : undefined}
                     style={{ background:sm.color+'22', border:`1px solid ${sm.color}60`, borderRadius:999, padding:'4px 12px', color:sm.color, fontSize:12, fontWeight:700, whiteSpace:'nowrap', ['--m-glow' as string]:`${sm.color}44` }}>{sm.label}</div>
