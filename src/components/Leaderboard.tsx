@@ -120,14 +120,14 @@ export default function Leaderboard() {
   const firstLoad = loading && data.isMockData; // ยังไม่ได้ข้อมูลจริง → แสดง skeleton แทน mock
   const [selectedP, setSelectedP] = useState<Participant | null>(null);
 
-  const hasImprovement = improvement && improvement.some(p => p.diff > 0);
+  const hasImprovement = !!improvement && improvement.length > 0;   // แสดงตั้งแต่วันแรก คนจะได้เห็นว่ากำลังไล่ยอดปีก่อนอยู่
 
   const tabs = useMemo(() => [
     { label:'ระยะทาง (กม.)', key:'km' as const,            unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.km-a.km),            isSenior: false, isImprove: false },
     { label:'จำนวนครั้ง',    key:'activityCount' as const,  unit:'ครั้ง', fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.activityCount-a.activityCount), isSenior: false, isImprove: false },
     { label:'สัปดาห์นี้',    key:'weeklyKm' as const,       unit:'km',   fmt:(v:number)=>fmtKm(v),    data:[...participants].sort((a,b)=>b.weeklyKm-a.weeklyKm), isSenior: false, isImprove: false },
     { label:'Streak (วัน)',  key:'streak' as const,          unit:'วัน',  fmt:(v:number)=>String(v),    data:[...participants].sort((a,b)=>b.streak-a.streak),     isSenior: false, isImprove: false },
-    ...(hasImprovement ? [{ label:'📈 พัฒนาดีที่สุด', key:'km' as const, unit:'km', fmt:(v:number)=>fmtKm(v), data:[] as typeof participants, isSenior: false, isImprove: true }] : []),
+    ...(hasImprovement ? [{ label:'📈 ไล่ทันปีก่อน', key:'km' as const, unit:'km', fmt:(v:number)=>fmtKm(v), data:[] as typeof participants, isSenior: false, isImprove: true }] : []),
   ], [participants, hasImprovement]);
 
   const cur = tabs[tab];
@@ -179,10 +179,10 @@ export default function Leaderboard() {
   };
 
   const renderImprovement = () => {
-    const maxDiff = improvement.length > 0 ? improvement[0].diff : 1;
     return improvement.map((p, i) => {
-      const isPositive = p.diff >= 0;
-      const diffColor = isPositive ? t.accent2 : '#f87171';
+      const beat = p.diff > 0;                                   // แซงยอดปีก่อนแล้ว
+      const pctShown = p.pct ?? (p.currentKm > 0 ? 100 : 0);
+      const barPct = Math.min(100, pctShown);
       // หา participant ตัวเต็มเพื่อใช้กับ modal
       const fullP = participants.find(pp => pp.initials === p.initials);
       return (
@@ -199,16 +199,20 @@ export default function Leaderboard() {
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ color:t.text, fontWeight:600, fontSize:14, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
-            <div style={{ color:t.textSub, fontSize:11, marginTop:2 }}>{fmtKm(p.prevKm)} km → {fmtKm(p.currentKm)} km</div>
+            <div style={{ color:t.textSub, fontSize:11, marginTop:2 }}>
+              ปีก่อน {fmtKm(p.prevKm)} km → ปีนี้ {fmtKm(p.currentKm)} km
+              {beat && <span style={{ marginLeft:6, color:t.accent2, fontWeight:700 }}>🎉 แซงปีก่อนแล้ว +{fmtKm(p.diff)}</span>}
+              {!beat && p.prevKm > 0 && <span style={{ marginLeft:6 }}>(อีก {fmtKm(Math.max(0, p.prevKm - p.currentKm))} km จะเท่าปีก่อน)</span>}
+            </div>
             <div style={{ background:t.progressBg, borderRadius:999, height:5, marginTop:4, overflow:'hidden' }}>
-              <div className="m-fill" style={{ height:'100%', width:`${maxDiff>0?(Math.max(0,p.diff)/maxDiff)*100:0}%`, background:`linear-gradient(90deg,${t.accent2},${t.accent1})`, borderRadius:999, ['--i' as string]: i }} />
+              <div className="m-fill" style={{ height:'100%', width:`${barPct}%`, background: beat ? `linear-gradient(90deg,${t.accent2},${t.accent3})` : `linear-gradient(90deg,${t.accent1},${t.accent2})`, borderRadius:999, transition:'width .8s cubic-bezier(.33,1,.68,1)', ['--i' as string]: i }} />
             </div>
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
-            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color:diffColor, letterSpacing:1 }}>
-              {isPositive?'+':''}<CountUp value={p.diff} format={fmtKm} duration={900} />
+            <div style={{ fontFamily:'Bebas Neue', fontSize:22, color: beat ? t.accent2 : t.accent1, letterSpacing:1 }}>
+              {p.pct === null ? <>+<CountUp value={p.currentKm} format={fmtKm} duration={900} /></> : <><CountUp value={p.pct} format={(n) => String(Math.round(n))} duration={900} />%</>}
             </div>
-            <div style={{ color:t.textSub, fontSize:11 }}>km เพิ่ม</div>
+            <div style={{ color:t.textSub, fontSize:11 }}>{p.pct === null ? 'km (ไม่มีข้อมูลปีก่อน)' : 'ของยอดปีก่อน'}</div>
           </div>
         </div>
       );
@@ -230,6 +234,12 @@ export default function Leaderboard() {
             }}>{tb.label}</button>
           ))}
         </div>
+        {cur.isImprove && (
+          <div style={{ color:t.textSub, fontSize:12, textAlign:'center', marginBottom:12, lineHeight:1.6 }}>
+            เทียบ km รวมปีนี้กับ km รวมทั้งปีก่อน — เรียงตามสัดส่วนที่ไล่ทัน 100% = เท่ากับยอดปีก่อน เกินกว่านั้นคือแซงตัวเอง<br />
+            คนที่เพิ่งเข้าร่วมปีนี้ยังไม่มีข้อมูลปีก่อน จึงไม่อยู่ในอันดับนี้
+          </div>
+        )}
         {firstLoad ? <SkeletonRows count={6} /> : (
           <Reveal variant="group">
             <div ref={flipRef} style={{ display:'flex', flexDirection:'column', gap:8, position:'relative' }}>
