@@ -29,7 +29,7 @@ export interface Season {
   results?: SeasonResult[] | null;
 }
 export interface ImprovementEntry {
-  name: string; initials: string; currentKm: number; prevKm: number; diff: number; ageGroup?: string;
+  name: string; initials: string; currentKm: number; prevKm: number; diff: number; pct: number | null; ageGroup?: string;
 }
 export interface Badge {
   id: number; icon: string; label: string; color: string;
