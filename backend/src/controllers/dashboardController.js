@@ -63,10 +63,13 @@ export function getImprovement(_req, res) {
       const old = prevMap.get(p.name);
       const prevKm = old ? old.km : null;
       const diff = prevKm !== null ? Math.round((p.km - prevKm) * 100) / 100 : null;
-      return { name: maskName(p.name), initials: p.initials, currentKm: p.km, prevKm, diff, ageGroup: p.age_group };
+      // pct = ไล่ทันกี่ % ของ km รวมทั้งปีก่อน (100 = เท่าปีก่อน, เกิน 100 = แซงตัวเองแล้ว); ปีก่อน 0 km เทียบเป็น % ไม่ได้
+      const pct = prevKm > 0 ? Math.round((p.km / prevKm) * 1000) / 10 : null;
+      return { name: maskName(p.name), initials: p.initials, currentKm: p.km, prevKm, diff, pct, ageGroup: p.age_group };
     })
     .filter(p => p.diff !== null)         // เฉพาะคนที่มีข้อมูล Season ก่อน
-    .sort((a, b) => b.diff - a.diff);     // เรียงจากมากไปน้อย
+    // เรียงตามสัดส่วนที่ไล่ทันปีก่อน (ให้คนที่ปีก่อนวิ่งน้อยมีโอกาสขึ้นอันดับต้นได้) — ปีก่อน 0 km ไปท้าย เรียงตาม km ปีนี้
+    .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1) || b.currentKm - a.currentKm);
 
   res.json(result);
 }
