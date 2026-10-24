@@ -378,6 +378,7 @@ function Settings() {
         {inp('season_start','วันเริ่มต้น Season ปัจจุบัน (YYYY-MM-DD)','2027-04-01')}
         {inp('season_end','วันสิ้นสุด Season ปัจจุบัน (YYYY-MM-DD)','2027-06-30')}
         {inp('goal_km_per_person','เป้าหมาย km/คน','450')}
+        {inp('stage_target_default_km','เป้า km ต่อด่าน (สัปดาห์) ค่ากลาง — ใช้กับคนที่ไม่ได้ตั้งเป้ารายคน','12')}
         <div style={{ marginBottom:16 }}>
           <label style={{ color:'#888', fontSize:12, display:'block', marginBottom:4 }}>Animation หน้าเว็บ</label>
           <select value={form.motion_level || 'full'} onChange={e=>setForm(f=>({...f, motion_level:e.target.value}))}
@@ -869,6 +870,30 @@ function ActivityModal({ participant, onClose, onDeleted }: { participant: any; 
 }
 
 // ─── Participants ─────────────────────────────────────────
+/** เป้า km ต่อด่าน (สัปดาห์) รายคน — เว้นว่าง = ใช้ค่ากลางจากหน้า "ตั้งค่าโครงการ" */
+function TargetCell({ row, onSaved }: { row: any; onSaved: () => void }) {
+  const [val, setVal] = useState<string>(row.weekly_target_km == null ? '' : String(row.weekly_target_km));
+  const [state, setState] = useState<'' | 'saving' | 'ok' | 'err'>('');
+  const dirty = val !== (row.weekly_target_km == null ? '' : String(row.weekly_target_km));
+  const save = async () => {
+    setState('saving');
+    try {
+      const res = await api(`/participants/${row.id}/target`, { method:'PUT', body: JSON.stringify({ weekly_target_km: val.trim() === '' ? null : val }) });
+      if (res.ok) { setState('ok'); onSaved(); setTimeout(() => setState(''), 1500); }
+      else { setState('err'); alert(res.message || 'บันทึกไม่สำเร็จ'); }
+    } catch { setState('err'); }
+  };
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+      <input type="number" min={1} max={200} step={0.5} value={val} placeholder="กลาง"
+        onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && dirty) save(); }}
+        style={{ width:64, background:'#0d0d1a', border:'1px solid #333', borderRadius:6, padding:'4px 6px', color:'#e2e8f0', fontSize:12, textAlign:'center' }} />
+      {dirty && <button onClick={save} disabled={state === 'saving'} style={{ background:'#2a1f4e', border:'none', borderRadius:6, padding:'4px 8px', color:'#c4b5fd', fontSize:11, cursor:'pointer' }}>{state === 'saving' ? '...' : 'บันทึก'}</button>}
+      {state === 'ok' && <span style={{ color:'#4ade80', fontSize:12 }}>✓</span>}
+    </div>
+  );
+}
+
 function Participants() {
   const [rows, setRows] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
@@ -923,7 +948,7 @@ function Participants() {
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
           <thead>
             <tr style={{ borderBottom:'1px solid #2a2a3e' }}>
-              {['ชื่อ','initials','km','กลุ่ม','Strava key',''].map(h=>(
+              {['ชื่อ','initials','km','กลุ่ม','เป้า/ด่าน (km)','Strava key',''].map(h=>(
                 <th key={h} style={{ padding:'10px 14px', color:'#666', fontWeight:500, textAlign:'left' }}>{h}</th>
               ))}
             </tr>
@@ -941,6 +966,7 @@ function Participants() {
                     {r.age_group==='senior' ? '👑 55+' : 'ทั่วไป'}
                   </span>
                 </td>
+                <td style={{ padding:'10px 14px' }}><TargetCell row={r} onSaved={load} /></td>
                 <td style={{ padding:'10px 14px', color:'#555', fontSize:11 }}>{r.strava_key||'—'}</td>
                 <td style={{ padding:'10px 14px' }}>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>

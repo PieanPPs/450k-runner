@@ -4,6 +4,7 @@ import Nav from '@/components/Nav';
 import Hero from '@/components/Hero';
 import About from '@/components/About';
 import Leaderboard from '@/components/Leaderboard';
+import Stages from '@/components/Stages';
 import DailyLog from '@/components/DailyLog';
 import Milestones from '@/components/Milestones';
 import WeeklyGraph from '@/components/WeeklyGraph';
@@ -34,6 +35,7 @@ function AppBody() {
       <Hero />
       <About />
       <Leaderboard />
+      <Stages />
       <DailyLog />
       <Milestones />
       <WeeklyGraph />

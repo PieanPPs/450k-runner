@@ -101,3 +101,9 @@ CREATE TABLE IF NOT EXISTS weekly_snapshots (
   km             REAL    NOT NULL DEFAULT 0,
   rank           INTEGER NOT NULL DEFAULT 0
 );
+
+-- เป้า km ต่อด่าน (สัปดาห์) รายคน — ไม่มีแถว = ใช้ค่ากลาง project_settings.stage_target_default_km
+CREATE TABLE IF NOT EXISTS participant_targets (
+  participant_id INTEGER PRIMARY KEY REFERENCES participants(id),
+  weekly_target_km REAL NOT NULL
+);

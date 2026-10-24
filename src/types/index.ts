@@ -43,3 +43,20 @@ export interface Distance {
 export interface Milestone {
   km: number; reward: string; icon: string; color: string; bg: string; achievers: number;
 }
+
+// ด่านรายสัปดาห์ (gamification)
+export interface StagePlayer {
+  id: number; name: string; initials: string;
+  target: number; passed: number[]; passedCount: number;
+  streak: number; bestStreak: number;
+  currentKm: number; currentPassed: boolean;
+}
+export interface StagesData {
+  active: boolean; phase: 'upcoming' | 'running' | 'ended';
+  seasonStart: string; seasonEnd: string;
+  totalStages: number; currentStage: number; daysLeftInStage: number;
+  stages: { n: number; start: string; end: string; status: 'done' | 'current' | 'upcoming' }[];
+  defaultTarget: number;
+  team: { players: number; passedCurrent: number };
+  players: StagePlayer[];
+}

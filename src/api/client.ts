@@ -3,7 +3,7 @@
  * Base URL อ่านจาก VITE_API_URL (หรือ default http://localhost:4000)
  */
 
-import type { Participant, WeeklyData, WeeklySnapshot, Season, Distance, Milestone, ImprovementEntry, Badge, BadgeAssignments } from '@/types';
+import type { Participant, WeeklyData, WeeklySnapshot, Season, Distance, Milestone, ImprovementEntry, Badge, BadgeAssignments, StagesData } from '@/types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000';
 
@@ -58,4 +58,6 @@ export const api = {
   improvement: () => get<ImprovementEntry[]>('/api/improvement'),
   /** Badges — definitions + assignments ของ season ปัจจุบัน */
   badges: () => get<{ badges: Badge[]; assignments: BadgeAssignments; seasonId: number | null }>('/api/badges'),
+  /** ด่านรายสัปดาห์ */
+  stages: () => get<StagesData>('/api/stages'),
 };

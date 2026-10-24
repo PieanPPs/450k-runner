@@ -51,7 +51,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
 // ── Participants ──────────────────────────────────────────
 router.get('/participants', requireAdmin, async (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  const rows = await db.prepare('SELECT id,name,initials,km,steps,streak,weekly_km as weeklyKm,activity_count as activityCount,strava_key,age_group FROM participants ORDER BY km DESC').all();
+  const rows = await db.prepare('SELECT p.id,p.name,p.initials,p.km,p.steps,p.streak,p.weekly_km as weeklyKm,p.activity_count as activityCount,p.strava_key,p.age_group,t.weekly_target_km FROM participants p LEFT JOIN participant_targets t ON t.participant_id = p.id ORDER BY p.km DESC').all();
   res.json(rows);
 });
 
@@ -105,6 +105,24 @@ router.put('/participants/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// PUT /api/adminpp/participants/:id/target — เป้า km ต่อด่าน (สัปดาห์) รายคน; ส่งค่าว่าง/null = ใช้ค่ากลาง
+router.put('/participants/:id/target', requireAdmin, async (req, res) => {
+  const raw = req.body?.weekly_target_km;
+  if (raw === null || raw === '' || raw === undefined) {
+    await db.prepare('DELETE FROM participant_targets WHERE participant_id=?').run(req.params.id);
+    return res.json({ ok: true, weekly_target_km: null });
+  }
+  const km = Number(raw);
+  if (!Number.isFinite(km) || km <= 0 || km > 200) {
+    return res.status(400).json({ ok: false, message: 'เป้าต้องเป็นตัวเลข 0–200 km ต่อสัปดาห์' });
+  }
+  if (!(await db.prepare('SELECT 1 AS x FROM participants WHERE id=?').get(req.params.id))) {
+    return res.status(404).json({ ok: false, message: 'ไม่พบผู้เข้าร่วม' });
+  }
+  await db.prepare('INSERT INTO participant_targets (participant_id, weekly_target_km) VALUES (?,?) ON CONFLICT(participant_id) DO UPDATE SET weekly_target_km=excluded.weekly_target_km').run(req.params.id, km);
+  res.json({ ok: true, weekly_target_km: km });
+});
+
 router.delete('/participants/:id', requireAdmin, async (req, res) => {
   // ดึง strava_key ก่อนลบ เพื่อลบ activities ที่ผูกด้วย
   const p = await db.prepare('SELECT strava_key FROM participants WHERE id=?').get(req.params.id);
@@ -113,6 +131,7 @@ router.delete('/participants/:id', requireAdmin, async (req, res) => {
     p?.strava_key ? db.prepare('DELETE FROM strava_activities WHERE strava_key=?').bind(p.strava_key) : null,
     db.prepare('DELETE FROM weekly_snapshots WHERE participant_id=?').bind(req.params.id),
     db.prepare('DELETE FROM strava_tokens WHERE participant_id=?').bind(req.params.id),
+    db.prepare('DELETE FROM participant_targets WHERE participant_id=?').bind(req.params.id),
     db.prepare('DELETE FROM participants WHERE id=?').bind(req.params.id),
   ]);
   res.json({ ok: true });
@@ -146,6 +165,7 @@ router.post('/participants/merge', requireAdmin, async (req, res) => {
       // 1. ย้าย activities เก่า (old_key) → new_key ให้ตรงกับที่ Strava ส่งมาในอนาคต
       db.prepare('UPDATE strava_activities SET strava_key=? WHERE strava_key=?').bind(newKey, oldKey),
       // 2. ลบ ghost participant ก่อน (strava_key ซ้ำกับที่จะตั้งให้ตัวหลัก)
+      db.prepare('DELETE FROM participant_targets WHERE participant_id=?').bind(delete_id),
       db.prepare('DELETE FROM participants WHERE id=?').bind(delete_id),
       // 3. อัพเดท participant ตัวหลัก: เปลี่ยน strava_key + ชื่อ
       db.prepare('UPDATE participants SET strava_key=?, name=? WHERE id=?').bind(newKey, newName, keep_id),

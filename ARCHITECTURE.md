@@ -233,7 +233,7 @@ docker start backend-450k
 | **Strava Club API window** | คืนแค่ 4–6 สัปดาห์ล่าสุด → activities เก่ากว่านั้นต้องพึ่ง DB |
 | **DB เป็น async** | ทุกคำสั่งต้อง `await db.prepare(...).get/all/run()` — เขียนหลายตารางพร้อมกันใช้ `db.batch([...])` (D1 ไม่มี transaction แบบ interactive) |
 | **D1 ฟรี: 50 query ต่อ request** | ห้าม query ใน loop ทีละแถว — อ่านทั้งก้อนแล้วกรองใน JS, เขียนหลายแถวด้วย `json_each(?)` + `jsonParam(rows)` (ดู `stravaSync.js`) |
-| **Foreign key เปิดอยู่** | ทั้ง better-sqlite3 และ D1 — ลบ participants/seasons ต้องลบแถวที่อ้างอิงก่อน (weekly_snapshots, strava_tokens, participant_badges) |
+| **Foreign key เปิดอยู่** | ทั้ง better-sqlite3 และ D1 — ลบ participants/seasons ต้องลบแถวที่อ้างอิงก่อน (weekly_snapshots, strava_tokens, participant_targets, participant_badges) |
 
 ---
 
@@ -277,6 +277,24 @@ reset km ทุกคน → `season_closed=1` → เริ่ม `next_season`
 
 เครื่องมือแบบเดิม (ตั้ง Baseline / ปิด Pre-Season) ยังอยู่ใต้ปุ่ม "⚙️ เครื่องมือแบบเดิม" ในหน้าภาพรวม;
 `POST /api/sync/reset-baseline` ถูกปิดเมื่อมี season ที่จบแล้ว (จะดึงกิจกรรม season เก่ากลับมานับ)
+
+---
+
+## 🎮 ด่านรายสัปดาห์ (gamification)
+
+หน้าเว็บ section **"ผ่านด่านไปด้วยกัน"** (`#stages`, ปุ่ม "ด่าน" ในเมนู) — วัดที่ **ความสม่ำเสมอ** ไม่ใช่ระยะรวม
+
+- **ด่าน N** = ช่วง 7 วันนับจากวันเริ่ม season (season 91 วัน เช่น 1 เม.ย.–30 มิ.ย. = 13 ด่านพอดี; ถ้าไม่ลงตัว ด่านสุดท้ายถูกตัดที่วันสิ้นสุด)
+- **ผ่านด่าน** = km รวมในช่วงนั้นถึงเป้าของตัวเอง — เป้ารายคนตั้งที่ Admin → ผู้เข้าร่วม → คอลัมน์ "เป้า/ด่าน (km)" (เว้นว่าง = ค่ากลาง `stage_target_default_km` ในหน้าตั้งค่าโครงการ, ค่าเริ่มต้น 12)
+- คำนวณสดทุกครั้งจาก `strava_activities` (`lib/stages.js`) — **ไม่มีสถานะที่ต้องเก็บ/ซ่อมและไม่พึ่ง cron**; ใช้ `credited_km` ที่แอดมินปรับแล้ว; กิจกรรมนอกช่วง season ไม่นับ
+- API: `GET /api/stages` (สาธารณะ), `PUT /api/adminpp/participants/:id/target` (ส่ง `null`/ว่าง = ใช้ค่ากลาง)
+- ตาราง `participant_targets(participant_id, weekly_target_km)` — เพิ่มใน `schema.sql` (VPS สร้างเองตอนเปิดเซิร์ฟเวอร์; **D1 ที่สร้างไปแล้วต้องรัน** `npx wrangler d1 execute 450k-runner --remote --command "CREATE TABLE IF NOT EXISTS participant_targets (participant_id INTEGER PRIMARY KEY REFERENCES participants(id), weekly_target_km REAL NOT NULL)"`)
+
+ข้อสังเกต/ข้อจำกัดของเวอร์ชันแรก:
+- แก้เป้ากลาง season มีผล **ย้อนหลัง** ทุกด่าน (คำนวณใหม่ทั้งหมด)
+- หน้าสาธารณะไม่แสดงสถานะ "พลาด" — ด่านที่จบแล้วแต่ไม่ผ่านแสดงเป็นวงว่างเหมือนด่านที่ยังไม่ถึง (ตั้งใจ เพื่อไม่ให้ใครรู้สึกถูกประจาน)
+- หลังปิด season ยังเห็นผลด่านของ season ที่เพิ่งจบจนกว่าจะเริ่ม season ถัดไป (ดึงกิจกรรมที่ freeze ในช่วงวันเดิมมาคำนวณ); หลังนั้นผลย้อนหลังราย season ยังไม่ถูกเก็บถาวร
+- ยังไม่มี: ชีวิต 3 ดวง, ทีม, ภารกิจพิเศษ, การแจ้งเตือน (ดูแผนต่อยอดตามที่คุยกัน)
 
 ---
 

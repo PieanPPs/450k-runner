@@ -29,6 +29,7 @@ export default function Nav() {
   const links = [
     { href: '#about',       label: 'โครงการ' },
     { href: '#leaderboard', label: 'อันดับ' },
+    { href: '#stages',      label: 'ด่าน' },
     { href: '#milestones',  label: 'รางวัล' },
     { href: '#calendar',    label: 'ปฏิทินวิ่ง' },
     { href: '#seasons',     label: 'Season' },
