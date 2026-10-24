@@ -65,7 +65,7 @@ export function useInView<T extends Element>(opts: { once?: boolean; rootMargin?
         setInView(true);
         if (once) io.disconnect();
       } else if (!once) setInView(false);
-    }, { rootMargin, threshold: 0.12 });
+    }, { rootMargin, threshold: 0 });   // 0 = เริ่มเล่นทันทีที่มีส่วนใดส่วนหนึ่งเข้าจอ (รายการสูงๆ เคยค้างล่องหนเพราะต้องเห็น 12% ของความสูง)
     io.observe(el);
     return () => { io.disconnect(); window.clearTimeout(failsafe); };
   }, [once, rootMargin]);
