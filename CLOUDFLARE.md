@@ -134,12 +134,31 @@ npx wrangler tail
 |---|---|
 | Deploy โค้ดใหม่ | `npm run cf:deploy` |
 | ดู log สด | `npx wrangler tail` |
-| สำรอง DB เป็นไฟล์ | `npx wrangler d1 export 450k-runner --remote --output backup.sql` |
+| สำรอง DB เป็นไฟล์ | `npm run backup:d1` (ดู "สำรองฐานข้อมูลเป็นไฟล์" ด้านล่าง) |
 | กู้คืน DB ไปยังเวลาก่อนหน้า | `npx wrangler d1 time-travel restore 450k-runner --timestamp=<unix หรือ ISO>` |
 | ดูจุดกู้คืน | `npx wrangler d1 time-travel info 450k-runner` |
 | ทดสอบในเครื่อง | `npm run cf:dev` (ใช้ D1/R2 จำลองใน `.wrangler/` และค่าลับจาก `.dev.vars`) |
 
 เวลา "backup" ที่หน้า admin แสดงตอนปิด season (`D1 Time Travel @ …`) คือเวลาที่ใช้กู้คืนได้ด้วยคำสั่ง `time-travel restore`
+
+### สำรองฐานข้อมูลเป็นไฟล์ (นอก Cloudflare)
+Time Travel ย้อนได้แค่ 7 วัน (แพ็กเกจฟรี) — สำรองเป็นไฟล์ไว้ในเครื่องเพิ่มอีกชั้น:
+```bash
+npm run backup:d1
+```
+- ต้อง login แล้ว (`npx wrangler login`) ไฟล์ไปอยู่ที่ `../450k-backups/450k-d1-<วันที่_เวลา>.sql` (นอกโฟลเดอร์ repo เพราะมีชื่อ-ข้อมูลผู้เข้าร่วม) ใช้โฟลเดอร์อื่นได้: `npm run backup:d1 -- D:/backups`
+- เก็บล่าสุด 30 ไฟล์ (เปลี่ยนด้วย `--keep N`) ตรวจไฟล์ที่ได้ว่ามีตารางหลักและข้อมูลจริง ถ้าผิดปกติจะ exit ≠ 0 และไม่ลบไฟล์เก่า
+- ระหว่าง export D1 ตอบ query ไม่ได้ชั่วครู่ (ฐานข้อมูลหลัก MB ใช้ไม่กี่วินาที) — รันช่วงที่ไม่มีคนใช้
+- ตั้งให้รันอัตโนมัติบน Windows (Task Scheduler — เครื่องต้องเปิดอยู่ตอนถึงเวลา):
+  ```powershell
+  schtasks /Create /SC WEEKLY /D SUN /ST 22:00 /TN "450k-d1-backup" /TR "cmd /c cd /d C:\Users\acer\Downloads\Running-handoff\450k-runner && npm run backup:d1"
+  ```
+- **กู้คืน:** ไฟล์สำรองไม่มี `DROP TABLE` จึงนำเข้าได้เฉพาะ D1 ที่**ว่าง** (ทดสอบแล้ว: นำเข้าได้ครบ 14 ตาราง) ห้ามรันทับฐานข้อมูลที่ใช้งานอยู่ — ถ้าข้อมูลหายบางส่วนให้ลอง `time-travel restore` ก่อน ถ้าต้องกู้จากไฟล์:
+  ```bash
+  npx wrangler d1 create 450k-runner-restore
+  npx wrangler d1 execute 450k-runner-restore --remote --file <ไฟล์สำรอง.sql>
+  ```
+  ตรวจข้อมูลใน DB ใหม่ แล้วค่อยแก้ `database_id` ใน `wrangler.jsonc` ให้ชี้ไป DB ใหม่ และ `npm run cf:deploy`
 
 ### ทดสอบในเครื่อง (`npm run cf:dev`)
 1. สร้างไฟล์ `.dev.vars` (ไม่ commit) ใส่ค่าทดสอบ เช่น `ADMIN_USER`, `ADMIN_PASSWORD`, `ADMIN_JWT_SECRET`

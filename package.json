@@ -10,7 +10,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "build:cf": "tsc && vite build --mode cloudflare",
     "cf:dev": "npm run build:cf && wrangler dev",
-    "cf:deploy": "npm run build:cf && wrangler deploy"
+    "cf:deploy": "npm run build:cf && wrangler deploy",
+    "backup:d1": "node backend/scripts/backup-d1.mjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
