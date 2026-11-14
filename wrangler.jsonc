@@ -15,6 +15,12 @@
     "run_worker_first": ["/api/*", "/gallery/*"]
   },
 
+  // โดเมนจริง — Cloudflare สร้าง DNS + HTTPS ให้เอง (ต้องลบ record run/api เดิมที่ชี้ Vercel/VPS ออกก่อน deploy)
+  "routes": [
+    { "pattern": "run.ppiean.com", "custom_domain": true },
+    { "pattern": "api.ppiean.com", "custom_domain": true }
+  ],
+
   "d1_databases": [
     {
       "binding": "DB",

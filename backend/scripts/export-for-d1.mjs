@@ -34,7 +34,8 @@ const objects = db.prepare(`
 
 const lines = ['PRAGMA defer_foreign_keys = true;'];
 const tables = objects.filter(o => o.type === 'table');
-for (const t of tables) lines.push(`DROP TABLE IF EXISTS "${t.name}";`);
+// ลบย้อนลำดับสร้าง: ตารางลูก (มี FK) ต้องหายก่อนตารางแม่ ไม่งั้น D1 error "no such table"
+for (const t of [...tables].reverse()) lines.push(`DROP TABLE IF EXISTS "${t.name}";`);
 for (const o of objects) lines.push(o.sql.trim().replace(/;?$/, ';'));
 
 let rows = 0;
