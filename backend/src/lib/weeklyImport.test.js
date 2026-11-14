@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nameToKey, nameKeys, parseLeaderboard, matchRows, MAX_WEEKLY_KM } from './weeklyImport.js';
+import { nameToKey, nameKeys, dedupeName, parseLeaderboard, matchRows, MAX_WEEKLY_KM } from './weeklyImport.js';
 
 test('nameToKey ใช้กฎเดียวกับ strava_key เดิม', () => {
   assert.equal(nameToKey('Piean P.'), 'piean_p');
@@ -82,6 +82,23 @@ test('ตารางจริงจาก Strava (ชื่อเต็ม, ห
     { name: 'Mu Mu', km: 4, runs: 1, paceSec: 636 },
     { name: 'Joy Bunkaew', km: 3.2, runs: 1, paceSec: 555 },
   ]);
+});
+
+test('คัดลอกเฉพาะแถวข้อมูล (ไม่มีหัวตาราง, ชื่อไทยซ้ำสองรอบ, ช่องว่าง "--")', () => {
+  const text = [
+    'Best ta\t5.3 km\t1\t5.3 km\t8:16 /km\t--',
+    'วันเพ็ญ โคตรวิชัย วันเพ็ญ โคตรวิชัย\t1.0 km\t1\t1.0 km\t8:40 /km\t8 m',
+  ].join('\n');
+  assert.deepEqual(parseLeaderboard(text), [
+    { name: 'Best ta', km: 5.3, runs: 1, paceSec: 496 },
+    { name: 'วันเพ็ญ โคตรวิชัย', km: 1, runs: 1, paceSec: 520 },
+  ]);
+});
+
+test('dedupeName ยุบเฉพาะชื่อที่ซ้ำทั้งก้อน ไม่แตะ "Mu Mu"', () => {
+  assert.equal(dedupeName('วันเพ็ญ โคตรวิชัย วันเพ็ญ โคตรวิชัย'), 'วันเพ็ญ โคตรวิชัย');
+  assert.equal(dedupeName('Mu Mu'), 'Mu Mu');
+  assert.equal(dedupeName('Joy Bunkaew'), 'Joy Bunkaew');
 });
 
 test('ไม่มีหัวตาราง Runs: เลขอันดับของแถวถัดไปไม่ถูกอ่านเป็นจำนวนครั้ง', () => {

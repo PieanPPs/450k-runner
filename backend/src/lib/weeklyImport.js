@@ -53,9 +53,9 @@ export function parseLeaderboard(text) {
   const rows = [];
   let cur = null;
   let hasRuns = false, hasPace = false;
-  const startRow = (name) => { cur = { name, km: null }; rows.push(cur); };
+  const startRow = (name, line) => { cur = { name, km: null, line }; rows.push(cur); };
 
-  for (const raw of String(text || '').split(/\r?\n/)) {
+  for (const [lineNo, raw] of String(text || '').split(/\r?\n/).entries()) {
     const line = raw.trim();
     if (!line) continue;
     let cells = line.split(/\t+/).map(c => c.trim()).filter(Boolean);
@@ -69,15 +69,19 @@ export function parseLeaderboard(text) {
     // "ชื่อ<tab>8.5" (สองช่อง ช่องหลังเป็นตัวเลขเปล่า) → ถือเป็นระยะทาง
     if (cells.length === 2 && /^[\d,]*\d(?:\.\d+)?$/.test(cells[1])) cells[1] += ' km';
 
+    // แถวแบบตาราง (หลายช่องในบรรทัดเดียว) : ช่องตัวเลข/pace หลังระยะทางของแถวเดียวกันคือ Runs / Avg. Pace แม้ไม่มีหัวตาราง
+    const tabular = cells.length >= 3;
+
     for (const cell of cells) {
       const km = KM_CELL.exec(cell);
       if (km) { if (cur && cur.km == null) cur.km = toKm(km[1]); continue; }
-      if (hasRuns && INT_CELL.test(cell) && cur && cur.km != null && cur.runs === undefined && cur.paceSec === undefined) {
+      const mine = cur && cur.km != null && (tabular && cur.line === lineNo);
+      if ((hasRuns || mine) && INT_CELL.test(cell) && cur && cur.km != null && cur.runs === undefined && cur.paceSec === undefined) {
         cur.runs = Number(cell); continue;
       }
       const pace = PACE_CELL.exec(cell);
       if (pace) {
-        if (hasPace && cur && cur.km != null && cur.paceSec === undefined) cur.paceSec = Number(pace[1]) * 60 + Number(pace[2]);
+        if ((hasPace || mine) && cur && cur.km != null && cur.paceSec === undefined) cur.paceSec = Number(pace[1]) * 60 + Number(pace[2]);
         continue;
       }
       if (SKIP_CELL.test(cell)) continue;
@@ -88,10 +92,20 @@ export function parseLeaderboard(text) {
         continue;
       }
       if (!/\p{L}/u.test(cell)) continue;
-      startRow(cell.replace(/^#?\d+[.)]?\s+/, ''));
+      startRow(dedupeName(cell.replace(/^#?\d+[.)]?\s+/, '')), lineNo);
     }
   }
-  return rows.filter(r => r.km != null && Number.isFinite(r.km));
+  return rows.filter(r => r.km != null && Number.isFinite(r.km)).map(({ line, ...r }) => r);
+}
+
+/**
+ * Strava ใส่ชื่อซ้ำตอนคัดลอกบางแถว (ข้อความแทนรูปโปรไฟล์ + ชื่อ) → "วันเพ็ญ โคตรวิชัย วันเพ็ญ โคตรวิชัย"
+ * ยุบเมื่อมี ≥ 4 คำและครึ่งแรก = ครึ่งหลัง ("Mu Mu" 2 คำ ยังเป็นชื่อจริง ไม่ยุบ)
+ */
+export function dedupeName(name) {
+  const t = String(name || '').replace(/\s+/g, ' ').trim().split(' ');
+  const h = t.length / 2;
+  return t.length >= 4 && Number.isInteger(h) && t.slice(0, h).join(' ') === t.slice(h).join(' ') ? t.slice(0, h).join(' ') : t.join(' ');
 }
 
 /** คำเตือนตอนดูตัวอย่าง (ไม่บล็อกการนำเข้า) — pace/จำนวนครั้งที่ดูผิดปกติ */
