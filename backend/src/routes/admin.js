@@ -4,7 +4,9 @@ import { db, jsonParam } from '../lib/db.js';
 import { signToken, requireAdmin } from '../middleware/adminAuth.js';
 import { exceedsPaceCap } from '../lib/paceCap.js';
 import { platform, mimeFor } from '../lib/platform.js';
-import { INTERNAL_SEASON_KEYS, loadSettings, setSettingStmt, currentSeasonId } from '../lib/season.js';
+import { INTERNAL_SEASON_KEYS, loadSettings, setSettingStmt, currentSeasonId, seasonWindowOf, baselineFlagFor } from '../lib/season.js';
+import { parseLeaderboard, matchRows, weeklyHash, weeklyHashPrefix } from '../lib/weeklyImport.js';
+import { stageWindows } from '../lib/stages.js';
 import { recomputeParticipantStats } from '../lib/participantStats.js';
 import { thaiNow } from '../lib/time.js';
 import {
@@ -379,6 +381,49 @@ router.post('/activities/manual', requireAdmin, async (req, res) => {
   // คำนวณ km ใหม่
   const stats = (await recomputeParticipantStats({ keys: [p.strava_key] })).get(p.strava_key);
   res.json({ ok: true, message: `เพิ่ม ${distKm} km ให้ ${p.strava_key} แล้ว`, km: stats?.km ?? 0 });
+});
+
+// POST /api/adminpp/import-weekly — นำเข้าสรุประยะทางรายสัปดาห์ (แผนสำรองเมื่อ sync Strava Club ไม่ได้)
+// body: { week_start: 'YYYY-MM-DD', text: ตารางที่คัดลอกจาก Club Leaderboard, commit?: true }
+//   ไม่ส่ง commit = ดูตัวอย่างเฉยๆ ไม่เขียน DB ; commit = บันทึก (นำเข้าสัปดาห์เดิมซ้ำ = แทนที่ทั้งสัปดาห์)
+//   บันทึกเป็นกิจกรรมสรุป 1 แถวต่อคน ลงวันที่ week_start — สัปดาห์ก่อนวันเริ่ม season จะเป็น baseline (ไม่นับ km)
+router.post('/import-weekly', requireAdmin, async (req, res) => {
+  const { week_start, text, commit } = req.body || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week_start || '') || isNaN(new Date(week_start)))
+    return res.status(400).json({ ok: false, message: 'week_start ต้องเป็นวันที่ YYYY-MM-DD' });
+
+  const rows = parseLeaderboard(text);
+  if (!rows.length) return res.status(400).json({ ok: false, message: 'อ่านข้อมูลจากข้อความที่วางไม่ได้ — ต้องมีชื่อและระยะทาง (km) ต่อคน' });
+
+  const participants = await db.prepare('SELECT id,name,strava_key FROM participants WHERE strava_key IS NOT NULL').all();
+  const { matched, unmatched, missing } = matchRows(rows, participants);
+
+  const settings = await loadSettings();
+  const win = seasonWindowOf(settings);
+  const firstSeen = `${week_start} 12:00:00`;
+  const counts = baselineFlagFor(firstSeen, win) === 0;
+  const stage = win.end ? stageWindows(win.start, win.end).find(w => week_start >= w.start && week_start <= w.end) : null;
+  const summary = {
+    week_start, rows: rows.length, matched, unmatched, missing,
+    total_km: Math.round(matched.reduce((s, m) => s + m.km, 0) * 100) / 100,
+    counts_toward_season: counts, stage: stage ? stage.n : null,
+    stage_aligned: stage ? stage.start === week_start : false,
+  };
+  if (!commit) return res.json({ ok: true, preview: true, ...summary });
+  if (!matched.length) return res.status(400).json({ ok: false, message: 'ไม่มีชื่อไหนจับคู่กับผู้เข้าร่วมได้ — ไม่บันทึก', ...summary });
+
+  const items = matched.map(m => ({ k: m.key, h: weeklyHash(week_start, m.key), d: m.km }));
+  await db.batch([
+    db.prepare('DELETE FROM strava_activities WHERE activity_hash LIKE ?').bind(weeklyHashPrefix(week_start)),
+    db.prepare(`
+      INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
+      SELECT json_extract(value,'$.k'), json_extract(value,'$.h'), json_extract(value,'$.d'), 0, 'นำเข้ารายสัปดาห์', ?, ?
+      FROM json_each(?)
+    `).bind(firstSeen, counts ? 0 : 1, jsonParam(items)),
+    logStmt('import-weekly', `นำเข้าสัปดาห์ ${week_start}: ${matched.length} คน รวม ${summary.total_km} km${counts ? '' : ' (ก่อนเริ่ม season = baseline)'}`),
+  ]);
+  await recomputeParticipantStats();
+  res.json({ ok: true, preview: false, ...summary, message: `นำเข้าแล้ว ${matched.length} คน รวม ${summary.total_km} km` });
 });
 
 // DELETE /api/adminpp/activities/:id — บันทึกลงถังขยะก่อน แล้วลบจริง

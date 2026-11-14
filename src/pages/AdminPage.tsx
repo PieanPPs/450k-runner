@@ -76,6 +76,7 @@ const MENUS = [
   { key:'seasons',      label:'📅 Seasons' },
   { key:'badges',       label:'🏅 Badges' },
   { key:'gallery',      label:'🖼️ Gallery' },
+  { key:'import',       label:'📥 นำเข้ารายสัปดาห์' },
   { key:'trash',        label:'🗑️ ถังขยะ' },
   { key:'export',       label:'📤 Export' },
 ];
@@ -1396,6 +1397,114 @@ function TrashPage() {
 }
 
 // ─── Export ───────────────────────────────────────────────
+// ─── นำเข้ารายสัปดาห์ (แผนสำรองเมื่อ sync Strava Club ไม่ได้) ─────
+// คัดลอกตาราง Club Leaderboard บน Strava มาวาง → ดูตัวอย่าง → บันทึก (นำเข้าสัปดาห์เดิมซ้ำ = แทนที่ทั้งสัปดาห์)
+function lastMonday(): string {
+  const d = new Date();
+  const dow = d.getDay();                                  // 0 = อาทิตย์
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1) - 7);   // จันทร์ของสัปดาห์ที่แล้ว
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function WeeklyImportPage() {
+  const [weekStart, setWeekStart] = useState(lastMonday());
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<any>(null);   // ผลล่าสุดจาก server
+  const [err, setErr] = useState('');
+  const [showMissing, setShowMissing] = useState(false);
+
+  const run = async (commit: boolean) => {
+    setBusy(true); setErr('');
+    try {
+      const r = await api('/import-weekly', { method:'POST', body: JSON.stringify({ week_start: weekStart, text, commit }) });
+      if (r.ok) setRes(r); else { setRes(null); setErr(r.message || 'ไม่สำเร็จ'); }
+    } catch { setErr('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'); }
+    setBusy(false);
+  };
+  const box: React.CSSProperties = { background:'#13132a', border:'1px solid #2a2a4a', borderRadius:12, padding:16, marginBottom:16 };
+  const btn = (bg: string, off?: boolean): React.CSSProperties => ({ background: off ? '#2a2a3a' : bg, border:'none', borderRadius:8, padding:'10px 18px', color: off ? '#666' : '#fff', fontSize:14, fontWeight:700, cursor: off ? 'default' : 'pointer', fontFamily:'Sarabun' });
+  const saved = res && !res.preview;
+  const cantSave = busy || !res || saved || !res.matched?.length;
+
+  return (
+    <div style={{ maxWidth:760 }}>
+      <h2 style={{ color:'#e2e8f0', marginBottom:6 }}>📥 นำเข้ารายสัปดาห์</h2>
+      <p style={{ color:'#94a3b8', fontSize:13, marginTop:0, lineHeight:1.7 }}>
+        ใช้เมื่อ sync จาก Strava ไม่ได้ — เปิดหน้า <b>Club → Club Leaderboard</b> บน Strava เลือกสัปดาห์ที่ต้องการ
+        คัดลอกตารางทั้งหมดมาวางด้านล่าง ระบบอ่านชื่อ + ระยะทางต่อคน แล้วบันทึกเป็นระยะรวมของสัปดาห์นั้น
+        (นำเข้าสัปดาห์เดิมซ้ำ = แทนที่ข้อมูลสัปดาห์นั้นทั้งหมด)
+      </p>
+
+      <div style={box}>
+        <label style={{ color:'#cbd5e1', fontSize:13, display:'block', marginBottom:6 }}>วันจันทร์ที่เริ่มสัปดาห์</label>
+        <input type="date" value={weekStart} onChange={e => { setWeekStart(e.target.value); setRes(null); }}
+          style={{ background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:'8px 10px', color:'#e2e8f0', fontSize:14, marginBottom:14 }} />
+        <label style={{ color:'#cbd5e1', fontSize:13, display:'block', marginBottom:6 }}>ตารางที่คัดลอกจาก Strava</label>
+        <textarea value={text} onChange={e => { setText(e.target.value); setRes(null); }} rows={10}
+          placeholder={'วางที่นี่ เช่น\nPiean P.\t45.3 km\t5\nสุชา จ.\t30 km\t3'}
+          style={{ width:'100%', boxSizing:'border-box', background:'#0d0d1a', border:'1px solid #333', borderRadius:8, padding:10, color:'#e2e8f0', fontSize:13, fontFamily:'monospace' }} />
+        <div style={{ display:'flex', gap:10, marginTop:12, flexWrap:'wrap' }}>
+          <button onClick={() => run(false)} disabled={busy || !text.trim()} style={btn('linear-gradient(135deg,#4338ca,#7c3aed)', busy || !text.trim())}>
+            {busy ? 'กำลังอ่าน...' : '🔍 ดูตัวอย่าง'}
+          </button>
+          <button onClick={() => run(true)} disabled={cantSave} style={btn('linear-gradient(135deg,#0f766e,#14b8a6)', cantSave)}>
+            💾 บันทึก{res?.matched?.length ? ` ${res.matched.length} คน` : ''}
+          </button>
+        </div>
+        {err && <div style={{ color:'#f87171', fontSize:13, marginTop:12 }}>❌ {err}</div>}
+      </div>
+
+      {res && (
+        <div style={box}>
+          {saved && <div style={{ color:'#4ade80', fontWeight:700, marginBottom:10 }}>✅ {res.message}</div>}
+          <div style={{ color:'#e2e8f0', fontSize:14, lineHeight:1.9 }}>
+            อ่านได้ <b>{res.rows}</b> แถว · จับคู่ได้ <b style={{ color:'#4ade80' }}>{res.matched.length}</b> คน · รวม <b>{res.total_km}</b> km
+          </div>
+          <div style={{ color: res.counts_toward_season ? '#94a3b8' : '#fbbf24', fontSize:13, marginBottom:10 }}>
+            {res.counts_toward_season
+              ? `นับเข้า Season${res.stage ? ` · อยู่ในด่านที่ ${res.stage}${res.stage_aligned ? '' : ' (วันที่ไม่ตรงวันเริ่มด่าน — ควรเลือกวันจันทร์ที่เริ่มด่านนั้น)'}` : ''}`
+              : 'สัปดาห์นี้ยังไม่ถึงวันเริ่ม Season (หรืออยู่นอกช่วง) — จะบันทึกเป็น baseline ไม่นับ km'}
+          </div>
+
+          {res.unmatched.length > 0 && (
+            <div style={{ background:'#2a1010', border:'1px solid #7f1d1d', borderRadius:8, padding:10, marginBottom:10 }}>
+              <div style={{ color:'#f87171', fontWeight:700, fontSize:13, marginBottom:4 }}>⚠️ ไม่ได้นำเข้า {res.unmatched.length} รายการ</div>
+              {res.unmatched.map((u: any, i: number) => (
+                <div key={i} style={{ color:'#fca5a5', fontSize:12 }}>{u.name} — {u.km} km · {u.reason}</div>
+              ))}
+              <div style={{ color:'#94a3b8', fontSize:12, marginTop:6 }}>ถ้าเป็นผู้เข้าร่วมใหม่ ให้เพิ่มในเมนู 👥 ผู้เข้าร่วม และตั้ง strava_key ให้ตรงกับชื่อบน Strava ก่อน แล้วนำเข้าอีกครั้ง</div>
+            </div>
+          )}
+
+          {res.missing.length > 0 && (
+            <div style={{ marginBottom:10 }}>
+              <button onClick={() => setShowMissing(s => !s)} style={{ background:'none', border:'none', color:'#94a3b8', fontSize:13, cursor:'pointer', padding:0, fontFamily:'Sarabun' }}>
+                {showMissing ? '▾' : '▸'} ไม่อยู่ในข้อมูลที่วาง {res.missing.length} คน (จะไม่ได้ km สัปดาห์นี้)
+              </button>
+              {showMissing && <div style={{ color:'#94a3b8', fontSize:12, marginTop:6, lineHeight:1.7 }}>{res.missing.join(' · ')}</div>}
+            </div>
+          )}
+
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead><tr style={{ color:'#94a3b8', textAlign:'left' }}>
+              <th style={{ padding:'4px 6px' }}>ชื่อบน Strava</th><th style={{ padding:'4px 6px' }}>ผู้เข้าร่วมในระบบ</th><th style={{ padding:'4px 6px', textAlign:'right' }}>km</th>
+            </tr></thead>
+            <tbody>
+              {res.matched.map((m: any) => (
+                <tr key={m.key} style={{ borderTop:'1px solid #1f1f3a', color:'#e2e8f0' }}>
+                  <td style={{ padding:'4px 6px' }}>{m.name}</td><td style={{ padding:'4px 6px' }}>{m.participantName}</td>
+                  <td style={{ padding:'4px 6px', textAlign:'right' }}>{m.km}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExportPage() {
   const doExport = async () => {
     const token = localStorage.getItem('adminToken');
@@ -2514,6 +2623,7 @@ export default function AdminPage() {
     seasons:      <SeasonsPage />,
     badges:       <BadgesPage />,
     gallery:      <GalleryAdmin />,
+    import:       <WeeklyImportPage />,
     trash:        <TrashPage />,
     export:       <ExportPage />,
   };
