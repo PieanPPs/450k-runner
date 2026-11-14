@@ -6,9 +6,13 @@
 //
 // ฟังก์ชันในไฟล์นี้เป็นฟังก์ชันล้วน (ไม่แตะ DB) เพื่อทดสอบได้
 import { makeStravaKey } from '../strava/client.js';
+import { PACE_CAP_MIN_PER_KM } from './paceCap.js';
 
 export const MAX_WEEKLY_KM = 300;   // เกินนี้ถือว่าผิดปกติ (พิมพ์ผิด/อ่านผิดคอลัมน์) — ไม่นำเข้า
+const MIN_PACE_MIN_PER_KM = 3.5;    // เร็วกว่านี้ = ปั่น/ขับรถ (เกณฑ์เดียวกับตอน sync จาก Club)
 
+const PACE_CELL = /^(\d+):(\d{2})\s*\/\s*km$/i;
+const INT_CELL = /^\d+$/;
 const KM_CELL = /^([\d,]*\d(?:\.\d+)?)\s*km$/i;
 const SKIP_CELL = /^(#?\d+[.)]?|[\d,.]+\s*(m|ft)|\d+[:'’]\d.*|\d+\s*(h|hr|min|s)\b.*|.*\/\s*(km|mi))$/i;
 const HEADER_WORDS = new Set([
@@ -39,13 +43,16 @@ export function nameKeys(name) {
 const toKm = (s) => Number(String(s).replace(/,/g, ''));
 
 /**
- * อ่านข้อความที่คัดลอกจากตาราง leaderboard → [{ name, km }]
+ * อ่านข้อความที่คัดลอกจากตาราง leaderboard → [{ name, km, runs?, paceSec? }]
  * รองรับทั้งแบบแต่ละช่องคั่นด้วย tab / ขึ้นบรรทัดใหม่ทีละช่อง และแบบ "ชื่อ 45.3 km" หรือ "ชื่อ,45.3" บรรทัดเดียว
  * ใช้ช่อง "xx km" ช่องแรกหลังชื่อเป็นระยะทางรวม (ช่อง km ถัดไปเช่น Longest ถูกข้าม)
+ * Runs (จำนวนครั้ง) และ Avg. Pace (วินาที/กม.) อ่านเมื่อเจอหัวตาราง "Runs" / "Avg. Pace" เท่านั้น
+ * เพื่อไม่ให้เลขอันดับของแถวถัดไปถูกอ่านเป็นจำนวนครั้ง
  */
 export function parseLeaderboard(text) {
   const rows = [];
   let cur = null;
+  let hasRuns = false, hasPace = false;
   const startRow = (name) => { cur = { name, km: null }; rows.push(cur); };
 
   for (const raw of String(text || '').split(/\r?\n/)) {
@@ -65,8 +72,21 @@ export function parseLeaderboard(text) {
     for (const cell of cells) {
       const km = KM_CELL.exec(cell);
       if (km) { if (cur && cur.km == null) cur.km = toKm(km[1]); continue; }
+      if (hasRuns && INT_CELL.test(cell) && cur && cur.km != null && cur.runs === undefined && cur.paceSec === undefined) {
+        cur.runs = Number(cell); continue;
+      }
+      const pace = PACE_CELL.exec(cell);
+      if (pace) {
+        if (hasPace && cur && cur.km != null && cur.paceSec === undefined) cur.paceSec = Number(pace[1]) * 60 + Number(pace[2]);
+        continue;
+      }
       if (SKIP_CELL.test(cell)) continue;
-      if (HEADER_WORDS.has(cell.toLowerCase())) continue;
+      const lower = cell.toLowerCase();
+      if (HEADER_WORDS.has(lower)) {
+        if (lower === 'runs') hasRuns = true;
+        if (lower === 'avg. pace' || lower === 'avg pace') hasPace = true;
+        continue;
+      }
       if (!/\p{L}/u.test(cell)) continue;
       startRow(cell.replace(/^#?\d+[.)]?\s+/, ''));
     }
@@ -74,10 +94,21 @@ export function parseLeaderboard(text) {
   return rows.filter(r => r.km != null && Number.isFinite(r.km));
 }
 
+/** คำเตือนตอนดูตัวอย่าง (ไม่บล็อกการนำเข้า) — pace/จำนวนครั้งที่ดูผิดปกติ */
+function warningFor(r) {
+  if (r.paceSec != null && r.paceSec > 0) {
+    const pace = r.paceSec / 60;
+    if (pace < MIN_PACE_MIN_PER_KM) return `pace เร็วผิดปกติ (< ${MIN_PACE_MIN_PER_KM} นาที/กม.) อาจเป็นการปั่น/ขับรถ`;
+    if (pace > PACE_CAP_MIN_PER_KM) return `pace ช้าเกิน ${PACE_CAP_MIN_PER_KM} นาที/กม. (เกณฑ์ปกติของระบบไม่นับ)`;
+  }
+  if (r.runs === 0 && r.km > 0) return 'มีระยะแต่จำนวนครั้ง = 0';
+  return '';
+}
+
 /**
  * จับคู่แถวกับผู้เข้าร่วมด้วย strava_key
  * participants: [{ id, name, strava_key }]
- * คืน { matched: [{ key, id, participantName, name, km }], unmatched: [{ name, km, reason }], missing: [participantName] }
+ * คืน { matched: [{ key, id, participantName, name, km, runs?, paceSec?, warning? }], unmatched: [{ name, km, reason }], missing: [participantName] }
  *   unmatched = ชื่อที่หาผู้เข้าร่วมไม่เจอ, หรือ km ผิดปกติ (<0 หรือ > MAX_WEEKLY_KM)
  *   missing   = ผู้เข้าร่วมที่ผูก strava_key แต่ไม่อยู่ในข้อมูลที่วาง (จะไม่ได้ km สัปดาห์นั้น)
  * ชื่อซ้ำ (key เดียวกัน) ใช้แถวหลังสุด
@@ -93,7 +124,12 @@ export function matchRows(rows, participants) {
       unmatched.push({ name: r.name, km: r.km, reason: `ระยะทางผิดปกติ (เกิน ${MAX_WEEKLY_KM} กม.)` });
       continue;
     }
-    matched.set(p.strava_key, { key: p.strava_key, id: p.id, participantName: p.name, name: r.name, km: Math.round(r.km * 100) / 100 });
+    const m = { key: p.strava_key, id: p.id, participantName: p.name, name: r.name, km: Math.round(r.km * 100) / 100 };
+    if (r.runs != null) m.runs = r.runs;
+    if (r.paceSec != null) m.paceSec = r.paceSec;
+    const warning = warningFor(r);
+    if (warning) m.warning = warning;
+    matched.set(p.strava_key, m);
   }
   const missing = participants.filter(p => p.strava_key && !matched.has(p.strava_key)).map(p => p.name);
   return { matched: [...matched.values()], unmatched, missing };

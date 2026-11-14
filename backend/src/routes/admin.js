@@ -7,6 +7,7 @@ import { platform, mimeFor } from '../lib/platform.js';
 import { INTERNAL_SEASON_KEYS, loadSettings, setSettingStmt, currentSeasonId, seasonWindowOf, baselineFlagFor } from '../lib/season.js';
 import { parseLeaderboard, matchRows, weeklyHash, weeklyHashPrefix } from '../lib/weeklyImport.js';
 import { stageWindows } from '../lib/stages.js';
+import { autoAwardBadges } from '../lib/stravaSync.js';
 import { recomputeParticipantStats } from '../lib/participantStats.js';
 import { thaiNow } from '../lib/time.js';
 import {
@@ -412,17 +413,24 @@ router.post('/import-weekly', requireAdmin, async (req, res) => {
   if (!commit) return res.json({ ok: true, preview: true, ...summary });
   if (!matched.length) return res.status(400).json({ ok: false, message: 'ไม่มีชื่อไหนจับคู่กับผู้เข้าร่วมได้ — ไม่บันทึก', ...summary });
 
-  const items = matched.map(m => ({ k: m.key, h: weeklyHash(week_start, m.key), d: m.km }));
+  // elapsed_time จาก Avg. Pace (ใช้แสดง pace) ; act_count จาก Runs (ไม่มี = 1 ครั้ง)
+  const items = matched.map(m => ({
+    k: m.key, h: weeklyHash(week_start, m.key), d: m.km,
+    e: m.paceSec ? Math.round(m.km * m.paceSec) : 0, c: m.runs != null ? m.runs : null,
+  }));
   await db.batch([
     db.prepare('DELETE FROM strava_activities WHERE activity_hash LIKE ?').bind(weeklyHashPrefix(week_start)),
     db.prepare(`
-      INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline)
-      SELECT json_extract(value,'$.k'), json_extract(value,'$.h'), json_extract(value,'$.d'), 0, 'นำเข้ารายสัปดาห์', ?, ?
+      INSERT INTO strava_activities (strava_key, activity_hash, distance_km, elapsed_time, activity_name, first_seen, is_baseline, act_count)
+      SELECT json_extract(value,'$.k'), json_extract(value,'$.h'), json_extract(value,'$.d'), json_extract(value,'$.e'),
+             'นำเข้ารายสัปดาห์', ?, ?, json_extract(value,'$.c')
       FROM json_each(?)
     `).bind(firstSeen, counts ? 0 : 1, jsonParam(items)),
     logStmt('import-weekly', `นำเข้าสัปดาห์ ${week_start}: ${matched.length} คน รวม ${summary.total_km} km${counts ? '' : ' (ก่อนเริ่ม season = baseline)'}`),
   ]);
   await recomputeParticipantStats();
+  try { await autoAwardBadges(settings); }   // แจก badge อัตโนมัติ (เหมือนหลัง sync) — ล้มเหลวไม่ทำให้การนำเข้าล้ม
+  catch (err) { console.error('[import-weekly] autoAwardBadges error:', err.message); }
   res.json({ ok: true, preview: false, ...summary, message: `นำเข้าแล้ว ${matched.length} คน รวม ${summary.total_km} km` });
 });
 

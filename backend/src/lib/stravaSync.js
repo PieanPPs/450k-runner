@@ -195,7 +195,7 @@ export async function rebuildWeeklyData(seasonStart) {
 }
 
 // แจก badge อัตโนมัติ — km สะสม / streak / จำนวนครั้ง / ระยะ+เวลาในกิจกรรมเดียว
-async function autoAwardBadges(settings) {
+export async function autoAwardBadges(settings) {
   const badges = await db.prepare(`
     SELECT * FROM badges
     WHERE auto_km IS NOT NULL OR auto_streak IS NOT NULL OR auto_activity_count IS NOT NULL
@@ -226,6 +226,7 @@ async function autoAwardBadges(settings) {
       SELECT p.name, COALESCE(sa.credited_km, sa.distance_km) AS km, sa.elapsed_time
       FROM strava_activities sa JOIN participants p ON p.strava_key = sa.strava_key
       WHERE sa.is_baseline=0 AND sa.elapsed_time > 0
+        AND sa.activity_hash NOT LIKE 'WEEKLY|%'   -- แถวสรุปรายสัปดาห์ไม่ใช่กิจกรรมเดี่ยว ใช้เวลา/ระยะต่อครั้งไม่ได้
         AND COALESCE(sa.credited_km, sa.distance_km) > 0 AND COALESCE(sa.credited_km, sa.distance_km) >= ?
     `).all(minKm);
     for (const b of actBadges) {

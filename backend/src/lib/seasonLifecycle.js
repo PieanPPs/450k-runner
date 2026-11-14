@@ -112,7 +112,7 @@ async function seasonResults(start, end) {
   const rows = await db.prepare(`
     SELECT p.name, p.initials, p.age_group, p.streak, p.strava_key, p.km AS stored_km, p.activity_count AS stored_count,
       COALESCE(SUM(COALESCE(a.credited_km, a.distance_km)), 0) AS act_km,
-      COUNT(a.id) AS act_count
+      COALESCE(SUM(CASE WHEN a.id IS NULL THEN 0 ELSE COALESCE(a.act_count, 1) END), 0) AS act_count
     FROM participants p
     LEFT JOIN strava_activities a
       ON a.strava_key = p.strava_key AND a.is_baseline = 0 AND substr(a.first_seen,1,10) BETWEEN ? AND ?

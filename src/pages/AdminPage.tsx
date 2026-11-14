@@ -1488,14 +1488,22 @@ function WeeklyImportPage() {
 
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead><tr style={{ color:'#94a3b8', textAlign:'left' }}>
-              <th style={{ padding:'4px 6px' }}>ชื่อบน Strava</th><th style={{ padding:'4px 6px' }}>ผู้เข้าร่วมในระบบ</th><th style={{ padding:'4px 6px', textAlign:'right' }}>km</th>
+              <th style={{ padding:'4px 6px' }}>ชื่อบน Strava</th><th style={{ padding:'4px 6px' }}>ผู้เข้าร่วมในระบบ</th>
+              <th style={{ padding:'4px 6px', textAlign:'right' }}>km</th>
+              <th style={{ padding:'4px 6px', textAlign:'right' }}>ครั้ง</th>
+              <th style={{ padding:'4px 6px', textAlign:'right' }}>pace /km</th>
             </tr></thead>
             <tbody>
               {res.matched.map((m: any) => (
-                <tr key={m.key} style={{ borderTop:'1px solid #1f1f3a', color:'#e2e8f0' }}>
-                  <td style={{ padding:'4px 6px' }}>{m.name}</td><td style={{ padding:'4px 6px' }}>{m.participantName}</td>
-                  <td style={{ padding:'4px 6px', textAlign:'right' }}>{m.km}</td>
-                </tr>
+                <React.Fragment key={m.key}>
+                  <tr style={{ borderTop:'1px solid #1f1f3a', color:'#e2e8f0' }}>
+                    <td style={{ padding:'4px 6px' }}>{m.name}</td><td style={{ padding:'4px 6px' }}>{m.participantName}</td>
+                    <td style={{ padding:'4px 6px', textAlign:'right' }}>{m.km}</td>
+                    <td style={{ padding:'4px 6px', textAlign:'right' }}>{m.runs ?? '—'}</td>
+                    <td style={{ padding:'4px 6px', textAlign:'right' }}>{m.paceSec ? `${Math.floor(m.paceSec / 60)}:${String(m.paceSec % 60).padStart(2, '0')}` : '—'}</td>
+                  </tr>
+                  {m.warning && <tr><td colSpan={5} style={{ padding:'0 6px 6px', color:'#fbbf24', fontSize:12 }}>⚠️ {m.warning}</td></tr>}
+                </React.Fragment>
               ))}
             </tbody>
           </table>

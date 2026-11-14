@@ -28,7 +28,7 @@ export async function recomputeParticipantStats({ keys } = {}) {
     db.prepare(`
       SELECT strava_key,
              COALESCE(SUM(COALESCE(credited_km, distance_km)),0) AS km,
-             COUNT(*) AS cnt,
+             COALESCE(SUM(COALESCE(act_count, 1)),0) AS cnt,
              COALESCE(SUM(CASE WHEN first_seen >= ? THEN COALESCE(credited_km, distance_km) ELSE 0 END),0) AS wk
       FROM strava_activities WHERE is_baseline=0
       GROUP BY strava_key

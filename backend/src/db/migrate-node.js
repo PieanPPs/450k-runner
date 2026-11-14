@@ -24,6 +24,8 @@ export function runNodeMigrations(raw) {
   tryRun(raw, 'ALTER TABLE strava_activities ADD COLUMN moving_time INTEGER NOT NULL DEFAULT 0', 'added moving_time column to strava_activities');
   // activity_date — วันวิ่งจริงจาก start_date_local ของ Strava (YYYY-MM-DD)
   tryRun(raw, 'ALTER TABLE strava_activities ADD COLUMN activity_date TEXT', 'added activity_date column to strava_activities');
+  // act_count — แถวสรุปรายสัปดาห์ที่นำเข้าเอง นับเป็นกี่ครั้ง (NULL = 1)
+  tryRun(raw, 'ALTER TABLE strava_activities ADD COLUMN act_count INTEGER', 'added act_count column to strava_activities');
   // ถังขยะ — เก็บ activity ที่ถูกลบไว้ก่อน ป้องกันลบพลาด
   tryRun(raw, `
     CREATE TABLE IF NOT EXISTS deleted_activities (

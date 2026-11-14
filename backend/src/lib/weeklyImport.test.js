@@ -16,8 +16,8 @@ test('อ่านแบบคั่นด้วย tab (คัดลอกจ�
     '2\tK. B.\t1,020.5 km\t4\t9.0 km\t7:10 /km',
   ].join('\n');
   assert.deepEqual(parseLeaderboard(text), [
-    { name: 'Piean P.', km: 45.3 },
-    { name: 'K. B.', km: 1020.5 },
+    { name: 'Piean P.', km: 45.3, runs: 5, paceSec: 390 },
+    { name: 'K. B.', km: 1020.5, runs: 4, paceSec: 430 },
   ]);
 });
 
@@ -79,9 +79,29 @@ test('ตารางจริงจาก Strava (ชื่อเต็ม, ห
     '2\tJoy Bunkaew\t3.2 km\t1\t3.2 km\t9:15 /km\t10 m',
   ].join('\n');
   assert.deepEqual(parseLeaderboard(text), [
-    { name: 'Mu Mu', km: 4 },
-    { name: 'Joy Bunkaew', km: 3.2 },
+    { name: 'Mu Mu', km: 4, runs: 1, paceSec: 636 },
+    { name: 'Joy Bunkaew', km: 3.2, runs: 1, paceSec: 555 },
   ]);
+});
+
+test('ไม่มีหัวตาราง Runs: เลขอันดับของแถวถัดไปไม่ถูกอ่านเป็นจำนวนครั้ง', () => {
+  const rows = parseLeaderboard('1\tMu Mu\t4.0 km\n2\tJoy Bunkaew\t3.2 km\n');
+  assert.deepEqual(rows, [{ name: 'Mu Mu', km: 4 }, { name: 'Joy Bunkaew', km: 3.2 }]);
+});
+
+test('matchRows ส่ง runs/pace ต่อ และเตือน pace ผิดปกติ (ไม่บล็อก)', () => {
+  const ps = [{ id: 1, name: 'A', strava_key: 'a_b' }, { id: 2, name: 'B', strava_key: 'c_d' }, { id: 3, name: 'C', strava_key: 'e_f' }];
+  const r = matchRows([
+    { name: 'A B', km: 10, runs: 2, paceSec: 180 },     // 3:00 /km เร็วเกิน
+    { name: 'C D', km: 5, runs: 1, paceSec: 1500 },     // 25:00 /km ช้าเกิน
+    { name: 'E F', km: 5, runs: 1, paceSec: 360 },
+  ], ps);
+  assert.equal(r.matched.length, 3);
+  assert.match(r.matched[0].warning, /เร็วผิดปกติ/);
+  assert.match(r.matched[1].warning, /ช้าเกิน/);
+  assert.equal(r.matched[2].warning, undefined);
+  assert.equal(r.matched[2].runs, 1);
+  assert.equal(r.matched[2].paceSec, 360);
 });
 
 test('นามสกุลหลายคำ: ลองแยกที่ช่องว่างแรกด้วย', () => {
