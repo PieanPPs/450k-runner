@@ -13,7 +13,7 @@ const KM_CELL = /^([\d,]*\d(?:\.\d+)?)\s*km$/i;
 const SKIP_CELL = /^(#?\d+[.)]?|[\d,.]+\s*(m|ft)|\d+[:'’]\d.*|\d+\s*(h|hr|min|s)\b.*|.*\/\s*(km|mi))$/i;
 const HEADER_WORDS = new Set([
   'rank', 'athlete', 'name', 'distance', 'runs', 'run', 'activities', 'longest', 'avg pace', 'avg. pace', 'pace',
-  'elev gain', 'elevation', 'elev', 'time', 'moving time', 'total running time', 'climbing', 'member', 'members',
+  'elev gain', 'elev. gain', 'elevation', 'elev', 'avg pace', 'time', 'moving time', 'total running time', 'climbing', 'member', 'members',
   'อันดับ', 'ชื่อ', 'ระยะทาง', 'ครั้ง', 'last week\'s leaders', 'this week\'s leaders',
 ]);
 
@@ -22,6 +22,18 @@ export function nameToKey(name) {
   const clean = String(name || '').replace(/\s+/g, ' ').trim();
   const i = clean.lastIndexOf(' ');
   return i < 0 ? makeStravaKey(clean, '') : makeStravaKey(clean.slice(0, i), clean.slice(i + 1));
+}
+
+/**
+ * key ที่เป็นไปได้ของชื่อหนึ่ง: แยกชื่อ/นามสกุลที่ช่องว่างสุดท้าย (ปกติ) และที่ช่องว่างแรก
+ * (กรณีนามสกุลมีหลายคำ เช่น "Joy Bun Kaew" ที่ Strava เก็บ firstname=Joy lastname="Bun Kaew")
+ */
+export function nameKeys(name) {
+  const clean = String(name || '').replace(/\s+/g, ' ').trim();
+  const out = new Set([nameToKey(clean)]);
+  const i = clean.indexOf(' ');
+  if (i > 0) out.add(makeStravaKey(clean.slice(0, i), clean.slice(i + 1)));
+  return [...out];
 }
 
 const toKm = (s) => Number(String(s).replace(/,/g, ''));
@@ -75,8 +87,7 @@ export function matchRows(rows, participants) {
   const matched = new Map();
   const unmatched = [];
   for (const r of rows) {
-    const key = nameToKey(r.name);
-    const p = byKey.get(key);
+    const p = nameKeys(r.name).map(k => byKey.get(k)).find(Boolean);
     if (!p) { unmatched.push({ name: r.name, km: r.km, reason: 'ไม่พบผู้เข้าร่วมที่ผูกชื่อนี้' }); continue; }
     if (r.km < 0 || r.km > MAX_WEEKLY_KM) {
       unmatched.push({ name: r.name, km: r.km, reason: `ระยะทางผิดปกติ (เกิน ${MAX_WEEKLY_KM} กม.)` });

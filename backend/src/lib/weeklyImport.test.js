@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nameToKey, parseLeaderboard, matchRows, MAX_WEEKLY_KM } from './weeklyImport.js';
+import { nameToKey, nameKeys, parseLeaderboard, matchRows, MAX_WEEKLY_KM } from './weeklyImport.js';
 
 test('nameToKey ใช้กฎเดียวกับ strava_key เดิม', () => {
   assert.equal(nameToKey('Piean P.'), 'piean_p');
@@ -70,4 +70,22 @@ test('matchRows: ระยะผิดปกติไม่ถูกนำเข
   ], participants);
   assert.deepEqual(r.matched.map(m => [m.id, m.km]), [[2, 12]]);
   assert.match(r.unmatched[0].reason, /ผิดปกติ/);
+});
+
+test('ตารางจริงจาก Strava (ชื่อเต็ม, หัวตาราง Elev. Gain, หน่วย m และ /km)', () => {
+  const text = [
+    'Rank\tAthlete\tDistance\tRuns\tLongest\tAvg. Pace\tElev. Gain',
+    '1\tMu Mu\t4.0 km\t1\t4.0 km\t10:36 /km\t14 m',
+    '2\tJoy Bunkaew\t3.2 km\t1\t3.2 km\t9:15 /km\t10 m',
+  ].join('\n');
+  assert.deepEqual(parseLeaderboard(text), [
+    { name: 'Mu Mu', km: 4 },
+    { name: 'Joy Bunkaew', km: 3.2 },
+  ]);
+});
+
+test('นามสกุลหลายคำ: ลองแยกที่ช่องว่างแรกด้วย', () => {
+  assert.deepEqual(nameKeys('Joy Bun Kaew'), ['joy bun_k', 'joy_b']);
+  const r = matchRows([{ name: 'Joy Bun Kaew', km: 3 }], [{ id: 9, name: 'จอย', strava_key: 'joy_b' }]);
+  assert.equal(r.matched[0].id, 9);
 });
