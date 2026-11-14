@@ -2,6 +2,7 @@
 //
 //   ด่านที่ N = ช่วง 7 วันนับจากวันเริ่ม season (วันเริ่ม + 7(N-1) … + 7N-1)
 //   season 91 วัน (เช่น 1 เม.ย.–30 มิ.ย.) = 13 ด่านพอดี
+//   วันที่เหลือไม่ครบสัปดาห์ (เช่น 92 วัน = 13 ด่าน + 1 วัน) รวมเข้าด่านสุดท้าย — ไม่แยกเป็นด่านสั้นที่ใช้เป้าเต็ม
 //   ผ่านด่าน = km รวมในช่วงนั้นถึงเป้าของตัวเอง (participant_targets หรือค่ากลาง)
 //
 // หมายเหตุ: เป้าที่แก้กลาง season มีผลย้อนหลัง เพราะผลทุกด่านคำนวณใหม่ทุกครั้ง
@@ -13,15 +14,15 @@ import { maskName } from '../controllers/dashboardController.js';
 export const DEFAULT_STAGE_TARGET_KM = 12;
 const round1 = (n) => Math.round(n * 10) / 10;
 
-/** ช่วงวันของแต่ละด่าน — ด่านสุดท้ายตัดที่วันสิ้นสุด season */
+/** ช่วงวันของแต่ละด่าน — ด่านสุดท้ายยาวถึงวันสิ้นสุด season (อาจยาวกว่า 7 วัน) */
 export function stageWindows(start, end) {
   if (!start || !end || end < start) return [];
   const days = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
-  const total = Math.ceil(days / 7);
+  const total = Math.max(1, Math.floor(days / 7));
   return Array.from({ length: total }, (_, i) => {
     const s = addDays(start, i * 7);
-    const e = addDays(start, i * 7 + 6);
-    return { n: i + 1, start: s, end: e > end ? end : e };
+    const e = i === total - 1 ? end : addDays(start, i * 7 + 6);
+    return { n: i + 1, start: s, end: e };
   });
 }
 
@@ -42,7 +43,11 @@ export function buildStages({ start, end, today, closed, defaultTarget, particip
   const windows = stageWindows(start, end);
   const current = closed ? windows.length + 1 : currentStageNo(windows, today);
   const kmBy = new Map();
-  for (const r of kmRows) kmBy.set(`${r.participant_id}:${r.stage}`, r.km);
+  for (const r of kmRows) {
+    // วันที่เหลือท้าย season (เกินด่านสุดท้าย) นับเป็นของด่านสุดท้าย
+    const key = `${r.participant_id}:${Math.min(r.stage, windows.length)}`;
+    kmBy.set(key, (kmBy.get(key) || 0) + r.km);
+  }
 
   const players = participants.map(p => {
     const target = targets.get(p.id) ?? defaultTarget;

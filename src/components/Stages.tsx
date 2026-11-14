@@ -65,7 +65,7 @@ export default function Stages() {
               <div style={{ fontSize:32, marginBottom:6 }}>🚪</div>
               <div style={{ color:t.text, fontWeight:700, fontSize:16 }}>ด่านที่ 1 เปิด {thDate(data.seasonStart)}</div>
               <div style={{ color:t.textMuted, fontSize:13, marginTop:4 }}>
-                ทั้งหมด {data.totalStages} ด่าน ด่านละ 7 วัน — วิ่งให้ถึงเป้าของตัวเองในแต่ละสัปดาห์ก็ผ่านด่าน
+                ทั้งหมด {data.totalStages} ด่าน ด่านละ 7 วัน (ด่านสุดท้ายรวมวันที่เหลือ) — วิ่งให้ถึงเป้าของตัวเองในแต่ละสัปดาห์ก็ผ่านด่าน
               </div>
             </div>
           )}

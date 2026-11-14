@@ -375,7 +375,7 @@ function Settings() {
         <div style={{ background:'#1a1530', border:'1px dashed #4c3a8a', borderRadius:8, padding:'8px 12px', color:'#a78bfa', fontSize:12, marginBottom:12 }}>
           💡 วันเริ่ม/สิ้นสุด Season แนะนำให้ตั้งที่แท็บ "📅 Seasons → ตั้งค่า Season" (ระบบจะเปิด/ปิดให้อัตโนมัติ) — ช่องด้านล่างใช้แก้ season ที่กำลังแข่งอยู่เท่านั้น
         </div>
-        {inp('season_start','วันเริ่มต้น Season ปัจจุบัน (YYYY-MM-DD)','2027-04-01')}
+        {inp('season_start','วันเริ่มต้น Season ปัจจุบัน (YYYY-MM-DD)','2027-03-01')}
         {inp('season_end','วันสิ้นสุด Season ปัจจุบัน (YYYY-MM-DD)','2027-06-30')}
         {inp('goal_km_per_person','เป้าหมาย km/คน','450')}
         {inp('stage_target_default_km','เป้า km ต่อด่าน (สัปดาห์) ค่ากลาง — ใช้กับคนที่ไม่ได้ตั้งเป้ารายคน','12')}
@@ -1448,7 +1448,10 @@ const addDaysStr = (d: string, n: number) => {
   return x.toISOString().slice(0, 10);
 };
 
-// วันสิ้นสุดของ season ยาว n เดือน (ตรงกับ backend endAfterMonths) เช่น 2027-04-01 + 3 → 2027-06-30
+// วันเริ่ม Season 2 (1 มี.ค. 2570) — ค่าเริ่มต้นของฟอร์มตั้ง season ถัดไป
+const SEASON2_START = '2027-03-01';
+
+// วันสิ้นสุดของ season ยาว n เดือน (ตรงกับ backend endAfterMonths) เช่น 2027-03-01 + 3 → 2027-05-31
 function endAfterMonths(start: string, months: number) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return '';
   const [y, m, d] = start.split('-').map(Number);
@@ -1520,7 +1523,7 @@ function SeasonSetup({ onChanged, onCloseNow }: { onChanged: () => void; onClose
       setForm(f => ({ ...f, ...s.next!, duration_months:3 }));
       setEndTouched(true);
     } else {
-      const start = s.today < '2027-04-01' ? '2027-04-01' : '';
+      const start = s.today < SEASON2_START ? SEASON2_START : '';
       setForm(f => ({ ...f, season_name:s.suggested_name, season_start:start, season_end:endAfterMonths(start, 3), subtitle:'' }));
       setEndTouched(false);
     }
